@@ -1,5 +1,4 @@
 
-Certainly! Below is the plain text version formatted for direct copy-paste into a blank README file:
 
 NBA Player Props Analyzer
 Welcome to the NBA Player Props Analyzer project! This tool is designed to assist sports bettors in making data-driven decisions by leveraging advanced machine learning models, real-time data updates, and comprehensive basketball analytics.
