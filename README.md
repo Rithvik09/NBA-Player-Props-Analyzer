@@ -1,19 +1,11 @@
 
 
 NBA Player Props Analyzer
-Welcome to the NBA Player Props Analyzer project! This tool is designed to assist sports bettors in making data-driven decisions by leveraging advanced machine learning models, real-time data updates, and comprehensive basketball analytics.
+Welcome to the NBA Player Props Analyzer project! 
 
-Table of Contents
-Overview
-Key Features
-System Architecture
-Data Collection and Integration
-Machine Learning Models
-Installation
-Usage
-Future Improvements
-Contributors
-Overview
+This tool is designed to assist sports bettors in making data-driven decisions by leveraging advanced machine learning models, real-time data updates, and comprehensive basketball analytics.
+
+
 The NBA Player Props Analyzer transforms sports betting from an intuition-driven activity into a data-driven process. Using historical and real-time basketball data, this system predicts player performance and provides betting recommendations tailored to specific games and players.
 
 This project integrates data management, machine learning, and database-driven analytics to create a recommendation engine that goes beyond traditional betting tools.
