@@ -72,3 +72,8 @@ jinja2.exceptions.TemplateNotFound: index.html
 2024-12-09 15:57:04,859 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
 2024-12-09 15:57:08,006 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
 2024-12-09 15:57:09,769 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
+2024-12-09 16:11:59,936 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
+2024-12-09 16:13:53,119 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
+2024-12-09 16:14:43,991 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2024-12-09 16:17:21,410 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2024-12-09 16:17:22,951 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]

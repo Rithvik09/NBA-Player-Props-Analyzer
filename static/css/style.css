@@ -1,4 +1,3 @@
-/* Base styles */
 .form-input {
     transition: border-color 0.15s ease-in-out;
 }
@@ -37,12 +36,10 @@
     background-color: rgba(59, 130, 246, 0.1);
 }
 
-/* Active suggestion styling */
 #playerSuggestions .bg-blue-50 {
     background-color: rgba(59, 130, 246, 0.1);
 }
 
-/* Results styling */
 .prediction-card {
     transition: all 0.3s ease;
 }
@@ -66,7 +63,6 @@
     color: #991B1B;
 }
 
-/* Loading spinner */
 .loader {
     border: 3px solid #f3f3f3;
     border-radius: 50%;
@@ -81,7 +77,6 @@
     100% { transform: rotate(360deg); }
 }
 
-/* Table styles */
 .recent-games-table tr:nth-child(even) {
     background-color: rgba(243, 244, 246, 0.5);
 }

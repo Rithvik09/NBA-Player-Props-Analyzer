@@ -11,7 +11,6 @@ app = Flask(__name__,
     static_folder='../static',
     template_folder='../templates')
 
-# Setup logging
 if not os.path.exists('logs'):
     os.mkdir('logs')
 
@@ -24,13 +23,12 @@ app.logger.addHandler(file_handler)
 app.logger.setLevel(logging.INFO)
 app.logger.info('Basketball Betting Helper startup')
 
-# Initialize betting helper
 betting_helper = BasketballBettingHelper()
 
 
 @app.route('/test_api')
 def test_api():
-    """Test route to check NBA API functionality"""
+    #Test route to check NBA API functionality
     try:
         all_players = players.get_players()
         active_players = [p for p in all_players if p['is_active']]
@@ -44,12 +42,10 @@ def test_api():
 
 @app.route('/')
 def home():
-    """Render the home page"""
     return render_template('index.html')
 
 @app.route('/search_players')
 def search_players():
-    """Handle player search/autocomplete"""
     try:
         query = request.args.get('q', '')
         
@@ -65,7 +61,7 @@ def search_players():
 
 @app.route('/get_player_stats/<int:player_id>')
 def get_player_stats(player_id):
-    """Get comprehensive player statistics"""
+    #Get comprehensive player statistics
     try:
         stats = betting_helper.get_player_stats(player_id)
         if stats:
@@ -79,7 +75,7 @@ def get_player_stats(player_id):
 
 @app.route('/analyze_prop', methods=['POST'])
 def analyze_prop():
-    """Analyze prop bet for given player and line"""
+    #Analyze prop bet for given player and line
     try:
         data = request.get_json()
         if not data:
@@ -122,12 +118,10 @@ def analyze_prop():
 
 @app.errorhandler(404)
 def not_found_error(error):
-    """Handle 404 errors"""
     return jsonify({'error': 'Not found'}), 404
 
 @app.errorhandler(500)
 def internal_error(error):
-    """Handle 500 errors"""
     app.logger.error(f'Server Error: {error}')
     return jsonify({'error': 'Internal server error'}), 500
 

@@ -17,7 +17,7 @@ class MLPredictor:
         self._load_or_create_models()
 
     def _load_or_create_models(self):
-        """Load existing models or create new ones"""
+        #Load existing models or create new ones
         try:
             self.classification_model = joblib.load(f'{self.model_dir}/classification_model.joblib')
             self.regression_model = joblib.load(f'{self.model_dir}/regression_model.joblib')
@@ -37,7 +37,6 @@ class MLPredictor:
     def prepare_features(self, player_stats, opponent_data=None, matchup_history=None, team_data=None):
         features = {}
     
-        # Basic player stats features (existing)
         features.update({
             'recent_avg': float(player_stats.get('last5_avg', 0)),
             'season_avg': float(player_stats.get('avg', 0)),
@@ -47,7 +46,6 @@ class MLPredictor:
             'games_played': len(player_stats.get('values', [])),
         })
 
-        # Team pace/style metrics
         if team_data:
             features.update({
                 'team_pace': float(team_data.get('pace', 0)),
@@ -57,7 +55,6 @@ class MLPredictor:
                 'team_fastbreak_points': float(team_data.get('fastbreak_points', 0))
             })
 
-        # Matchup-specific features
         if matchup_history and opponent_data:
             features.update({
                 'vs_team_avg': float(np.mean(matchup_history.get('values', [0]))),
@@ -67,7 +64,6 @@ class MLPredictor:
                 'strength_of_opponent': float(opponent_data.get('net_rating', 0))
             })
 
-        # Injury impact features
         if team_data and opponent_data:
             features.update({
                 'team_injuries_impact': float(team_data.get('injuries_impact', 0)),
@@ -79,28 +75,22 @@ class MLPredictor:
         return features
 
     def train(self, training_data):
-        """Train both classification and regression models"""
         if not training_data:
             raise ValueError("No training data provided")
 
-        # Prepare features and targets
         X = pd.DataFrame([data['features'] for data in training_data])
         y_class = [1 if data['result'] > data['line'] else 0 for data in training_data]
         y_reg = [data['result'] for data in training_data]
 
-        # Split data
         X_train, X_test, y_class_train, y_class_test = train_test_split(X, y_class, test_size=0.2)
         _, _, y_reg_train, y_reg_test = train_test_split(X, y_reg, test_size=0.2)
 
-        # Scale features
         X_train_scaled = self.scaler.fit_transform(X_train)
         X_test_scaled = self.scaler.transform(X_test)
 
-        # Train models
         self.classification_model.fit(X_train_scaled, y_class_train)
         self.regression_model.fit(X_train_scaled, y_reg_train)
 
-        # Save models
         joblib.dump(self.classification_model, f'{self.model_dir}/classification_model.joblib')
         joblib.dump(self.regression_model, f'{self.model_dir}/regression_model.joblib')
         joblib.dump(self.scaler, f'{self.model_dir}/scaler.joblib')
@@ -108,8 +98,7 @@ class MLPredictor:
     def predict(self, features, line):
        try:
            features_df = pd.DataFrame([features])
-           
-           # Normalize features
+
            for col in features_df.columns:
                mean = features_df[col].mean() 
                std = features_df[col].std()
@@ -118,19 +107,15 @@ class MLPredictor:
                else:
                    features_df[col] = 0
 
-           # Base prediction on recent performance and trends
            recent_avg = features.get('recent_avg', 0)
            season_avg = features.get('season_avg', 0)
            std_dev = features.get('stddev', 0)
-           
-           # Weight recent performance more heavily
+
            predicted_value = (0.7 * recent_avg + 0.3 * season_avg)
-           
-           # Calculate probability based on historical distribution
+
            z_score = (line - predicted_value) / (std_dev + 1e-6)
            over_prob = 1 - scipy.stats.norm.cdf(z_score)
-           
-           # Calculate edge
+
            edge = ((predicted_value - line) / line) if line > 0 else 0
            
            return {
@@ -143,7 +128,6 @@ class MLPredictor:
            
        except Exception as e:
            print(f"Prediction error: {e}")
-           # Return basic prediction
            return {
                'over_probability': 0.6 if features.get('season_avg', line) > line else 0.4,
                'predicted_value': float(features.get('season_avg', line)),
@@ -153,7 +137,7 @@ class MLPredictor:
            }
 
     def _calculate_confidence(self, prob, pred_value, line):
-        """Calculate prediction confidence"""
+        #Calculate prediction confidence
         prob_distance = abs(prob - 0.5)
         value_distance = abs(pred_value - line) / line if line > 0 else 0
         
@@ -164,7 +148,7 @@ class MLPredictor:
         return 'LOW'
 
     def _generate_recommendation(self, prob, pred_value, line):
-        """Generate betting recommendation"""
+        #Generate betting recommendation
         if prob > 0.65 or (pred_value - line) / line > 0.1:
             return 'OVER'
         elif prob < 0.35 or (line - pred_value) / line > 0.1:

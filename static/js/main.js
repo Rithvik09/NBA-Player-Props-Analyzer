@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const suggestions = document.getElementById('playerSuggestions');
     const analyzePropBtn = document.getElementById('analyzeProp');
     
-    // Player search with debounce
+    // Player search
     let timeout = null;
     playerSearch.addEventListener('input', function() {
         clearTimeout(timeout);
@@ -20,7 +20,6 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Show loading state in dropdown
         suggestions.innerHTML = '<div class="p-2 text-gray-500">Loading...</div>';
         suggestions.classList.remove('hidden');
         
@@ -69,7 +68,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         try {
-            // Show loading state
             analyzePropBtn.disabled = true;
             analyzePropBtn.innerHTML = '<span class="loader"></span> Analyzing...';
             
@@ -100,20 +98,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(analysis.error || 'Analysis failed');
             }
             
-            // Update UI
             updateResults(analysis, stats, propType, line);
             
         } catch (error) {
             console.error('Error:', error);
             alert('Error analyzing prop: ' + error.message);
         } finally {
-            // Reset button
             analyzePropBtn.disabled = false;
             analyzePropBtn.innerHTML = 'Analyze Prop';
         }
     });
 
-    // Hide suggestions when clicking outside
     document.addEventListener('click', function(e) {
         if (!suggestions.contains(e.target) && e.target !== playerSearch) {
             suggestions.classList.add('hidden');
@@ -130,7 +125,6 @@ function updateResults(analysis, stats, propType, line) {
         
         resultsSection.classList.remove('hidden');
         
-        // Safely update UI elements
         const updateElement = (id, value) => {
             const element = document.getElementById(id);
             if (element) element.textContent = value;
@@ -140,14 +134,12 @@ function updateResults(analysis, stats, propType, line) {
         updateElement('average', analysis.average.toFixed(1));
         updateElement('last5Average', analysis.last5_average.toFixed(1));
         
-        // Update recommendation
         const recommendationEl = document.getElementById('recommendation');
         if (recommendationEl) {
             recommendationEl.textContent = `${analysis.recommendation} (${analysis.confidence})`;
             recommendationEl.className = `text-2xl font-bold ${getConfidenceColor(analysis.confidence)}`;
         }
         
-        // Update detailed stats
         updateElement('timesOver', `${analysis.times_hit} / ${analysis.total_games}`);
         updateElement('timesUnder', `${analysis.total_games - analysis.times_hit} / ${analysis.total_games}`);
         
@@ -158,7 +150,6 @@ function updateResults(analysis, stats, propType, line) {
             updateElement('edge', `${(analysis.edge * 100).toFixed(1)}%`);
         }
         
-        // Update visualizations
         updatePerformanceChart(stats, propType, line);
         updateRecentGames(stats, propType, line);
         
@@ -214,7 +205,6 @@ function updatePerformanceChart(stats, propType, line) {
             stats.combined_stats[propType]?.values || [] : 
             stats[propType]?.values || [];
         
-        // Format dates nicely
         let dates = stats.dates?.map(date => {
             const d = new Date(date);
             return d.toLocaleDateString('en-US', { 
@@ -223,7 +213,6 @@ function updatePerformanceChart(stats, propType, line) {
             });
         }) || [];
         
-        // Create copies before reversing
         const reversedValues = [...values].reverse();
         const reversedDates = [...dates].reverse();
         
