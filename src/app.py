@@ -75,46 +75,35 @@ def get_player_stats(player_id):
 
 @app.route('/analyze_prop', methods=['POST'])
 def analyze_prop():
-    #Analyze prop bet for given player and line
     try:
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
             
-        required_fields = ['player_id', 'prop_type', 'line']
+        required_fields = ['player_id', 'prop_type', 'line', 'opponent_team_id']
         if not all(field in data for field in required_fields):
-            return jsonify({'error': 'Missing required fields'}), 400
+            return jsonify({'error': f'Missing required fields. Required: {required_fields}'}), 400
 
         player_id = data['player_id']
         prop_type = data['prop_type']
         line = float(data['line'])
+        opponent_team_id = int(data['opponent_team_id'])
         
         analysis = betting_helper.analyze_prop_bet(
             player_id=player_id,
             prop_type=prop_type,
-            line=line
+            line=line,
+            opponent_team_id=opponent_team_id  # Add this parameter
         )
         
         if analysis:
-            return jsonify({
-                'success': True,
-                'probability': analysis['hit_rate'],
-                'average': analysis['average'],
-                'last5_average': analysis['last5_average'],
-                'times_hit': analysis['times_hit'],
-                'total_games': analysis['total_games'],
-                'trend': analysis['trend'],
-                'recommendation': analysis['recommendation'],
-                'confidence': analysis['confidence'],
-                'edge': analysis['edge'],
-                'values': analysis['values'],
-                'predicted_value': analysis.get('predicted_value'),
-                'over_probability': analysis.get('over_probability', 0)
-            })
+            return jsonify(analysis)  # The success flag is now included in the analysis dict
+        else:
+            return jsonify({'error': 'Unable to perform analysis', 'success': False}), 500
             
     except Exception as e:
         app.logger.error(f'Error analyzing prop: {e}')
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e), 'success': False}), 500
 
 @app.errorhandler(404)
 def not_found_error(error):

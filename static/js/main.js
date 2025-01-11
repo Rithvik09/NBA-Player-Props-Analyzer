@@ -6,10 +6,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const suggestions = document.getElementById('playerSuggestions');
     const analyzePropBtn = document.getElementById('analyzeProp');
     
-    // Player search
-    let timeout = null;
+    // Player search functionality
+    let searchTimeout = null;
     playerSearch.addEventListener('input', function() {
-        clearTimeout(timeout);
+        clearTimeout(searchTimeout);
         selectedPlayerId = null;
         
         const query = this.value;
@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', function() {
         suggestions.innerHTML = '<div class="p-2 text-gray-500">Loading...</div>';
         suggestions.classList.remove('hidden');
         
-        timeout = setTimeout(() => {
+        searchTimeout = setTimeout(() => {
             fetch(`/search_players?q=${encodeURIComponent(query)}`)
                 .then(response => response.json())
                 .then(players => {
@@ -43,7 +43,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             suggestions.appendChild(div);
                         });
                     }
-                    suggestions.classList.remove('hidden');
                 })
                 .catch(error => {
                     console.error('Error:', error);
@@ -52,7 +51,30 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 300);
     });
 
-    // Analyze prop button click
+    // Keyboard navigation for player suggestions
+    playerSearch.addEventListener('keydown', function(e) {
+        const items = suggestions.querySelectorAll('div:not(.text-gray-500):not(.text-red-500)');
+        const active = suggestions.querySelector('.bg-blue-50');
+        
+        switch(e.key) {
+            case 'ArrowDown':
+            case 'ArrowUp':
+                e.preventDefault();
+                handleArrowNavigation(e.key, items, active);
+                break;
+            case 'Enter':
+                if (active) {
+                    e.preventDefault();
+                    active.click();
+                }
+                break;
+            case 'Escape':
+                suggestions.classList.add('hidden');
+                break;
+        }
+    });
+
+    // Analyze prop button handler
     analyzePropBtn.addEventListener('click', async function() {
         if (!selectedPlayerId) {
             alert('Please select a player');
@@ -61,9 +83,15 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const propType = document.getElementById('propType').value;
         const line = document.getElementById('lineInput').value;
+        const opponentTeamId = document.getElementById('opponentTeam').value;
         
         if (!line) {
             alert('Please enter a line');
+            return;
+        }
+        
+        if (!opponentTeamId) {
+            alert('Please select an opponent team');
             return;
         }
         
@@ -73,6 +101,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Get player stats
             const statsResponse = await fetch(`/get_player_stats/${selectedPlayerId}`);
+            if (!statsResponse.ok) throw new Error('Failed to fetch player stats');
             const stats = await statsResponse.json();
             
             // Get prop analysis
@@ -84,7 +113,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({
                     player_id: selectedPlayerId,
                     prop_type: propType,
-                    line: parseFloat(line)
+                    line: parseFloat(line),
+                    opponent_team_id: parseInt(opponentTeamId)
                 })
             });
             
@@ -109,6 +139,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Close suggestions on click outside
     document.addEventListener('click', function(e) {
         if (!suggestions.contains(e.target) && e.target !== playerSearch) {
             suggestions.classList.add('hidden');
@@ -118,38 +149,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function updateResults(analysis, stats, propType, line) {
     try {
-        // Show results section
-        generateMLAnalysis(analysis, stats, propType);
         const resultsSection = document.getElementById('results');
-        if (!resultsSection) throw new Error('Results section not found');
-        
         resultsSection.classList.remove('hidden');
         
-        const updateElement = (id, value) => {
-            const element = document.getElementById(id);
-            if (element) element.textContent = value;
-        };
+        // Update main prediction
+        updateMainPrediction(analysis);
         
-        updateElement('hitRate', `${(analysis.probability * 100).toFixed(1)}%`);
-        updateElement('average', analysis.average.toFixed(1));
-        updateElement('last5Average', analysis.last5_average.toFixed(1));
+        // Update key metrics
+        updateKeyMetrics(analysis, stats);
         
-        const recommendationEl = document.getElementById('recommendation');
-        if (recommendationEl) {
-            recommendationEl.textContent = `${analysis.recommendation} (${analysis.confidence})`;
-            recommendationEl.className = `text-2xl font-bold ${getConfidenceColor(analysis.confidence)}`;
-        }
+        // Update ML Analysis
+        updateMLAnalysis(analysis, stats, propType);
         
-        updateElement('timesOver', `${analysis.times_hit} / ${analysis.total_games}`);
-        updateElement('timesUnder', `${analysis.total_games - analysis.times_hit} / ${analysis.total_games}`);
-        
-        if (analysis.trend) {
-            updateElement('trendDirection', analysis.trend.direction);
-            updateElement('valueVsLine', 
-                `${(analysis.edge * 100).toFixed(1)}% ${analysis.edge > 0 ? 'above' : 'below'}`);
-            updateElement('edge', `${(analysis.edge * 100).toFixed(1)}%`);
-        }
-        
+        // Update other sections
+        updatePlayerContext(analysis.context?.player, stats);
+        updateTeamContext(analysis.context?.team);
+        updateMatchupAnalysis(analysis.context?.player?.matchup_history);
         updatePerformanceChart(stats, propType, line);
         updateRecentGames(stats, propType, line);
         
@@ -159,164 +174,269 @@ function updateResults(analysis, stats, propType, line) {
     }
 }
 
-function handleArrowNavigation(key, items, active) {
-    if (items.length === 0) return;
+function updateMainPrediction(analysis) {
+    const mainPrediction = document.getElementById('mainPrediction');
+    if (!mainPrediction) return;
     
-    let nextIndex;
-    if (!active) {
-        nextIndex = key === 'ArrowDown' ? 0 : items.length - 1;
+    // Determine color based on recommendation
+    let colorClass = '';
+    if (analysis.recommendation.includes('STRONG')) {
+        colorClass = analysis.recommendation.includes('OVER') ? 'text-green-600' : 'text-red-600';
+    } else if (analysis.recommendation.includes('LEAN')) {
+        colorClass = analysis.recommendation.includes('OVER') ? 'text-green-500' : 'text-red-500';
     } else {
-        const currentIndex = Array.from(items).indexOf(active);
-        active.classList.remove('bg-blue-50');
-        
-        if (key === 'ArrowDown') {
-            nextIndex = currentIndex + 1 >= items.length ? 0 : currentIndex + 1;
-        } else {
-            nextIndex = currentIndex - 1 < 0 ? items.length - 1 : currentIndex - 1;
-        }
+        colorClass = 'text-gray-600';
     }
     
-    items[nextIndex].classList.add('bg-blue-50');
-    items[nextIndex].scrollIntoView({ block: 'nearest' });
+    // Remove any existing color classes and add the new one
+    mainPrediction.className = `text-4xl font-bold mb-4 ${colorClass}`;
+    mainPrediction.textContent = `${analysis.recommendation} (${analysis.confidence})`;
 }
 
-function getConfidenceColor(confidence) {
-    switch (confidence) {
-        case 'HIGH':
-            return 'text-green-600';
-        case 'MEDIUM':
-            return 'text-yellow-600';
-        case 'LOW':
-            return 'text-red-600';
-        default:
-            return '';
+function updateKeyMetrics(analysis, stats) {
+    // Update Predicted Value
+    const predictedValue = document.getElementById('predictedValue');
+    const edgeValue = document.getElementById('edgeValue');
+    if (predictedValue && edgeValue) {
+        predictedValue.textContent = analysis.predicted_value.toFixed(1);
+        edgeValue.textContent = `${analysis.edge > 0 ? '+' : ''}${(analysis.edge * 100).toFixed(1)}% vs line`;
+        edgeValue.className = `text-sm ${analysis.edge > 0 ? 'text-green-600' : 'text-red-600'}`;
+    }
+    
+    // Update Hit Rate
+    const hitRate = document.getElementById('hitRate');
+    const hitRateDetails = document.getElementById('hitRateDetails');
+    if (hitRate && hitRateDetails) {
+        hitRate.textContent = `${(analysis.hit_rate * 100).toFixed(1)}%`;
+        hitRateDetails.textContent = `${analysis.times_hit} / ${analysis.total_games} games`;
+    }
+    
+    // Update Model Confidence
+    const modelConfidence = document.getElementById('modelConfidence');
+    if (modelConfidence) {
+        modelConfidence.textContent = analysis.confidence;
+        modelConfidence.className = `text-2xl font-bold ${
+            analysis.confidence === 'HIGH' ? 'text-green-600' :
+            analysis.confidence === 'MEDIUM' ? 'text-yellow-600' :
+            'text-red-600'
+        }`;
+    }
+}
+
+function updateMLAnalysis(analysis, stats, propType) {
+    // Get container elements
+    const mainAnalysisText = document.getElementById('mainAnalysisText');
+    const classificationConf = document.getElementById('classificationConfidence');
+    const regressionPred = document.getElementById('regressionPrediction');
+    
+    if (!mainAnalysisText || !classificationConf || !regressionPred) {
+        console.error('Required ML analysis elements not found');
+        return;
+    }
+    
+    const propLabel = getPropTypeLabel(propType);
+    
+    // Generate analysis text
+    let analysisText = `Based on our ML analysis of ${stats.games_played} recent games, `;
+    analysisText += `we predict ${propLabel} to go ${analysis.recommendation} with `;
+    analysisText += `${analysis.confidence} confidence. The model predicts a value of `;
+    analysisText += `${analysis.predicted_value.toFixed(1)} (${analysis.edge > 0 ? '+' : ''}${(analysis.edge * 100).toFixed(1)}% vs line).`;
+    
+    // Update the DOM elements
+    mainAnalysisText.textContent = analysisText;
+    classificationConf.textContent = `Over probability: ${(analysis.over_probability * 100).toFixed(1)}%`;
+    regressionPred.textContent = `Predicted value: ${analysis.predicted_value.toFixed(1)}`;
+    
+    // Add color coding based on confidence
+    const confidenceColor = analysis.confidence === 'HIGH' ? 'text-green-600' : 
+                          analysis.confidence === 'MEDIUM' ? 'text-yellow-600' : 
+                          'text-red-600';
+    
+    mainAnalysisText.className = `text-gray-700 leading-relaxed mb-4 ${confidenceColor}`;
+}
+
+function updatePlayerContext(playerContext, stats) {
+    const container = document.getElementById('playerContext');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    if (playerContext) {
+        const items = [
+            { label: 'Position', value: playerContext.position },
+            { label: 'Recent Form', value: `${(stats.last5_average || 0).toFixed(1)} avg last 5` },
+            { label: 'Injury Risk', value: playerContext.injury_history?.injury_risk || 'Low' },
+            { label: 'Games Played', value: stats.games_played }
+        ];
+        
+        items.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'context-item';
+            div.innerHTML = `
+                <span class="text-gray-600">${item.label}</span>
+                <span class="font-medium">${item.value}</span>
+            `;
+            container.appendChild(div);
+        });
+    }
+}
+
+function updateTeamContext(teamContext) {
+    const container = document.getElementById('teamContext');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    if (teamContext) {
+        const items = [
+            { label: 'Pace', value: teamContext.pace?.toFixed(1) || 'N/A' },
+            { label: 'Offensive Rating', value: teamContext.offensive_rating?.toFixed(1) || 'N/A' },
+            { 
+                label: 'Injury Impact', 
+                value: `${(teamContext.injury_impact * 100).toFixed(1)}%`,
+                className: teamContext.injury_impact > 0.15 ? 'text-red-600 font-bold' : ''
+            }
+        ];
+        
+        // Add injury details if available
+        if (teamContext.injuries && teamContext.injuries.total_players_out > 0) {
+            items.push({
+                label: 'Players Out',
+                value: `${teamContext.injuries.key_players_out} key, ${teamContext.injuries.total_players_out} total`,
+                className: 'text-red-600'
+            });
+            
+            // Add individual injuries
+            teamContext.injuries.active_injuries.forEach(injury => {
+                items.push({
+                    label: injury.player_name,
+                    value: injury.status,
+                    className: 'text-sm text-gray-500 italic'
+                });
+            });
+        }
+        
+        items.forEach(item => {
+            const div = document.createElement('div');
+            div.className = `context-item ${item.className || ''}`;
+            div.innerHTML = `
+                <span class="text-gray-600">${item.label}</span>
+                <span class="font-medium">${item.value}</span>
+            `;
+            container.appendChild(div);
+        });
+    }
+}
+
+function updateMatchupAnalysis(matchupHistory) {
+    const container = document.getElementById('matchupAnalysis');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    if (matchupHistory) {
+        const items = [
+            { label: 'VS Team Average', value: matchupHistory.avg_points?.toFixed(1) || 'N/A' },
+            { label: 'Success Rate', value: `${(matchupHistory.success_rate * 100).toFixed(1)}%` },
+            { label: 'Games Played', value: matchupHistory.games_played || 'N/A' }
+        ];
+        
+        items.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'context-item';
+            div.innerHTML = `
+                <span class="text-gray-600">${item.label}</span>
+                <span class="font-medium">${item.value}</span>
+            `;
+            container.appendChild(div);
+        });
     }
 }
 
 function updatePerformanceChart(stats, propType, line) {
-    try {
-        const ctx = document.getElementById('performanceChart');
-        
-        if (performanceChart) {
-            performanceChart.destroy();
-        }
-        
-        const values = propType.includes('_') ? 
-            stats.combined_stats[propType]?.values || [] : 
-            stats[propType]?.values || [];
-        
-        let dates = stats.dates?.map(date => {
-            const d = new Date(date);
-            return d.toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric'
-            });
-        }) || [];
-        
-        const reversedValues = [...values].reverse();
-        const reversedDates = [...dates].reverse();
-        
-        performanceChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: reversedDates,
-                datasets: [
-                    {
-                        label: 'Actual',
-                        data: reversedValues,
-                        borderColor: 'rgb(59, 130, 246)',
-                        tension: 0.1,
-                        fill: false
-                    },
-                    {
-                        label: 'Line',
-                        data: Array(reversedDates.length).fill(line),
-                        borderColor: 'rgb(239, 68, 68)',
-                        borderDash: [5, 5],
-                        tension: 0,
-                        fill: false
-                    }
-                ]
+    const ctx = document.getElementById('performanceChart');
+    if (!ctx) return;
+    
+    if (performanceChart) {
+        performanceChart.destroy();
+    }
+    
+    const values = propType.includes('_') ? 
+        stats.combined_stats[propType]?.values || [] : 
+        stats[propType]?.values || [];
+    
+    const dates = stats.dates?.map(date => {
+        const d = new Date(date);
+        return d.toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric'
+        });
+    }) || [];
+    
+    const reversedValues = [...values].reverse();
+    const reversedDates = [...dates].reverse();
+    
+    performanceChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: reversedDates,
+            datasets: [
+                {
+                    label: 'Actual',
+                    data: reversedValues,
+                    borderColor: 'rgb(59, 130, 246)',
+                    tension: 0.1,
+                    fill: false
+                },
+                {
+                    label: 'Line',
+                    data: Array(reversedDates.length).fill(line),
+                    borderColor: 'rgb(239, 68, 68)',
+                    borderDash: [5, 5],
+                    tension: 0,
+                    fill: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Performance History'
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
             },
-            options: {
-                responsive: true,
-                plugins: {
+            scales: {
+                y: {
+                    beginAtZero: true,
                     title: {
                         display: true,
-                        text: 'Last 20 Games Performance'
-                    },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false,
-                    },
-                    legend: {
-                        display: true,
-                        position: 'top'
+                        text: getPropTypeLabel(propType)
                     }
                 },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: getPropTypeLabel(propType)
-                        }
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Game Date'
                     },
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Game Date'
-                        },
-                        ticks: {
-                            maxRotation: 45,
-                            minRotation: 45
-                        }
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45
                     }
                 }
             }
-        });
-        
-    } catch (error) {
-        console.error('Error updating performance chart:', error);
-    }
- }
-
-function generateMLAnalysis(analysis, stats, propType) {
-    const propLabel = getPropTypeLabel(propType);
-    const averagePerf = analysis.average.toFixed(1);
-    const predictedValue = analysis.predicted_value?.toFixed(1) || averagePerf;
-    const recentForm = analysis.last5_average.toFixed(1);
-    const trend = analysis.trend && analysis.trend.direction ? 
-        analysis.trend.direction.toLowerCase() : 'stable';
-
-    let reasoning = `Based on our ML analysis of ${stats.games_played} recent games, `;
-    
-    if (analysis.recommendation === 'OVER') {
-        reasoning += `we predict ${propLabel} to go OVER with ${(analysis.over_probability * 100).toFixed(1)}% confidence. `;
-    } else if (analysis.recommendation === 'UNDER') {
-        reasoning += `we predict ${propLabel} to go UNDER with ${((1 - analysis.over_probability) * 100).toFixed(1)}% confidence. `;
-    } else {
-        reasoning += 'this prop shows no clear edge. ';
-    }
-
-    reasoning += `The player's performance shows a ${trend} trend, averaging ${averagePerf} with recent form at ${recentForm}. `;
-    reasoning += `Our model predicts a value of ${predictedValue}, `;
-    
-    if (analysis.edge > 0) {
-        reasoning += `suggesting a ${(analysis.edge * 100).toFixed(1)}% edge over the line.`;
-    } else {
-        reasoning += `indicating the line may be ${Math.abs(analysis.edge * 100).toFixed(1)}% too high.`;
-    }
-
-    document.querySelector('#mlAnalysis p').textContent = reasoning;
-    document.getElementById('classificationConfidence').textContent = 
-        `Over probability: ${(analysis.over_probability * 100).toFixed(1)}%`;
-    document.getElementById('regressionPrediction').textContent = 
-        `Predicted value: ${predictedValue} (${analysis.edge > 0 ? '+' : ''}${(analysis.edge * 100).toFixed(1)}% vs line)`;
+        }
+    });
 }
 
 function updateRecentGames(stats, propType, line) {
     const tbody = document.getElementById('recentGamesBody');
+    if (!tbody) return;
     tbody.innerHTML = '';
     
     let values;
@@ -350,10 +470,39 @@ function getPropTypeLabel(propType) {
         'points': 'Points',
         'assists': 'Assists',
         'rebounds': 'Rebounds',
+        'steals': 'Steals',
+        'blocks': 'Blocks',
+        'turnovers': 'Turnovers',
+        'three_pointers': 'Three Pointers Made',
         'pts_reb': 'Points + Rebounds',
         'pts_ast': 'Points + Assists',
         'ast_reb': 'Assists + Rebounds',
-        'pts_ast_reb': 'Points + Assists + Rebounds'
+        'pts_ast_reb': 'Points + Assists + Rebounds',
+        'stl_blk': 'Steals + Blocks',
+        'double_double': 'Double Double',
+        'triple_double': 'Triple Double'
     };
     return labels[propType] || propType;
+}
+
+// Utility functions for keyboard navigation
+function handleArrowNavigation(key, items, active) {
+    if (items.length === 0) return;
+    
+    let nextIndex;
+    if (!active) {
+        nextIndex = key === 'ArrowDown' ? 0 : items.length - 1;
+    } else {
+        const currentIndex = Array.from(items).indexOf(active);
+        active.classList.remove('bg-blue-50');
+        
+        if (key === 'ArrowDown') {
+            nextIndex = currentIndex + 1 >= items.length ? 0 : currentIndex + 1;
+        } else {
+            nextIndex = currentIndex - 1 < 0 ? items.length - 1 : currentIndex - 1;
+        }
+    }
+    
+    items[nextIndex].classList.add('bg-blue-50');
+    items[nextIndex].scrollIntoView({ block: 'nearest' });
 }
