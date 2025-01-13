@@ -149,22 +149,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function updateResults(analysis, stats, propType, line) {
     try {
+        console.log('Player Context:', analysis.context?.player);
+        console.log('Stats:', stats);
+        console.log('Matchup History:', analysis.context?.player?.matchup_history);
+        console.log('Position Matchup:', analysis.context?.player?.position_matchup);
         const resultsSection = document.getElementById('results');
         resultsSection.classList.remove('hidden');
         
-        // Update main prediction
-        updateMainPrediction(analysis);
-        
-        // Update key metrics
         updateKeyMetrics(analysis, stats);
         
-        // Update ML Analysis
+        const mainConclusion = document.getElementById('mainConclusion');
+        if (mainConclusion) {
+            const colorClass = analysis.recommendation.includes('OVER') ? 'text-green-600' : 
+                             analysis.recommendation.includes('UNDER') ? 'text-red-600' : 
+                             'text-gray-600';
+            mainConclusion.className = `text-4xl font-bold mb-4 ${colorClass}`;
+            mainConclusion.textContent = `${analysis.recommendation} (${analysis.confidence})`;
+        }
+
         updateMLAnalysis(analysis, stats, propType);
-        
-        // Update other sections
         updatePlayerContext(analysis.context?.player, stats);
         updateTeamContext(analysis.context?.team);
-        updateMatchupAnalysis(analysis.context?.player?.matchup_history);
+        updateMatchupAnalysis(
+            analysis.context?.player?.matchup_history,
+            analysis.context?.player?.position_matchup
+        );
         updatePerformanceChart(stats, propType, line);
         updateRecentGames(stats, propType, line);
         
@@ -178,7 +187,6 @@ function updateMainPrediction(analysis) {
     const mainPrediction = document.getElementById('mainPrediction');
     if (!mainPrediction) return;
     
-    // Determine color based on recommendation
     let colorClass = '';
     if (analysis.recommendation.includes('STRONG')) {
         colorClass = analysis.recommendation.includes('OVER') ? 'text-green-600' : 'text-red-600';
@@ -260,23 +268,35 @@ function updatePlayerContext(playerContext, stats) {
     if (!container) return;
     container.innerHTML = '';
     
-    if (playerContext) {
+    if (playerContext && stats) {
+        // Get the specific prop stats from the stats object
+        const propStats = stats['points'] || {}; // or whatever prop_type is being analyzed
+        
         const items = [
-            { label: 'Position', value: playerContext.position },
-            { label: 'Recent Form', value: `${(stats.last5_average || 0).toFixed(1)} avg last 5` },
-            { label: 'Injury Risk', value: playerContext.injury_history?.injury_risk || 'Low' },
-            { label: 'Games Played', value: stats.games_played }
+            { label: 'Position', value: playerContext.position || 'N/A' },
+            { 
+                label: 'Season Average', 
+                value: propStats.avg ? `${propStats.avg.toFixed(1)}` : 'N/A'
+            },
+            { 
+                label: 'Last 5 Games', 
+                value: propStats.last5_avg ? `${propStats.last5_avg.toFixed(1)}` : 'N/A'
+            },
+            { label: 'Games Played', value: stats.games_played || 'N/A' },
+            { label: 'Trend', value: propStats?.direction || 'Stable' }
         ];
         
         items.forEach(item => {
             const div = document.createElement('div');
-            div.className = 'context-item';
+            div.className = 'flex justify-between items-center py-2';
             div.innerHTML = `
                 <span class="text-gray-600">${item.label}</span>
                 <span class="font-medium">${item.value}</span>
             `;
             container.appendChild(div);
         });
+    } else {
+        container.innerHTML = '<div class="text-gray-500 text-center py-4">No player data available</div>';
     }
 }
 
@@ -326,27 +346,66 @@ function updateTeamContext(teamContext) {
     }
 }
 
-function updateMatchupAnalysis(matchupHistory) {
+function updateMatchupAnalysis(matchupHistory, positionMatchup) {
     const container = document.getElementById('matchupAnalysis');
     if (!container) return;
+    
+    console.log('Matchup History:', matchupHistory); // Debug log
+    console.log('Position Matchup:', positionMatchup); // Debug log
+    
     container.innerHTML = '';
     
-    if (matchupHistory) {
-        const items = [
-            { label: 'VS Team Average', value: matchupHistory.avg_points?.toFixed(1) || 'N/A' },
-            { label: 'Success Rate', value: `${(matchupHistory.success_rate * 100).toFixed(1)}%` },
-            { label: 'Games Played', value: matchupHistory.games_played || 'N/A' }
-        ];
+    if (matchupHistory || positionMatchup) {
+        const items = [];
         
-        items.forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'context-item';
-            div.innerHTML = `
-                <span class="text-gray-600">${item.label}</span>
-                <span class="font-medium">${item.value}</span>
-            `;
-            container.appendChild(div);
-        });
+        if (matchupHistory) {
+            items.push(
+                { 
+                    label: 'VS Team Average',
+                    value: matchupHistory.avg_points ? `${matchupHistory.avg_points.toFixed(1)}` : 'N/A'
+                },
+                { 
+                    label: 'Previous Matchups',
+                    value: matchupHistory.games_played || 0
+                },
+                {
+                    label: 'Success Rate',
+                    value: matchupHistory.success_rate ? 
+                           `${(matchupHistory.success_rate * 100).toFixed(1)}%` : 'N/A'
+                }
+            );
+        }
+        
+        if (positionMatchup) {
+            items.push(
+                {
+                    label: 'Position Defense',
+                    value: positionMatchup.defensive_rating ?
+                           positionMatchup.defensive_rating.toFixed(1) : 'N/A'
+                },
+                {
+                    label: 'Points Allowed',
+                    value: positionMatchup.pts_allowed_per_game ?
+                           positionMatchup.pts_allowed_per_game.toFixed(1) : 'N/A'
+                }
+            );
+        }
+        
+        if (items.length > 0) {
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center py-2';
+                div.innerHTML = `
+                    <span class="text-gray-600">${item.label}</span>
+                    <span class="font-medium">${item.value}</span>
+                `;
+                container.appendChild(div);
+            });
+        } else {
+            container.innerHTML = '<div class="text-gray-500 text-center py-4">No matchup data available</div>';
+        }
+    } else {
+        container.innerHTML = '<div class="text-gray-500 text-center py-4">No matchup data available</div>';
     }
 }
 

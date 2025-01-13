@@ -118,29 +118,30 @@
 
             <!-- Results Section -->
             <div id="results" class="bg-white rounded-lg shadow-lg p-6 hidden">
-                <div class="text-center mb-8">
-                    <h2 id="mainPrediction" class="text-4xl font-bold mb-4"></h2>
-                </div>
-            
+                <!-- Top Metrics Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <div class="bg-white rounded-lg shadow p-4 text-center">
                         <div class="text-gray-600 mb-2">Predicted Value</div>
-                        <div id="predictedValue" class="text-2xl font-bold"></div>
+                        <div id="predictedValue" class="text-3xl font-bold"></div>
                         <div id="edgeValue" class="text-sm"></div>
                     </div>
                     
                     <div class="bg-white rounded-lg shadow p-4 text-center">
                         <div class="text-gray-600 mb-2">Historical Hit Rate</div>
-                        <div id="hitRate" class="text-2xl font-bold"></div>
+                        <div id="hitRate" class="text-3xl font-bold"></div>
                         <div id="hitRateDetails" class="text-sm"></div>
                     </div>
                     
                     <div class="bg-white rounded-lg shadow p-4 text-center">
                         <div class="text-gray-600 mb-2">Model Confidence</div>
-                        <div id="modelConfidence" class="text-2xl font-bold"></div>
+                        <div id="modelConfidence" class="text-3xl font-bold"></div>
                     </div>
                 </div>
 
+                <div class="text-center mb-8">
+                    <h2 id="mainConclusion" class="text-4xl font-bold"></h2>
+                </div>
+                
                 <!-- ML Analysis -->
                 <div class="bg-gray-50 rounded-lg p-6 mb-6">
                     <h3 class="text-xl font-semibold mb-3">ML Model Analysis</h3>

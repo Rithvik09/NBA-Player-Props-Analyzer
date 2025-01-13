@@ -110,7 +110,7 @@ class BasketballBettingHelper:
             return []
 
     def get_player_stats(self, player_id):
-        #Get comprehensive player statistics
+        #Get player statistics
         try:
             current_year = datetime.now().year
             current_month = datetime.now().month
@@ -198,7 +198,7 @@ class BasketballBettingHelper:
         }
 
     def _get_combined_stat_dict(self, df, columns):
-        #Helper method to create combined stat dictionary
+        #Helper method
         combined = df[columns].sum(axis=1)
         return {
             'values': combined.tolist(),
@@ -249,7 +249,6 @@ class BasketballBettingHelper:
     def analyze_prop_bet(self, player_id, prop_type, line, opponent_team_id):
         """Analyze prop bet for given player and line"""
         try:
-            # Get player stats
             stats = self.get_player_stats(player_id)
             if not stats:
                 return {
@@ -257,13 +256,12 @@ class BasketballBettingHelper:
                     'error': 'Unable to retrieve player stats'
                 }
 
-            # Get enhanced context
+            # Get more context
             player_context = self.ml_predictor.get_player_context(player_id, opponent_team_id)
             team_id = self._get_player_team_id(player_id)
             team_context = self.ml_predictor.get_team_context(team_id) if team_id else None
             opponent_context = self.ml_predictor.get_team_context(opponent_team_id)
 
-            # Get stat data based on prop type
             if prop_type == 'three_pointers':
                 stat_data = stats.get('three_pointers', {})
                 trend = stats.get('trends', {}).get('fg3m', {})
@@ -299,7 +297,7 @@ class BasketballBettingHelper:
                 'edge': edge
             }
 
-            # Get ML prediction
+            # ML prediction
             ml_prediction = self.ml_predictor.predict(features, line)
             if not ml_prediction:
                 ml_prediction = {
@@ -350,151 +348,3 @@ class BasketballBettingHelper:
             print(f"Error getting player team ID: {e}")
             return None
     
-
-    def get_matchup_data(self, player_id, opponent_team_id):
-        #Get player's performance history against specific team
-        try:
-            vs_team = playergamelog.PlayerGameLog(
-                player_id=player_id,
-                vs_team_id=opponent_team_id,
-                season=self.current_season
-            ).get_data_frames()[0]
-        
-            return {
-                'values': vs_team['PTS'].tolist(),
-                'avg': float(vs_team['PTS'].mean()),
-                'games_played': len(vs_team)
-            }
-        except Exception as e:
-            print(f"Error getting matchup data: {e}")
-            return None
-
-    def _get_matchup_history(self, player_id, opponent_team_id):
-        """Get detailed matchup history against specific team"""
-        try:
-            gamefinder = LeagueGameFinder(
-                player_id_nullable=player_id,
-                vs_team_id_nullable=opponent_team_id,
-                season_type_nullable='Regular Season'
-            ).get_data_frames()[0]
-        
-            if len(gamefinder) == 0:
-                return None
-            
-            return {
-                'avg_points': float(gamefinder['PTS'].mean()),
-                'avg_assists': float(gamefinder['AST'].mean()),
-                'avg_rebounds': float(gamefinder['REB'].mean()),
-                'games_played': len(gamefinder),
-                'success_rate': float((gamefinder['PLUS_MINUS'] > 0).mean())
-            }
-        except Exception as e:
-            print(f"Error getting matchup history: {e}")
-            return None
-
-    def get_team_context(self, team_id):
-        """Get comprehensive team context"""
-        if team_id in self.team_context_cache:
-            return self.team_context_cache[team_id]
-        
-        try:
-            # Get team's recent games
-            team_games = TeamGameLog(
-                team_id=team_id,
-                season_type_all_star='Regular Season'
-            ).get_data_frames()[0]
-        
-            if len(team_games) == 0:
-                return self._get_default_context()
-
-            # Calculate stats from available data
-            recent_games = team_games.head(10)
-            pts_per_game = float(recent_games['PTS'].mean())
-            opp_pts_per_game = float(recent_games['OPP_PTS'].mean())
-        
-            # Calculate possessions (simplified)
-            possessions_per_game = (
-                float(recent_games['FGA'].mean()) + 
-                0.4 * float(recent_games['FTA'].mean()) - 
-                float(recent_games['OREB'].mean())
-            )
-        
-            context = {
-                'pace': float(possessions_per_game),
-                'offensive_rating': float(pts_per_game / possessions_per_game * 100),
-                'defensive_rating': float(opp_pts_per_game / possessions_per_game * 100),
-                'recent_form': self._calculate_team_form(recent_games),
-                'rest_days': self._calculate_rest_days(recent_games),
-                'injury_impact': 0.1  # Default value
-            }
-        
-            self.team_context_cache[team_id] = context
-            return context
-        
-        except Exception as e:
-            print(f"Error getting team context: {e}")
-            return self._get_default_context()
-    
-
-    def _calculate_estimated_pace(self, games_df):
-        """Calculate estimated pace from basic box score stats"""
-        try:
-            # A simple estimation of pace
-            fga = games_df['FGA'].mean()
-            fta = games_df['FTA'].mean()
-            trb = games_df['REB'].mean()
-            tov = games_df['TOV'].mean()
-        
-            # Basic pace formula: (FGA + 0.4 * FTA + TOV) per game
-            estimated_pace = fga + 0.4 * fta + tov
-        
-            return float(estimated_pace)
-        except Exception as e:
-            print(f"Error calculating estimated pace: {e}")
-            return 100.0  # Default value
-
-    def _calculate_offensive_rating(self, games_df):
-        #Calculate team's offensive rating
-        possessions = (games_df['FGA'] + 0.4 * games_df['FTA'] - 1.07 * 
-                (games_df['OREB'] / (games_df['OREB'] + games_df['DREB'])) * 
-                (games_df['FGA'] - games_df['FGM']) + games_df['TOV'])
-    
-        return (games_df['PTS'] / possessions * 100).mean()
-
-    def _calculate_defensive_rating(self, games_df):
-        #Calculate team's defensive rating
-        possessions = (games_df['FGA'] + 0.4 * games_df['FTA'] - 1.07 * 
-                (games_df['OREB'] / (games_df['OREB'] + games_df['DREB'])) * 
-                (games_df['FGA'] - games_df['FGM']) + games_df['TOV'])
-    
-        return (games_df['OPP_PTS'] / possessions * 100).mean()
-
-    def _calculate_team_form(self, games_df):
-        """Calculate team's form from recent games"""
-        try:
-            win_pct = float((games_df['WL'] == 'W').mean())
-            point_diff = float(games_df['PLUS_MINUS'].mean())
-        
-            return {
-                'win_pct': win_pct,
-                'avg_point_diff': point_diff,
-                'trend': 'up' if point_diff > 0 else 'down' if point_diff < 0 else 'neutral'
-            }
-        except Exception as e:
-            print(f"Error calculating team form: {e}")
-            return {'win_pct': 0.5, 'avg_point_diff': 0.0, 'trend': 'neutral'}
-    
-    def _get_default_context(self):
-        """Return default context when data is unavailable"""
-        return {
-            'pace': 100.0,
-            'offensive_rating': 110.0,
-            'defensive_rating': 110.0,
-            'recent_form': {
-                'win_pct': 0.5,
-                'avg_point_diff': 0.0,
-                'trend': 'neutral'
-            },
-            'rest_days': 2,
-            'injury_impact': 0.1
-        }
