@@ -4,6 +4,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, mean_squared_error
 from nba_api.stats.endpoints import TeamGameLog, CommonPlayerInfo, LeagueGameFinder, CommonTeamRoster
 from nba_api.stats.endpoints import playergamelog, TeamDashboardByGeneralSplits
+from nba_api.stats.static import teams
 import scipy.stats
 import numpy as np
 import pandas as pd
@@ -137,7 +138,7 @@ class EnhancedMLPredictor:
         except Exception as e:
             print(f"Error getting matchup history: {e}")
             return None
-
+        
     def get_position_matchup_stats(self, position, team_id):
         """Get team's defensive stats against specific position"""
         cache_key = f"{position}_{team_id}"
@@ -146,55 +147,112 @@ class EnhancedMLPredictor:
             return self.position_matchup_cache[cache_key]
         
         try:
-            team_games = LeagueGameFinder(
+            sample_roster = CommonTeamRoster(team_id=team_id).get_data_frames()[0]
+            time.sleep(0.6)
+            
+            position_map = {
+                'Forward': ['F', 'SF', 'PF', 'F-G', 'G-F'],
+                'Guard': ['G', 'SG', 'PG', 'G-F', 'F-G'],
+                'Center': ['C', 'F-C', 'C-F'],
+                'Guard-Forward': ['G-F', 'F-G'],
+                'Forward-Guard': ['F-G', 'G-F'],
+                'Forward- Center': ['F-C', 'C-F'],
+                'Center-Forward': ['C-F', 'F-C'],
+                'F': ['F', 'SF', 'PF', 'F-G', 'G-F'],
+                'G': ['G', 'SG', 'PG', 'G-F', 'F-G'],
+                'C': ['C', 'F-C', 'C-F'],
+                'G-F': ['G-F', 'F-G'],
+                'F-G': ['F-G', 'G-F'],
+                'F-C': ['F-C', 'C-F'],
+                'C-F': ['C-F', 'F-C']
+            }
+            
+            valid_positions = position_map.get(position, [position])
+            
+            gamefinder = LeagueGameFinder(
                 team_id_nullable=team_id,
                 season_type_nullable='Regular Season'
             ).get_data_frames()[0]
-        
+            
             time.sleep(0.6)
-        
+
+            opponent_teams = set()
+            for matchup in gamefinder['MATCHUP']:
+                try:
+                    opponent_abbrev = matchup.split(' ')[-1]
+                    opp_team = teams.find_team_by_abbreviation(opponent_abbrev)
+                    if opp_team:
+                        opponent_teams.add(opp_team['id'])
+                except Exception as e:
+                    continue
+
             opponent_players = []
-            for _, game in team_games.iterrows():
-                vs_team_id = game['OPPONENT_TEAM_ID']
-                roster = CommonTeamRoster(team_id=vs_team_id).get_data_frames()[0]
-                time.sleep(0.6)
+            for opp_team_id in opponent_teams:
+                try:
+                    roster = CommonTeamRoster(team_id=opp_team_id).get_data_frames()[0]                    
+
+                    position_players = roster[roster['POSITION'].isin(valid_positions)]
+                    if not position_players.empty:
+                        for _, player in position_players.iterrows():
+                            player_info = {
+                                'id': player['PLAYER_ID'],
+                                'name': player['PLAYER']
+                            }
+                            opponent_players.append(player_info)                
+                    time.sleep(0.6)
+                    
+                except Exception as e:
+                    continue
             
-                position_players = roster[roster['POSITION'] == position]
-                opponent_players.extend(position_players['PLAYER_ID'].tolist())
-        
-            # Get stats for these players against this team
+            if not opponent_players:
+                return self._get_default_position_matchup()
+                
             position_stats = []
-            for player_id in set(opponent_players):
-                matchups = LeagueGameFinder(
-                    player_id_nullable=player_id,
-                    vs_team_id_nullable=team_id,
-                    season_type_nullable='Regular Season'
-                ).get_data_frames()[0]
-                time.sleep(0.6)
-            
-                if len(matchups) > 0:
-                    position_stats.append({
-                        'pts_per_game': float(matchups['PTS'].mean()),
-                        'fg_pct': float(matchups['FG_PCT'].mean()),
-                        'plus_minus': float(matchups['PLUS_MINUS'].mean())
-                    })
-        
+            for player in opponent_players:
+                try:
+                    matchups = LeagueGameFinder(
+                        player_id_nullable=player['id'],
+                        vs_team_id_nullable=team_id,
+                        season_type_nullable='Regular Season'
+                    ).get_data_frames()[0]
+                    time.sleep(0.6)
+                    
+                    if len(matchups) > 0:
+                        stats = {
+                            'pts_per_game': float(matchups['PTS'].mean()),
+                            'fg_pct': float(matchups['FG_PCT'].mean()),
+                            'plus_minus': float(matchups['PLUS_MINUS'].mean())
+                        }
+                        position_stats.append(stats)
+                except Exception as e:
+                    continue
+
+
             if position_stats:
+                pts_allowed = np.mean([s['pts_per_game'] for s in position_stats])
+                plus_minus = np.mean([s['plus_minus'] for s in position_stats])
+                fg_pcts = [s['fg_pct'] for s in position_stats if not np.isnan(s['fg_pct'])]
+            
+                effective_fg_pct = np.mean(fg_pcts) if fg_pcts else 0.47
+            
                 matchup_stats = {
-                    'pts_allowed_per_game': np.mean([s['pts_per_game'] for s in position_stats]),
-                    'defensive_rating': 100.0 + np.mean([s['plus_minus'] for s in position_stats]),
-                    'effective_fg_pct': np.mean([s['fg_pct'] for s in position_stats])
+                    'pts_allowed_per_game': float(pts_allowed) if not np.isnan(pts_allowed) else 15.0,
+                    'defensive_rating': float(100.0 + plus_minus) if not np.isnan(plus_minus) else 110.0,
+                    'effective_fg_pct': float(effective_fg_pct)
                 }
+            
+                for key in matchup_stats:
+                    if np.isnan(matchup_stats[key]):
+                        matchup_stats[key] = self._get_default_position_matchup()[key]
             
                 self.position_matchup_cache[cache_key] = matchup_stats
                 return matchup_stats
-            
+                
             return self._get_default_position_matchup()
             
         except Exception as e:
-            print(f"Error getting position matchup stats: {e}")
             return self._get_default_position_matchup()
-
+        
     def _get_default_position_matchup(self):
         """Return default position matchup stats"""
         return {
@@ -247,23 +305,31 @@ class EnhancedMLPredictor:
     def _calculate_defensive_rating(self, games_df):
         """Calculate team's defensive rating from game data"""
         try:
-            required_columns = ['OPP_PTS', 'FGA', 'FTA', 'OREB', 'DREB', 'TOV', 'FGM']
-            missing_columns = [col for col in required_columns if col not in games_df.columns]
+            away_games = games_df[games_df['MATCHUP'].str.contains('@')]
+            home_games = games_df[~games_df['MATCHUP'].str.contains('@')]
+            opp_pts_away = float(away_games['PTS'].mean()) if not away_games.empty else 0
+            opp_pts_home = float(home_games['PTS'].mean()) if not home_games.empty else 0
+
+            num_away = len(away_games)
+            num_home = len(home_games)
+            total_games = num_away + num_home
         
-            if missing_columns:
-                return self._get_default_context()['defensive_rating']
-            opp_pts = games_df['OPP_PTS'].mean()
+            if total_games == 0:
+                return 110.0
+            
+            opp_pts = ((opp_pts_away * num_away) + (opp_pts_home * num_home)) / total_games
 
             possessions = (
-                games_df['FGA'].mean() + 
-                0.4 * games_df['FTA'].mean() - 
+                games_df['FGA'].mean() +  # Field goal attempts
+                0.4 * games_df['FTA'].mean() -  # Free throw factor
                 1.07 * (games_df['OREB'].mean() /
                         (games_df['OREB'].mean() + games_df['DREB'].mean())) *
                 (games_df['FGA'].mean() - games_df['FGM'].mean()) +  
-                games_df['TOV'].mean()
+                games_df['TOV'].mean()  # Turnovers
             )
 
-            def_rating = (opp_pts / possessions) * 100
+            # Calculate defensive rating (points allowed per 100 possessions)
+            def_rating = (opp_pts / possessions) * 100 if possessions > 0 else 110.0
 
             return float(def_rating)
 
