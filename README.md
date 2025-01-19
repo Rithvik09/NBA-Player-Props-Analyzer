@@ -26,10 +26,12 @@ Key Features
 
 Data Collection and Integration
 
-  Source: NBA.com API (via nba_api library).
+  Source: NBA.com API (via nba_api library), ESPN (for injury data scraping).
   Data Points:
-  Player stats: Points, assists, rebounds, shooting percentages.
-  Team metrics: Wins, losses, and game outcomes.
+  Player stats: Points, assists, rebounds, steals, blocks, turnovers, three Pointers Made, field Goal Percentage, three Point Percentage,   
+  free Throw Percentage, minutes Played
+  Performance Metrics: Historical Data, Team Context, Opposing Team Context, Injuries, Matchup Analysis
+  Team metrics: Offensive Rating, Defensive Rating, Wins, Losees, Rest Days
   Database Schema:
   Players table: Stores player information.
   Game Logs table: Tracks performance metrics.
