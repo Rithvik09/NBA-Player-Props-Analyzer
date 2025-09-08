@@ -8,13 +8,19 @@ import time
 from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
-from .models import EnhancedMLPredictor 
+from .models import EnhancedMLPredictor
+from .situational_analyzer import SituationalAnalyzer
+from .bankroll_manager import BankrollManager
+from .parlay_optimizer import ParlayOptimizer 
 
 
 class BasketballBettingHelper:
     def __init__(self, db_name='basketball_data.db'):
         self.db_name = db_name
         self.ml_predictor = EnhancedMLPredictor()
+        self.situational_analyzer = SituationalAnalyzer()
+        self.bankroll_manager = BankrollManager(db_name)
+        self.parlay_optimizer = ParlayOptimizer()
         
         current_year = datetime.now().year
         current_month = datetime.now().month
@@ -347,4 +353,114 @@ class BasketballBettingHelper:
         except Exception as e:
             print(f"Error getting player team ID: {e}")
             return None
+    
+    def _get_final_recommendation(self, base_recommendation, confidence_score, situation_boost):
+        """Generate final recommendation considering all factors"""
+        if situation_boost > 0.15 and confidence_score > 80:
+            if base_recommendation in ['OVER', 'UNDER']:
+                return f'STRONG {base_recommendation}'
+            elif base_recommendation in ['LEAN OVER', 'LEAN UNDER']:
+                return base_recommendation.replace('LEAN ', '')
+        
+        if situation_boost > 0.1 and confidence_score > 70:
+            if base_recommendation == 'PASS':
+                return 'LEAN SITUATIONAL'
+        
+        return base_recommendation
+    
+    def analyze_multiple_props(self, props_list):
+        """Analyze multiple props for parlay opportunities"""
+        try:
+            analyzed_props = []
+            
+            for prop in props_list:
+                analysis = self.analyze_prop_bet(
+                    prop['player_id'],
+                    prop['prop_type'],
+                    prop['line'],
+                    prop['opponent_team_id']
+                )
+                
+                if analysis.get('success'):
+                    prop_data = {
+                        'player_id': prop['player_id'],
+                        'player_name': prop.get('player_name', 'Unknown'),
+                        'prop_type': prop['prop_type'],
+                        'line': prop['line'],
+                        'over_probability': analysis.get('over_probability', 0.5),
+                        'confidence_score': analysis.get('confidence_score', 50),
+                        'edge': analysis.get('edge', 0),
+                        'recommendation': analysis.get('recommendation', 'PASS'),
+                        'predicted_value': analysis.get('predicted_value', prop['line'])
+                    }
+                    analyzed_props.append(prop_data)
+            
+            # Find parlay opportunities
+            parlay_analysis = self.parlay_optimizer.analyze_single_game_parlay(analyzed_props)
+            
+            return {
+                'success': True,
+                'individual_props': analyzed_props,
+                'parlay_opportunities': parlay_analysis,
+                'summary': {
+                    'total_props_analyzed': len(analyzed_props),
+                    'positive_ev_individual': len([p for p in analyzed_props if p['edge'] > 0]),
+                    'high_confidence_props': len([p for p in analyzed_props if p['confidence_score'] > 70]),
+                    'parlay_recommendations': parlay_analysis.get('positive_ev_parlays', [])[:3]
+                }
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def get_bankroll_dashboard(self):
+        """Get comprehensive bankroll management dashboard"""
+        try:
+            bankroll_info = self.bankroll_manager.get_bankroll_info()
+            performance_metrics = self.bankroll_manager.calculate_performance_metrics()
+            recent_bets = self.bankroll_manager.get_bet_history(20)
+            
+            return {
+                'bankroll_info': bankroll_info,
+                'performance_metrics': performance_metrics,
+                'recent_bets': recent_bets,
+                'recommendations': self._generate_bankroll_recommendations(bankroll_info, performance_metrics)
+            }
+        except Exception as e:
+            return {'error': str(e)}
+    
+    def _generate_bankroll_recommendations(self, bankroll_info, performance_metrics):
+        """Generate bankroll management recommendations"""
+        recommendations = []
+        
+        roi = performance_metrics.get('roi', 0)
+        win_rate = performance_metrics.get('win_rate', 0)
+        total_bets = performance_metrics.get('total_bets', 0)
+        
+        if total_bets < 10:
+            recommendations.append("Build more betting history before adjusting unit sizes")
+        
+        if roi > 15:
+            recommendations.append("Excellent ROI! Consider slightly increasing unit sizes")
+        elif roi < -10:
+            recommendations.append("Poor ROI. Reduce unit sizes and focus on higher confidence bets")
+        
+        if win_rate > 60:
+            recommendations.append("High win rate suggests good selection. Maintain current strategy")
+        elif win_rate < 45:
+            recommendations.append("Low win rate. Focus on higher confidence predictions only")
+        
+        return recommendations
+    
+    def get_player_name(self, player_id):
+        """Get player name from ID"""
+        try:
+            all_players = players.get_players()
+            player = next((p for p in all_players if p['id'] == player_id), None)
+            return player['full_name'] if player else 'Unknown Player'
+        except:
+            return 'Unknown Player'
     

@@ -1,0 +1,69 @@
+"""
+Multi-Prop Parlay Optimizer
+Finds optimal parlay combinations and calculates true vs bookmaker odds
+"""
+import numpy as np
+import itertools
+from datetime import datetime
+import json
+
+class ParlayOptimizer:
+    def __init__(self):
+        self.correlation_matrix = self._build_correlation_matrix()
+        
+    def _build_correlation_matrix(self):
+        """Build correlation matrix for different prop types"""
+        # Correlation coefficients between different prop types (simplified)
+        correlations = {
+            ('points', 'assists'): 0.3,
+            ('points', 'rebounds'): 0.2,
+            ('points', 'steals'): 0.15,
+            ('points', 'blocks'): 0.1,
+            ('points', 'turnovers'): -0.1,
+            ('assists', 'rebounds'): -0.1,
+            ('assists', 'steals'): 0.2,
+            ('assists', 'turnovers'): 0.25,
+            ('rebounds', 'blocks'): 0.3,
+            ('rebounds', 'steals'): 0.1,
+            ('steals', 'blocks'): 0.2,
+            ('points', 'three_pointers'): 0.4,
+            ('assists', 'three_pointers'): 0.1,
+            ('points', 'double_double'): 0.6,
+            ('rebounds', 'double_double'): 0.7,
+            ('assists', 'double_double'): 0.5,
+        }
+        return correlations
+    
+    def get_correlation(self, prop1, prop2):
+        """Get correlation between two prop types"""
+        key = tuple(sorted([prop1, prop2]))
+        return self.correlation_matrix.get(key, 0.0)
+    
+    def analyze_single_game_parlay(self, props_data):
+        """Analyze parlay opportunities for a single game"""
+        try:
+            if len(props_data) < 2:
+                return {'error': 'Need at least 2 props for parlay analysis'}
+            
+            # Generate all possible combinations
+            parlay_combinations = []
+            
+            for combo_size in range(2, min(len(props_data) + 1, 6)):  # Max 5 leg parlays
+                for combo in itertools.combinations(props_data, combo_size):
+                    parlay_analysis = self._analyze_parlay_combination(combo)
+                    if parlay_analysis['expected_value'] > 0:  # Only positive EV parlays
+                        parlay_combinations.append(parlay_analysis)
+            
+            # Sort by expected value
+            parlay_combinations.sort(key=lambda x: x['expected_value'], reverse=True)
+            
+            return {
+                'total_combinations': len(parlay_combinations),
+                'positive_ev_parlays': parlay_combinations[:10],  # Top 10
+                'best_parlay': parlay_combinations[0] if parlay_combinations else None,
+                'analysis_summary': self._generate_parlay_summary(parlay_combinations)
+            }
+            
+        except Exception as e:
+            return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n                })\n            \n            # Apply correlations\n            adjusted_prob = self._calculate_correlated_probability(props_combo, individual_probs)\n            \n            # Calculate parlay odds\n            true_odds = 1 / adjusted_prob if adjusted_prob > 0 else 1000\n            \n            # Estimate bookmaker parlay odds (typically worse than true odds)\n            bookmaker_multiplier = 0.95  # 5% house edge\n            estimated_book_odds = true_odds * bookmaker_multiplier\n            \n            # Calculate expected value\n            payout = estimated_book_odds - 1\n            expected_value = (adjusted_prob * payout) - (1 - adjusted_prob)\n            \n            # Risk assessment\n            risk_level = self._assess_parlay_risk(len(props_combo), min(individual_probs), adjusted_prob)\n            \n            # Confidence adjustment for parlay\n            avg_confidence = np.mean([prop.get('confidence_score', 50) for prop in props_combo])\n            parlay_confidence = avg_confidence * (0.8 ** (len(props_combo) - 1))  # Decay for multiple legs\n            \n            return {\n                'props': prop_details,\n                'num_legs': len(props_combo),\n                'individual_probabilities': individual_probs,\n                'adjusted_probability': adjusted_prob,\n                'true_odds': true_odds,\n                'estimated_book_odds': estimated_book_odds,\n                'expected_value': expected_value,\n                'parlay_confidence': round(parlay_confidence, 1),\n                'risk_level': risk_level,\n                'kelly_sizing': self._calculate_parlay_kelly(adjusted_prob, estimated_book_odds),\n                'correlation_adjustments': self._get_correlation_adjustments(props_combo)\n            }\n            \n        except Exception as e:\n            return {\n                'error': f'Error in parlay combination analysis: {str(e)}',\n                'props': [],\n                'expected_value': -1\n            }\n    \n    def _calculate_correlated_probability(self, props_combo, individual_probs):\n        \"\"\"Calculate probability accounting for correlations\"\"\"\n        if len(props_combo) == 1:\n            return individual_probs[0]\n        \n        # Start with independent probability\n        independent_prob = np.prod(individual_probs)\n        \n        # Apply correlation adjustments\n        correlation_adjustment = 1.0\n        \n        for i in range(len(props_combo)):\n            for j in range(i + 1, len(props_combo)):\n                prop1_type = props_combo[i].get('prop_type')\n                prop2_type = props_combo[j].get('prop_type')\n                \n                # Check if same player (higher correlation)\n                same_player = (props_combo[i].get('player_id') == props_combo[j].get('player_id'))\n                \n                correlation = self.get_correlation(prop1_type, prop2_type)\n                \n                if same_player:\n                    correlation *= 1.5  # Increase correlation for same player\n                \n                # Adjust probability based on correlation\n                if correlation > 0:\n                    correlation_adjustment *= (1 + correlation * 0.3)  # Positive correlation increases joint probability\n                elif correlation < 0:\n                    correlation_adjustment *= (1 + correlation * 0.2)  # Negative correlation decreases it\n        \n        adjusted_prob = independent_prob * correlation_adjustment\n        return min(max(adjusted_prob, 0.001), 0.999)  # Keep within bounds\n    \n    def _assess_parlay_risk(self, num_legs, min_prob, adjusted_prob):\n        \"\"\"Assess risk level of parlay\"\"\"\n        if num_legs >= 5 or adjusted_prob < 0.1:\n            return 'VERY HIGH'\n        elif num_legs >= 4 or adjusted_prob < 0.2:\n            return 'HIGH'\n        elif num_legs >= 3 or adjusted_prob < 0.35:\n            return 'MEDIUM'\n        elif min_prob < 0.6:\n            return 'MEDIUM'\n        else:\n            return 'LOW'\n    \n    def _calculate_parlay_kelly(self, probability, odds):\n        \"\"\"Calculate Kelly sizing for parlay\"\"\"\n        if odds <= 1:\n            return 0\n        \n        b = odds - 1  # Net odds\n        p = probability\n        q = 1 - p\n        \n        kelly_fraction = (b * p - q) / b if b > 0 and p > (1 / odds) else 0\n        \n        # Conservative Kelly for parlays\n        conservative_kelly = kelly_fraction * 0.1  # Very conservative for parlays\n        \n        return max(0, min(conservative_kelly, 0.02))  # Cap at 2% of bankroll\n    \n    def _get_correlation_adjustments(self, props_combo):\n        \"\"\"Get detailed correlation adjustments\"\"\"\n        adjustments = []\n        \n        for i in range(len(props_combo)):\n            for j in range(i + 1, len(props_combo)):\n                prop1 = props_combo[i]\n                prop2 = props_combo[j]\n                \n                correlation = self.get_correlation(prop1.get('prop_type'), prop2.get('prop_type'))\n                \n                if abs(correlation) > 0.1:  # Only show significant correlations\n                    adjustments.append({\n                        'prop1': f\"{prop1.get('player_name', 'Unknown')} {prop1.get('prop_type', 'Unknown')}\",\n                        'prop2': f\"{prop2.get('player_name', 'Unknown')} {prop2.get('prop_type', 'Unknown')}\",\n                        'correlation': round(correlation, 3),\n                        'impact': 'Positive' if correlation > 0 else 'Negative'\n                    })\n        \n        return adjustments\n    \n    def find_optimal_same_game_parlays(self, all_props, max_legs=4, min_ev=0.05):\n        \"\"\"Find optimal same-game parlay combinations\"\"\"\n        try:\n            # Group props by game\n            games = {}\n            for prop in all_props:\n                game_key = f\"{prop.get('date', 'unknown')}_{prop.get('matchup', 'unknown')}\"\n                if game_key not in games:\n                    games[game_key] = []\n                games[game_key].append(prop)\n            \n            optimal_parlays = []\n            \n            for game_key, game_props in games.items():\n                if len(game_props) < 2:\n                    continue\n                \n                game_analysis = self.analyze_single_game_parlay(game_props)\n                \n                for parlay in game_analysis.get('positive_ev_parlays', []):\n                    if (parlay.get('expected_value', 0) >= min_ev and \n                        parlay.get('num_legs', 0) <= max_legs):\n                        \n                        parlay['game_key'] = game_key\n                        optimal_parlays.append(parlay)\n            \n            # Sort by expected value and confidence\n            optimal_parlays.sort(\n                key=lambda x: (x.get('expected_value', 0) * 0.7 + \n                              x.get('parlay_confidence', 0) * 0.003), \n                reverse=True\n            )\n            \n            return {\n                'total_optimal_parlays': len(optimal_parlays),\n                'parlays': optimal_parlays[:20],  # Top 20\n                'summary': {\n                    'avg_expected_value': np.mean([p.get('expected_value', 0) for p in optimal_parlays]) if optimal_parlays else 0,\n                    'avg_confidence': np.mean([p.get('parlay_confidence', 0) for p in optimal_parlays]) if optimal_parlays else 0,\n                    'games_with_opportunities': len(games)\n                }\n            }\n            \n        except Exception as e:\n            return {'error': f'Error finding optimal parlays: {str(e)}'}\n    \n    def _generate_parlay_summary(self, parlay_combinations):\n        \"\"\"Generate summary of parlay analysis\"\"\"\n        if not parlay_combinations:\n            return {\n                'message': 'No positive expected value parlays found',\n                'recommendation': 'Focus on individual props with higher confidence'\n            }\n        \n        avg_ev = np.mean([p.get('expected_value', 0) for p in parlay_combinations])\n        best_ev = max([p.get('expected_value', 0) for p in parlay_combinations])\n        \n        leg_distribution = {}\n        for parlay in parlay_combinations:\n            legs = parlay.get('num_legs', 0)\n            leg_distribution[legs] = leg_distribution.get(legs, 0) + 1\n        \n        return {\n            'total_positive_ev': len(parlay_combinations),\n            'average_expected_value': round(avg_ev, 4),\n            'best_expected_value': round(best_ev, 4),\n            'leg_distribution': leg_distribution,\n            'recommendation': self._get_parlay_recommendation(avg_ev, best_ev, parlay_combinations)\n        }\n    \n    def _get_parlay_recommendation(self, avg_ev, best_ev, parlays):\n        \"\"\"Generate recommendation based on parlay analysis\"\"\"\n        if best_ev > 0.15:\n            return \"Excellent parlay opportunities found. Consider the top-ranked options.\"\n        elif best_ev > 0.08:\n            return \"Good parlay value identified. Proceed with proper bankroll management.\"\n        elif best_ev > 0.03:\n            return \"Modest parlay value. Consider individual props for better risk/reward.\"\n        else:\n            return \"Limited parlay value. Focus on individual high-confidence props.\"\n    \n    def calculate_parlay_breakeven(self, num_legs, odds):\n        \"\"\"Calculate breakeven win rate for parlay\"\"\"\n        breakeven_prob = 1 / odds if odds > 0 else 0.5\n        individual_breakeven = breakeven_prob ** (1 / num_legs)\n        \n        return {\n            'parlay_breakeven': round(breakeven_prob * 100, 2),\n            'individual_leg_breakeven': round(individual_breakeven * 100, 2),\n            'analysis': f\"Each leg needs {round(individual_breakeven * 100, 1)}% win rate for breakeven\"\n        }"

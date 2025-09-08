@@ -535,50 +535,142 @@ class EnhancedMLPredictor:
             z_score = (line - predicted_value) / (std_dev + 1e-6)
             over_prob = 1 - scipy.stats.norm.cdf(z_score)
         
-            # Calculate confidence
+            # Calculate confidence with features
             prob_strength = abs(over_prob - 0.5)
             edge_strength = abs(edge)
-            confidence = self._calculate_confidence(prob_strength, edge_strength)
+            confidence_level, confidence_score = self._calculate_confidence(prob_strength, edge_strength, features)
+            
+            # Enhanced prediction factors
+            volatility = std_dev / (predicted_value + 1e-6)
+            consistency_score = max(0, 1 - volatility)
+            
+            # Kelly Criterion calculation for bet sizing
+            implied_prob = 1 / (1 + abs(edge)) if edge != 0 else 0.5
+            kelly_fraction = max(0, (over_prob - implied_prob) / (1 - implied_prob)) if implied_prob != 1 else 0
         
             recommendation = self._generate_recommendation(over_prob, predicted_value, line, edge, confidence)
         
             return {
                 'over_probability': float(over_prob),
+                'under_probability': float(1 - over_prob),
                 'predicted_value': float(predicted_value),
                 'recommendation': recommendation,
-                'confidence': confidence,
-                'edge': float(edge)
+                'confidence': confidence_level,
+                'confidence_score': int(confidence_score),
+                'edge': float(edge),
+                'kelly_fraction': float(kelly_fraction),
+                'volatility': float(volatility),
+                'consistency_score': float(consistency_score),
+                'risk_level': self._assess_risk_level(volatility, confidence_score),
+                'bet_quality': self._assess_bet_quality(over_prob, edge, confidence_score)
             }
         
         except Exception as e:
             print(f"Prediction error: {e}")
             return {
                 'over_probability': 0.5,
+                'under_probability': 0.5,
                 'predicted_value': features.get('season_avg', line),
                 'recommendation': 'PASS',
                 'confidence': 'LOW',
-                'edge': 0.0
+                'confidence_score': 30,
+                'edge': 0.0,
+                'kelly_fraction': 0.0,
+                'volatility': 0.3,
+                'consistency_score': 0.5,
+                'risk_level': 'HIGH',
+                'bet_quality': 'POOR'
             }
 
-    def _calculate_confidence(self, prob_strength, edge_strength):
-        """Calculate prediction confidence based on probability and edge strength"""
-        confidence_score = (0.7 * prob_strength + 0.3 * edge_strength)
-    
-        if confidence_score > 0.15:
-            return 'HIGH'
+    def _calculate_confidence(self, prob_strength, edge_strength, features=None):
+        """Enhanced confidence calculation with multiple factors"""
+        base_confidence = (0.7 * prob_strength + 0.3 * edge_strength)
+        
+        # Additional confidence factors
+        confidence_multipliers = 1.0
+        
+        if features:
+            # More games = higher confidence
+            games_factor = min(features.get('games_played', 0) / 20, 1.0)
+            confidence_multipliers *= (0.5 + 0.5 * games_factor)
+            
+            # Lower injury risk = higher confidence
+            injury_risk = features.get('injury_risk', 0)
+            if injury_risk == 0:  # 'low' risk
+                confidence_multipliers *= 1.1
+            elif injury_risk == 1:  # 'high' risk
+                confidence_multipliers *= 0.8
+                
+            # Matchup experience factor
+            matchup_games = features.get('matchup_games', 0)
+            if matchup_games >= 3:
+                confidence_multipliers *= 1.05
+                
+            # Rest days impact
+            rest_days = features.get('rest_days', 2)
+            if rest_days >= 3:
+                confidence_multipliers *= 1.05  # Well rested = higher confidence
+            elif rest_days == 0:
+                confidence_multipliers *= 0.9   # Back-to-back = lower confidence
+                
+            # Team form impact
+            team_form = features.get('team_form', 0.5)
+            if team_form > 0.6:
+                confidence_multipliers *= 1.03
+            elif team_form < 0.4:
+                confidence_multipliers *= 0.97
+                
+        confidence_score = base_confidence * confidence_multipliers
+        
+        # Enhanced confidence tiers with percentage scores
+        if confidence_score > 0.25:
+            return 'ELITE', min(int(confidence_score * 380), 98)
+        elif confidence_score > 0.2:
+            return 'VERY HIGH', min(int(confidence_score * 360), 90)
+        elif confidence_score > 0.15:
+            return 'HIGH', min(int(confidence_score * 340), 82)
         elif confidence_score > 0.1:
-            return 'MEDIUM'
-        return 'LOW'
+            return 'MEDIUM', min(int(confidence_score * 320), 74)
+        elif confidence_score > 0.06:
+            return 'LOW', min(int(confidence_score * 280), 60)
+        else:
+            return 'VERY LOW', min(int(confidence_score * 220), 45)
 
+    def _assess_risk_level(self, volatility, confidence_score):
+        """Assess risk level based on volatility and confidence"""
+        if volatility < 0.15 and confidence_score > 80:
+            return 'LOW'
+        elif volatility < 0.25 and confidence_score > 60:
+            return 'MEDIUM'
+        else:
+            return 'HIGH'
+    
+    def _assess_bet_quality(self, prob, edge, confidence_score):
+        """Assess overall bet quality"""
+        if abs(edge) > 0.1 and confidence_score > 80:
+            return 'EXCELLENT'
+        elif abs(edge) > 0.05 and confidence_score > 70:
+            return 'GOOD'
+        elif abs(edge) > 0.03 and confidence_score > 60:
+            return 'FAIR'
+        else:
+            return 'POOR'
+    
     def _generate_recommendation(self, prob, predicted_value, line, edge, confidence):
-        """Generate betting recommendation based on probability and confidence"""
-        if confidence == 'LOW':
+        """Enhanced betting recommendation system"""
+        confidence_level = confidence[0] if isinstance(confidence, tuple) else confidence
+        
+        if confidence_level in ['VERY LOW', 'LOW']:
             return 'PASS'
         
-        if prob > 0.6 and edge > 0.05:
+        if prob > 0.65 and edge > 0.08:
             return 'STRONG OVER'
-        elif prob < 0.4 and edge < -0.05:
+        elif prob < 0.35 and edge < -0.08:
             return 'STRONG UNDER'
+        elif prob > 0.6 and edge > 0.05:
+            return 'OVER'
+        elif prob < 0.4 and edge < -0.05:
+            return 'UNDER'
         elif prob > 0.55 and edge > 0.03:
             return 'LEAN OVER'
         elif prob < 0.45 and edge < -0.03:
