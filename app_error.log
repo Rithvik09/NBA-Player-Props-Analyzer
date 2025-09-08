@@ -1621,3 +1621,141 @@ SyntaxError: unexpected character after line continuation character
  * Debugger is active!
  * Debugger PIN: 903-792-757
 127.0.0.1 - - [08/Sep/2025 05:41:23] "GET /test_api HTTP/1.1" 200 -
+10.12.30.250 - - [08/Sep/2025 05:44:30] "GET / HTTP/1.1" 200 -
+10.12.30.250 - - [08/Sep/2025 05:44:30] "GET /css/enhanced_style.css HTTP/1.1" 200 -
+10.12.30.250 - - [08/Sep/2025 05:44:32] "GET /bankroll/dashboard HTTP/1.1" 200 -
+10.12.30.250 - - [08/Sep/2025 05:44:32] "GET /analytics/performance HTTP/1.1" 200 -
+10.12.30.250 - - [08/Sep/2025 05:44:33] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+10.12.30.250 - - [08/Sep/2025 05:44:44] "POST /bankroll/initialize HTTP/1.1" 200 -
+10.12.30.250 - - [08/Sep/2025 05:44:44] "GET /bankroll/dashboard HTTP/1.1" 200 -
+ * Detected change in '/home/user/webapp/src/ai_models/tensorflow_predictor.py', reloading
+ * Detected change in '/home/user/webapp/src/ai_models/tensorflow_predictor.py', reloading
+ * Detected change in '/home/user/webapp/src/ai_models/tensorflow_predictor.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-08 05:51:23,831] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 903-792-757
+ * Detected change in '/home/user/webapp/src/ai_models/pytorch_predictor.py', reloading
+ * Detected change in '/home/user/webapp/src/ai_models/pytorch_predictor.py', reloading
+ * Detected change in '/home/user/webapp/src/ai_models/pytorch_predictor.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-08 05:52:31,846] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 903-792-757
+ * Detected change in '/home/user/webapp/src/cloud/aws_integration.py', reloading
+ * Detected change in '/home/user/webapp/src/cloud/aws_integration.py', reloading
+ * Detected change in '/home/user/webapp/src/cloud/aws_integration.py', reloading
+ * Detected change in '/home/user/webapp/src/cloud/aws_integration.py', reloading
+ * Detected change in '/home/user/webapp/src/cloud/aws_integration.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-08 05:53:30,844] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 903-792-757
+ * Detected change in '/home/user/webapp/src/live_data/odds_integration.py', reloading
+ * Detected change in '/home/user/webapp/src/live_data/odds_integration.py', reloading
+ * Detected change in '/home/user/webapp/src/live_data/odds_integration.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-08 05:54:51,563] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 903-792-757
+ * Detected change in '/home/user/webapp/src/auth/user_management.py', reloading
+ * Detected change in '/home/user/webapp/src/auth/user_management.py', reloading
+ * Detected change in '/home/user/webapp/src/auth/user_management.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-08 05:56:15,477] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 903-792-757
+ * Detected change in '/home/user/webapp/src/notifications/notification_system.py', reloading
+ * Detected change in '/home/user/webapp/src/notifications/notification_system.py', reloading
+ * Detected change in '/home/user/webapp/src/notifications/notification_system.py', reloading
+ * Detected change in '/home/user/webapp/src/notifications/notification_system.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-08 05:57:28,193] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 903-792-757
+ * Detected change in '/home/user/webapp/src/basketball_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/basketball_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/basketball_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/basketball_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 384
+    tf_prediction = await self._get_tensorflow_prediction(player_id, prop_type, line, stats)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'await' outside async function
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 384
+    tf_prediction = await self._get_tensorflow_prediction(player_id, prop_type, line, stats)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'await' outside async function
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 384
+    tf_prediction = await self._get_tensorflow_prediction(player_id, prop_type, line, stats)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'await' outside async function
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 384
+    tf_prediction = await self._get_tensorflow_prediction(player_id, prop_type, line, stats)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'await' outside async function
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 384
+    tf_prediction = await self._get_tensorflow_prediction(player_id, prop_type, line, stats)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'await' outside async function
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 384
+    tf_prediction = await self._get_tensorflow_prediction(player_id, prop_type, line, stats)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'await' outside async function
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 384
+    tf_prediction = await self._get_tensorflow_prediction(player_id, prop_type, line, stats)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'await' outside async function
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 384
+    tf_prediction = await self._get_tensorflow_prediction(player_id, prop_type, line, stats)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'await' outside async function
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 384
+    tf_prediction = await self._get_tensorflow_prediction(player_id, prop_type, line, stats)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: 'await' outside async function

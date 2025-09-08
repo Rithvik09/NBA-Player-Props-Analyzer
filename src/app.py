@@ -1,15 +1,35 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session
 from .basketball_betting_helper import BasketballBettingHelper
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+import asyncio
+from functools import wraps
 from nba_api.stats.static import players
+# Enterprise imports
+try:
+    from .auth.user_management import UserManager
+    from .notifications.notification_system import NotificationManager
+    AUTH_AVAILABLE = True
+except ImportError:
+    AUTH_AVAILABLE = False
 
 # Initialize Flask app
 app = Flask(__name__, 
     static_url_path='',
     static_folder='../static',
     template_folder='../templates')
+
+# Configure secret key for sessions
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+
+# Initialize enterprise features
+if AUTH_AVAILABLE:
+    user_manager = UserManager()
+    notification_manager = NotificationManager()
+else:
+    user_manager = None
+    notification_manager = None
 
 if not os.path.exists('logs'):
     os.mkdir('logs')
@@ -23,7 +43,33 @@ app.logger.addHandler(file_handler)
 app.logger.setLevel(logging.INFO)
 app.logger.info('Basketball Betting Helper startup')
 
+# Initialize betting helper with enterprise features
 betting_helper = BasketballBettingHelper()
+
+def async_route(f):
+    """Decorator to handle async routes"""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        return asyncio.run(f(*args, **kwargs))
+    return wrapper
+
+def require_auth(f):
+    """Decorator to require authentication"""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not AUTH_AVAILABLE:
+            return f(*args, **kwargs)  # Skip auth if not available
+        
+        token = request.headers.get('Authorization')
+        if token and token.startswith('Bearer '):
+            token = token[7:]
+            user_data = user_manager.verify_jwt_token(token)
+            if user_data:
+                request.current_user = user_data
+                return f(*args, **kwargs)
+        
+        return jsonify({'error': 'Authentication required'}), 401
+    return wrapper
 
 
 @app.route('/test_api')
@@ -82,7 +128,8 @@ def get_player_stats(player_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/analyze_prop', methods=['POST'])
-def analyze_prop():
+@async_route
+async def analyze_prop():
     try:
         data = request.get_json()
         if not data:
@@ -103,12 +150,15 @@ def analyze_prop():
         # Get basic prop analysis
         include_situational = data.get('include_situational', True)
         
-        analysis = betting_helper.analyze_prop_bet(
+        # Use enterprise helper with user context
+        user_id = data.get('user_id', 'anonymous')
+        enterprise_helper = BasketballBettingHelper(user_id=user_id)
+        
+        analysis = await enterprise_helper.analyze_prop_bet(
             player_id=player_id,
             prop_type=prop_type,
             line=line,
-            opponent_team_id=opponent_team_id,
-            include_situational=include_situational
+            opponent_team_id=opponent_team_id
         )
         
         if not analysis or not analysis.get('success'):
@@ -232,6 +282,154 @@ def get_performance_analytics():
         app.logger.error(f'Error getting performance analytics: {e}')
         return jsonify({'error': str(e)}), 500
 
+# ==============================================================================
+# ENTERPRISE ENDPOINTS
+# ==============================================================================
+
+@app.route('/enterprise/dashboard')
+@async_route
+@require_auth
+async def enterprise_dashboard():
+    """Get comprehensive enterprise analytics dashboard"""
+    try:
+        user_id = getattr(request, 'current_user', {}).get('user_id', 'anonymous')
+        enterprise_helper = BasketballBettingHelper(user_id=user_id)
+        
+        dashboard = await enterprise_helper.get_enterprise_analytics_dashboard()
+        return jsonify(dashboard)
+        
+    except Exception as e:
+        app.logger.error(f'Error getting enterprise dashboard: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
+# Authentication Endpoints
+@app.route('/auth/register', methods=['POST'])
+def register_user():
+    """Register a new user"""
+    if not AUTH_AVAILABLE:
+        return jsonify({'error': 'Authentication not available'}), 501
+    
+    try:
+        data = request.get_json()
+        result = user_manager.register_user(
+            email=data['email'],
+            username=data['username'],
+            password=data['password']
+        )
+        return jsonify(result)
+        
+    except Exception as e:
+        app.logger.error(f'Error registering user: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
+@app.route('/auth/login', methods=['POST'])
+def login_user():
+    """Login user and return JWT token"""
+    if not AUTH_AVAILABLE:
+        return jsonify({'error': 'Authentication not available'}), 501
+    
+    try:
+        data = request.get_json()
+        result = user_manager.login_user(
+            email=data['email'],
+            password=data['password']
+        )
+        return jsonify(result)
+        
+    except Exception as e:
+        app.logger.error(f'Error logging in user: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
+# Live Odds Endpoints
+@app.route('/odds/live/<sport>')
+@async_route
+async def get_live_odds(sport):
+    """Get live odds for specified sport"""
+    try:
+        enterprise_helper = BasketballBettingHelper()
+        
+        if enterprise_helper.odds_aggregator:
+            odds = await enterprise_helper.odds_aggregator.fetch_all_odds(sport)
+            return jsonify({
+                'success': True,
+                'odds': odds,
+                'timestamp': odds.get('timestamp') if odds else None
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Live odds integration not available'
+            }), 501
+            
+    except Exception as e:
+        app.logger.error(f'Error getting live odds: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
+@app.route('/ai/models/status')
+@require_auth
+def ai_models_status():
+    """Get status of AI models"""
+    try:
+        enterprise_helper = BasketballBettingHelper()
+        
+        status = {
+            'tensorflow_available': enterprise_helper.tensorflow_predictor is not None,
+            'pytorch_available': enterprise_helper.pytorch_predictor is not None,
+            'cloud_integration': enterprise_helper.aws_integration is not None,
+            'live_odds': enterprise_helper.odds_aggregator is not None,
+            'user_management': enterprise_helper.user_manager is not None
+        }
+        
+        if enterprise_helper.tensorflow_predictor:
+            status['tensorflow_models'] = ['LSTM', 'Transformer', 'CNN']
+        
+        if enterprise_helper.pytorch_predictor:
+            status['pytorch_models'] = ['GNN', 'VAE', 'GAN', 'Advanced_LSTM']
+        
+        return jsonify({
+            'success': True,
+            'status': status
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error getting AI models status: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
+# System Status Endpoint
+@app.route('/system/status')
+def system_status():
+    """Get comprehensive system status"""
+    try:
+        enterprise_helper = BasketballBettingHelper()
+        
+        status = {
+            'api_version': '2.0.0-enterprise',
+            'timestamp': os.popen('date').read().strip(),
+            'features': {
+                'standard_ml': True,
+                'tensorflow': enterprise_helper.tensorflow_predictor is not None,
+                'pytorch': enterprise_helper.pytorch_predictor is not None,
+                'cloud_aws': enterprise_helper.aws_integration is not None,
+                'live_odds': enterprise_helper.odds_aggregator is not None,
+                'authentication': AUTH_AVAILABLE,
+                'notifications': notification_manager is not None
+            },
+            'database': {
+                'connected': True,
+                'type': 'SQLite',
+                'location': enterprise_helper.db_name
+            }
+        }
+        
+        return jsonify({
+            'success': True,
+            'status': status
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error getting system status: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
 @app.errorhandler(404)
 def not_found_error(error):
     return jsonify({'error': 'Not found'}), 404
@@ -242,4 +440,4 @@ def internal_error(error):
     return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)

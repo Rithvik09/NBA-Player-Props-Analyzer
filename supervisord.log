@@ -427,3 +427,23 @@
 2025-09-08 05:41:08,556 INFO stopped: nba_props_analyzer (exit status 0)
 2025-09-08 05:41:08,561 INFO spawned: 'nba_props_analyzer' with pid 9715
 2025-09-08 05:41:09,563 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:58:48,959 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:58:49,963 INFO spawned: 'nba_props_analyzer' with pid 11525
+2025-09-08 05:58:50,266 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:58:51,269 INFO spawned: 'nba_props_analyzer' with pid 11527
+2025-09-08 05:58:52,645 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:58:52,645 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:58:53,648 INFO spawned: 'nba_props_analyzer' with pid 11530
+2025-09-08 05:58:53,932 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:58:54,935 INFO spawned: 'nba_props_analyzer' with pid 11558
+2025-09-08 05:58:56,214 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:58:56,214 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:58:57,218 INFO spawned: 'nba_props_analyzer' with pid 11576
+2025-09-08 05:58:57,541 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:58:58,545 INFO spawned: 'nba_props_analyzer' with pid 11595
+2025-09-08 05:58:58,826 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:59:00,830 INFO spawned: 'nba_props_analyzer' with pid 11628
+2025-09-08 05:59:01,129 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:59:04,135 INFO spawned: 'nba_props_analyzer' with pid 11639
+2025-09-08 05:59:04,449 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:59:05,451 INFO gave up: nba_props_analyzer entered FATAL state, too many start retries too quickly
