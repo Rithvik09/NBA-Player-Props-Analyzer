@@ -1,0 +1,429 @@
+2025-09-08 05:33:26,658 INFO RPC interface 'supervisor' initialized
+2025-09-08 05:33:26,658 CRIT Server 'unix_http_server' running without any HTTP authentication checking
+2025-09-08 05:33:26,661 INFO daemonizing the supervisord process
+2025-09-08 05:33:26,662 INFO supervisord started with pid 7994
+2025-09-08 05:33:27,666 INFO spawned: 'nba_props_analyzer' with pid 8020
+2025-09-08 05:33:28,712 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:33:28,713 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:33:29,726 INFO spawned: 'nba_props_analyzer' with pid 8042
+2025-09-08 05:33:29,842 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:33:30,847 INFO spawned: 'nba_props_analyzer' with pid 8043
+2025-09-08 05:33:30,874 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:33:33,204 INFO spawned: 'nba_props_analyzer' with pid 8096
+2025-09-08 05:33:34,251 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:33:34,252 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:33:35,256 INFO spawned: 'nba_props_analyzer' with pid 8099
+2025-09-08 05:33:35,291 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:33:36,295 INFO spawned: 'nba_props_analyzer' with pid 8130
+2025-09-08 05:33:37,325 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:33:37,325 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:33:38,329 INFO spawned: 'nba_props_analyzer' with pid 8159
+2025-09-08 05:33:38,354 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:33:39,358 INFO spawned: 'nba_props_analyzer' with pid 8161
+2025-09-08 05:33:40,396 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:33:40,396 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:33:41,400 INFO spawned: 'nba_props_analyzer' with pid 8164
+2025-09-08 05:33:41,429 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:33:42,432 INFO spawned: 'nba_props_analyzer' with pid 8166
+2025-09-08 05:33:42,475 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:33:44,479 INFO spawned: 'nba_props_analyzer' with pid 8197
+2025-09-08 05:33:44,535 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:33:47,541 INFO spawned: 'nba_props_analyzer' with pid 8220
+2025-09-08 05:33:48,544 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:33:56,352 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:33:57,356 INFO spawned: 'nba_props_analyzer' with pid 8291
+2025-09-08 05:33:58,307 INFO waiting for nba_props_analyzer to stop
+2025-09-08 05:33:58,315 WARN stopped: nba_props_analyzer (terminated by SIGTERM)
+2025-09-08 05:33:58,322 INFO spawned: 'nba_props_analyzer' with pid 8296
+2025-09-08 05:33:59,324 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:01,051 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:02,055 INFO spawned: 'nba_props_analyzer' with pid 8352
+2025-09-08 05:34:03,057 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:04,474 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:05,478 INFO spawned: 'nba_props_analyzer' with pid 8360
+2025-09-08 05:34:06,480 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:07,708 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:08,711 INFO spawned: 'nba_props_analyzer' with pid 8390
+2025-09-08 05:34:09,713 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:12,297 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:13,302 INFO spawned: 'nba_props_analyzer' with pid 8473
+2025-09-08 05:34:14,304 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:16,853 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:17,860 INFO spawned: 'nba_props_analyzer' with pid 8524
+2025-09-08 05:34:18,871 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:20,441 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:21,445 INFO spawned: 'nba_props_analyzer' with pid 8530
+2025-09-08 05:34:22,447 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:23,537 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:24,542 INFO spawned: 'nba_props_analyzer' with pid 8536
+2025-09-08 05:34:25,544 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:26,772 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:27,777 INFO spawned: 'nba_props_analyzer' with pid 8543
+2025-09-08 05:34:28,779 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:30,188 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:31,192 INFO spawned: 'nba_props_analyzer' with pid 8549
+2025-09-08 05:34:32,194 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:33,752 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:34,756 INFO spawned: 'nba_props_analyzer' with pid 8556
+2025-09-08 05:34:35,757 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:37,078 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:38,083 INFO spawned: 'nba_props_analyzer' with pid 8562
+2025-09-08 05:34:39,085 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:40,659 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:41,663 INFO spawned: 'nba_props_analyzer' with pid 8568
+2025-09-08 05:34:42,665 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:43,959 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:44,964 INFO spawned: 'nba_props_analyzer' with pid 8575
+2025-09-08 05:34:45,966 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:47,345 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:48,350 INFO spawned: 'nba_props_analyzer' with pid 8581
+2025-09-08 05:34:49,352 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:50,686 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:51,690 INFO spawned: 'nba_props_analyzer' with pid 8587
+2025-09-08 05:34:52,692 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:54,031 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:55,035 INFO spawned: 'nba_props_analyzer' with pid 8594
+2025-09-08 05:34:56,037 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:34:57,294 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:34:58,297 INFO spawned: 'nba_props_analyzer' with pid 8600
+2025-09-08 05:34:59,299 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:00,556 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:01,559 INFO spawned: 'nba_props_analyzer' with pid 8608
+2025-09-08 05:35:02,561 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:04,171 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:05,175 INFO spawned: 'nba_props_analyzer' with pid 8616
+2025-09-08 05:35:06,178 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:07,587 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:08,591 INFO spawned: 'nba_props_analyzer' with pid 8622
+2025-09-08 05:35:09,593 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:11,058 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:12,062 INFO spawned: 'nba_props_analyzer' with pid 8629
+2025-09-08 05:35:13,065 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:14,401 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:15,407 INFO spawned: 'nba_props_analyzer' with pid 8635
+2025-09-08 05:35:16,409 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:18,850 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:19,854 INFO spawned: 'nba_props_analyzer' with pid 8642
+2025-09-08 05:35:20,856 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:22,576 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:23,580 INFO spawned: 'nba_props_analyzer' with pid 8649
+2025-09-08 05:35:24,583 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:25,972 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:26,975 INFO spawned: 'nba_props_analyzer' with pid 8655
+2025-09-08 05:35:27,977 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:29,410 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:30,415 INFO spawned: 'nba_props_analyzer' with pid 8662
+2025-09-08 05:35:31,417 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:32,737 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:33,741 INFO spawned: 'nba_props_analyzer' with pid 8668
+2025-09-08 05:35:34,743 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:36,096 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:37,100 INFO spawned: 'nba_props_analyzer' with pid 8675
+2025-09-08 05:35:38,101 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:39,484 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:40,488 INFO spawned: 'nba_props_analyzer' with pid 8681
+2025-09-08 05:35:41,490 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:42,759 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:43,762 INFO spawned: 'nba_props_analyzer' with pid 8687
+2025-09-08 05:35:44,764 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:46,005 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:47,010 INFO spawned: 'nba_props_analyzer' with pid 8693
+2025-09-08 05:35:48,012 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:49,276 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:50,280 INFO spawned: 'nba_props_analyzer' with pid 8700
+2025-09-08 05:35:51,281 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:52,686 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:53,690 INFO spawned: 'nba_props_analyzer' with pid 8706
+2025-09-08 05:35:54,692 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:55,979 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:35:56,983 INFO spawned: 'nba_props_analyzer' with pid 8712
+2025-09-08 05:35:57,985 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:35:59,180 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:00,183 INFO spawned: 'nba_props_analyzer' with pid 8719
+2025-09-08 05:36:01,185 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:02,420 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:03,423 INFO spawned: 'nba_props_analyzer' with pid 8725
+2025-09-08 05:36:04,433 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:05,930 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:06,934 INFO spawned: 'nba_props_analyzer' with pid 8731
+2025-09-08 05:36:07,936 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:09,197 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:10,200 INFO spawned: 'nba_props_analyzer' with pid 8737
+2025-09-08 05:36:11,202 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:12,457 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:13,461 INFO spawned: 'nba_props_analyzer' with pid 8744
+2025-09-08 05:36:14,464 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:15,740 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:16,743 INFO spawned: 'nba_props_analyzer' with pid 8750
+2025-09-08 05:36:17,745 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:18,937 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:19,940 INFO spawned: 'nba_props_analyzer' with pid 8756
+2025-09-08 05:36:20,942 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:22,236 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:23,239 INFO spawned: 'nba_props_analyzer' with pid 8762
+2025-09-08 05:36:24,241 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:25,463 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:26,466 INFO spawned: 'nba_props_analyzer' with pid 8769
+2025-09-08 05:36:27,468 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:28,646 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:29,650 INFO spawned: 'nba_props_analyzer' with pid 8775
+2025-09-08 05:36:30,652 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:31,823 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:32,826 INFO spawned: 'nba_props_analyzer' with pid 8781
+2025-09-08 05:36:33,828 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:35,028 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:36,032 INFO spawned: 'nba_props_analyzer' with pid 8787
+2025-09-08 05:36:37,033 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:38,227 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:39,231 INFO spawned: 'nba_props_analyzer' with pid 8793
+2025-09-08 05:36:40,233 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:41,394 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:42,397 INFO spawned: 'nba_props_analyzer' with pid 8800
+2025-09-08 05:36:43,399 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:44,570 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:45,574 INFO spawned: 'nba_props_analyzer' with pid 8806
+2025-09-08 05:36:46,576 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:47,726 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:48,730 INFO spawned: 'nba_props_analyzer' with pid 8812
+2025-09-08 05:36:49,732 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:50,959 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:51,963 INFO spawned: 'nba_props_analyzer' with pid 8818
+2025-09-08 05:36:52,965 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:54,276 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:55,280 INFO spawned: 'nba_props_analyzer' with pid 8824
+2025-09-08 05:36:56,281 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:36:57,501 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:36:58,504 INFO spawned: 'nba_props_analyzer' with pid 8830
+2025-09-08 05:36:59,506 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:00,752 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:01,756 INFO spawned: 'nba_props_analyzer' with pid 8837
+2025-09-08 05:37:02,757 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:03,978 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:04,981 INFO spawned: 'nba_props_analyzer' with pid 8843
+2025-09-08 05:37:05,983 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:07,176 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:08,179 INFO spawned: 'nba_props_analyzer' with pid 8849
+2025-09-08 05:37:09,181 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:10,362 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:11,366 INFO spawned: 'nba_props_analyzer' with pid 8855
+2025-09-08 05:37:12,368 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:13,549 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:14,553 INFO spawned: 'nba_props_analyzer' with pid 8861
+2025-09-08 05:37:15,555 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:17,668 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:18,671 INFO spawned: 'nba_props_analyzer' with pid 8869
+2025-09-08 05:37:19,673 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:20,918 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:21,921 INFO spawned: 'nba_props_analyzer' with pid 8875
+2025-09-08 05:37:22,923 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:24,433 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:25,436 INFO spawned: 'nba_props_analyzer' with pid 8881
+2025-09-08 05:37:26,438 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:27,612 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:28,615 INFO spawned: 'nba_props_analyzer' with pid 8887
+2025-09-08 05:37:29,617 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:30,690 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:31,694 INFO spawned: 'nba_props_analyzer' with pid 8893
+2025-09-08 05:37:32,696 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:33,818 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:34,822 INFO spawned: 'nba_props_analyzer' with pid 8900
+2025-09-08 05:37:35,824 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:36,927 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:37,931 INFO spawned: 'nba_props_analyzer' with pid 8906
+2025-09-08 05:37:38,933 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:40,026 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:41,030 INFO spawned: 'nba_props_analyzer' with pid 8912
+2025-09-08 05:37:42,032 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:43,270 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:44,273 INFO spawned: 'nba_props_analyzer' with pid 8918
+2025-09-08 05:37:45,275 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:46,504 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:47,508 INFO spawned: 'nba_props_analyzer' with pid 8924
+2025-09-08 05:37:48,509 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:49,690 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:50,693 INFO spawned: 'nba_props_analyzer' with pid 8930
+2025-09-08 05:37:51,695 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:52,939 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:53,943 INFO spawned: 'nba_props_analyzer' with pid 8937
+2025-09-08 05:37:54,945 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:56,198 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:37:57,201 INFO spawned: 'nba_props_analyzer' with pid 8943
+2025-09-08 05:37:58,203 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:37:59,394 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:00,398 INFO spawned: 'nba_props_analyzer' with pid 8949
+2025-09-08 05:38:01,400 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:02,534 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:03,537 INFO spawned: 'nba_props_analyzer' with pid 8955
+2025-09-08 05:38:04,539 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:05,797 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:06,808 INFO spawned: 'nba_props_analyzer' with pid 8961
+2025-09-08 05:38:07,810 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:09,014 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:10,018 INFO spawned: 'nba_props_analyzer' with pid 8968
+2025-09-08 05:38:11,019 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:12,116 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:13,120 INFO spawned: 'nba_props_analyzer' with pid 8974
+2025-09-08 05:38:14,121 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:15,347 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:16,351 INFO spawned: 'nba_props_analyzer' with pid 8980
+2025-09-08 05:38:17,352 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:18,481 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:19,486 INFO spawned: 'nba_props_analyzer' with pid 8986
+2025-09-08 05:38:20,488 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:22,310 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:23,314 INFO spawned: 'nba_props_analyzer' with pid 8993
+2025-09-08 05:38:24,315 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:26,107 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:27,111 INFO spawned: 'nba_props_analyzer' with pid 9000
+2025-09-08 05:38:28,113 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:29,985 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:30,989 INFO spawned: 'nba_props_analyzer' with pid 9006
+2025-09-08 05:38:31,991 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:33,096 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:34,100 INFO spawned: 'nba_props_analyzer' with pid 9013
+2025-09-08 05:38:35,101 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:36,288 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:37,291 INFO spawned: 'nba_props_analyzer' with pid 9019
+2025-09-08 05:38:38,293 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:39,690 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:40,694 INFO spawned: 'nba_props_analyzer' with pid 9025
+2025-09-08 05:38:41,696 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:42,897 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:43,901 INFO spawned: 'nba_props_analyzer' with pid 9031
+2025-09-08 05:38:44,903 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:46,123 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:47,126 INFO spawned: 'nba_props_analyzer' with pid 9038
+2025-09-08 05:38:48,128 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:49,455 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:50,459 INFO spawned: 'nba_props_analyzer' with pid 9044
+2025-09-08 05:38:51,461 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:52,696 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:53,700 INFO spawned: 'nba_props_analyzer' with pid 9052
+2025-09-08 05:38:54,702 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:38:56,387 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:38:57,391 INFO spawned: 'nba_props_analyzer' with pid 9059
+2025-09-08 05:38:58,393 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:00,729 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:01,732 INFO spawned: 'nba_props_analyzer' with pid 9066
+2025-09-08 05:39:02,736 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:04,095 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:05,099 INFO spawned: 'nba_props_analyzer' with pid 9072
+2025-09-08 05:39:06,101 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:07,390 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:08,395 INFO spawned: 'nba_props_analyzer' with pid 9079
+2025-09-08 05:39:09,397 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:10,905 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:11,908 INFO spawned: 'nba_props_analyzer' with pid 9085
+2025-09-08 05:39:12,909 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:14,077 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:15,081 INFO spawned: 'nba_props_analyzer' with pid 9091
+2025-09-08 05:39:16,083 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:18,249 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:19,253 INFO spawned: 'nba_props_analyzer' with pid 9098
+2025-09-08 05:39:20,255 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:21,367 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:22,370 INFO spawned: 'nba_props_analyzer' with pid 9105
+2025-09-08 05:39:23,372 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:24,454 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:25,458 INFO spawned: 'nba_props_analyzer' with pid 9115
+2025-09-08 05:39:26,460 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:28,633 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:29,637 INFO spawned: 'nba_props_analyzer' with pid 9178
+2025-09-08 05:39:30,639 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:33,056 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:33,652 INFO spawned: 'nba_props_analyzer' with pid 9303
+2025-09-08 05:39:33,659 INFO waiting for nba_props_analyzer to stop
+2025-09-08 05:39:33,659 WARN stopped: nba_props_analyzer (terminated by SIGTERM)
+2025-09-08 05:39:33,662 INFO spawned: 'nba_props_analyzer' with pid 9304
+2025-09-08 05:39:34,664 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:35,739 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:36,743 INFO spawned: 'nba_props_analyzer' with pid 9313
+2025-09-08 05:39:37,745 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:38,826 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:39,830 INFO spawned: 'nba_props_analyzer' with pid 9326
+2025-09-08 05:39:40,832 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:41,837 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:42,840 INFO spawned: 'nba_props_analyzer' with pid 9336
+2025-09-08 05:39:43,841 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:44,916 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:45,919 INFO spawned: 'nba_props_analyzer' with pid 9344
+2025-09-08 05:39:46,921 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:47,986 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:48,989 INFO spawned: 'nba_props_analyzer' with pid 9350
+2025-09-08 05:39:49,991 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:51,161 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:52,165 INFO spawned: 'nba_props_analyzer' with pid 9360
+2025-09-08 05:39:53,167 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:54,230 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:55,234 INFO spawned: 'nba_props_analyzer' with pid 9366
+2025-09-08 05:39:56,237 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:39:58,321 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:39:59,324 INFO spawned: 'nba_props_analyzer' with pid 9469
+2025-09-08 05:40:00,326 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:01,531 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:02,535 INFO spawned: 'nba_props_analyzer' with pid 9514
+2025-09-08 05:40:03,182 INFO waiting for nba_props_analyzer to stop
+2025-09-08 05:40:03,188 WARN stopped: nba_props_analyzer (terminated by SIGTERM)
+2025-09-08 05:40:03,192 INFO spawned: 'nba_props_analyzer' with pid 9518
+2025-09-08 05:40:04,194 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:05,198 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:06,201 INFO spawned: 'nba_props_analyzer' with pid 9528
+2025-09-08 05:40:07,203 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:08,231 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:09,234 INFO spawned: 'nba_props_analyzer' with pid 9536
+2025-09-08 05:40:10,236 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:11,253 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:12,257 INFO spawned: 'nba_props_analyzer' with pid 9542
+2025-09-08 05:40:13,259 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:14,303 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:15,307 INFO spawned: 'nba_props_analyzer' with pid 9548
+2025-09-08 05:40:16,309 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:17,365 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:18,369 INFO spawned: 'nba_props_analyzer' with pid 9556
+2025-09-08 05:40:19,371 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:20,464 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:21,467 INFO spawned: 'nba_props_analyzer' with pid 9562
+2025-09-08 05:40:22,469 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:23,530 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:24,533 INFO spawned: 'nba_props_analyzer' with pid 9569
+2025-09-08 05:40:25,538 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:26,884 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:27,887 INFO spawned: 'nba_props_analyzer' with pid 9575
+2025-09-08 05:40:28,889 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:30,067 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:31,071 INFO spawned: 'nba_props_analyzer' with pid 9581
+2025-09-08 05:40:32,073 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:33,244 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:34,248 INFO spawned: 'nba_props_analyzer' with pid 9587
+2025-09-08 05:40:35,249 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:36,407 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:37,412 INFO spawned: 'nba_props_analyzer' with pid 9593
+2025-09-08 05:40:38,413 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:39,564 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:40,568 INFO spawned: 'nba_props_analyzer' with pid 9599
+2025-09-08 05:40:41,570 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:42,751 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:43,754 INFO spawned: 'nba_props_analyzer' with pid 9606
+2025-09-08 05:40:44,756 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:45,887 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:46,891 INFO spawned: 'nba_props_analyzer' with pid 9612
+2025-09-08 05:40:47,893 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:48,960 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:49,963 INFO spawned: 'nba_props_analyzer' with pid 9618
+2025-09-08 05:40:50,965 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:52,127 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:53,131 INFO spawned: 'nba_props_analyzer' with pid 9624
+2025-09-08 05:40:54,133 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:55,175 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:56,179 INFO spawned: 'nba_props_analyzer' with pid 9630
+2025-09-08 05:40:57,181 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:40:58,219 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:40:59,223 INFO spawned: 'nba_props_analyzer' with pid 9636
+2025-09-08 05:41:00,225 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:41:01,320 WARN exited: nba_props_analyzer (exit status 1; not expected)
+2025-09-08 05:41:02,323 INFO spawned: 'nba_props_analyzer' with pid 9642
+2025-09-08 05:41:03,325 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-08 05:41:08,163 INFO waiting for nba_props_analyzer to stop
+2025-09-08 05:41:08,556 INFO stopped: nba_props_analyzer (exit status 0)
+2025-09-08 05:41:08,561 INFO spawned: 'nba_props_analyzer' with pid 9715
+2025-09-08 05:41:09,563 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)

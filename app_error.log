@@ -1,0 +1,1623 @@
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 1, in <module>
+    from flask import Flask, render_template, request, jsonify
+ModuleNotFoundError: No module named 'flask'
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 1, in <module>
+    from flask import Flask, render_template, request, jsonify
+ModuleNotFoundError: No module named 'flask'
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 1, in <module>
+    from flask import Flask, render_template, request, jsonify
+ModuleNotFoundError: No module named 'flask'
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 1, in <module>
+    from flask import Flask, render_template, request, jsonify
+ModuleNotFoundError: No module named 'flask'
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 1, in <module>
+    from flask import Flask, render_template, request, jsonify
+ModuleNotFoundError: No module named 'flask'
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 1, in <module>
+    from flask import Flask, render_template, request, jsonify
+ModuleNotFoundError: No module named 'flask'
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 1, in <module>
+    from flask import Flask, render_template, request, jsonify
+ModuleNotFoundError: No module named 'flask'
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 1, in <module>
+    from flask import Flask, render_template, request, jsonify
+ModuleNotFoundError: No module named 'flask'
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 1, in <module>
+    from flask import Flask, render_template, request, jsonify
+ModuleNotFoundError: No module named 'flask'
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 1, in <module>
+    from flask import Flask, render_template, request, jsonify
+ModuleNotFoundError: No module named 'flask'
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 1, in <module>
+    from flask import Flask, render_template, request, jsonify
+ModuleNotFoundError: No module named 'flask'
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 68
+    return {'error': f'Error analyzing parlays: {str(e)}'}\n    
+                                                           ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 14, in <module>
+    from .parlay_optimizer import ParlayOptimizer 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/parlay_optimizer.py", line 70
+    def _analyze_parlay_combination(self, props_combo):\n        \"\"\"Analyze a specific parlay combination\"\"\"\n        try:\n            # Calculate individual probabilities\n            individual_probs = []\n            individual_edges = []\n            prop_details = []\n            \n            for prop in props_combo:\n                prob = prop.get('over_probability', 0.5)\n                edge = prop.get('edge', 0)\n                confidence = prop.get('confidence_score', 50)\n                \n                individual_probs.append(prob)\n                individual_edges.append(edge)\n                prop_details.append({\n                    'player': prop.get('player_name', 'Unknown'),\n                    'prop_type': prop.get('prop_type', 'Unknown'),\n                    'line': prop.get('line', 0),\n                    'recommendation': prop.get('recommendation', 'PASS'),\n                    'probability': prob,\n                    'confidence': confidence\n  
+                                                        ^
+SyntaxError: unexpected character after line continuation character
+[2025-09-08 05:41:04,017] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-08 05:41:05,877] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 903-792-757
+[2025-09-08 05:41:10,458] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-08 05:41:12,205] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 903-792-757
+127.0.0.1 - - [08/Sep/2025 05:41:23] "GET /test_api HTTP/1.1" 200 -
