@@ -1759,3 +1759,75 @@ Traceback (most recent call last):
     tf_prediction = await self._get_tensorflow_prediction(player_id, prop_type, line, stats)
                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 SyntaxError: 'await' outside async function
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 737
+    ai_insights[f\"{pred['model']}_insights\"] = pred['ai_insights']
+                  ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 737
+    ai_insights[f\"{pred['model']}_insights\"] = pred['ai_insights']
+                  ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 737
+    ai_insights[f\"{pred['model']}_insights\"] = pred['ai_insights']
+                  ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 737
+    ai_insights[f\"{pred['model']}_insights\"] = pred['ai_insights']
+                  ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 737
+    ai_insights[f\"{pred['model']}_insights\"] = pred['ai_insights']
+                  ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 737
+    ai_insights[f\"{pred['model']}_insights\"] = pred['ai_insights']
+                  ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 737
+    ai_insights[f\"{pred['model']}_insights\"] = pred['ai_insights']
+                  ^
+SyntaxError: unexpected character after line continuation character
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 2, in <module>
+    from .basketball_betting_helper import BasketballBettingHelper
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 737
+    ai_insights[f\"{pred['model']}_insights\"] = pred['ai_insights']
+                  ^
+SyntaxError: unexpected character after line continuation character

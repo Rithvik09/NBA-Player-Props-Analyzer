@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NBA Props Analyzer Pro - Advanced Betting Intelligence</title>
+    <title>Sports Props Analyzer Pro - Multi-Sport Betting Intelligence</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/enhanced_style.css') }}" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
@@ -16,10 +16,26 @@
         <div class="container mx-auto px-4">
             <div class="flex justify-between items-center py-4">
                 <div class="flex items-center">
-                    <i class="fas fa-basketball-ball text-orange-500 text-3xl mr-3"></i>
+                    <i :class="activeSport === 'NBA' ? 'fas fa-basketball-ball' : 'fas fa-football-ball'" 
+                       class="text-orange-500 text-3xl mr-3"></i>
                     <h1 class="text-2xl font-bold bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">
-                        NBA Props Analyzer Pro
+                        <span x-text="activeSport"></span> Props Analyzer Pro
                     </h1>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <!-- Sport Selector -->
+                    <div class="bg-gray-800 rounded-lg p-1 flex">
+                        <button @click="switchSport('NBA')" 
+                                :class="{'bg-blue-600 text-white': activeSport === 'NBA', 'text-gray-400 hover:text-white': activeSport !== 'NBA'}"
+                                class="px-3 py-1 rounded-md transition-all text-sm font-semibold">
+                            <i class="fas fa-basketball-ball mr-1"></i>NBA
+                        </button>
+                        <button @click="switchSport('NFL')" 
+                                :class="{'bg-green-600 text-white': activeSport === 'NFL', 'text-gray-400 hover:text-white': activeSport !== 'NFL'}"
+                                class="px-3 py-1 rounded-md transition-all text-sm font-semibold">
+                            <i class="fas fa-football-ball mr-1"></i>NFL
+                        </button>
+                    </div>
                 </div>
                 <div class="flex space-x-4">
                     <button @click="activeTab = 'analyzer'" 
@@ -100,19 +116,41 @@
                                 <label class="block text-sm font-medium text-gray-300 mb-2">Prop Type</label>
                                 <select x-model="selectedPropType" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white">
                                     <option value="">Select Prop</option>
-                                    <option value="points">Points</option>
-                                    <option value="assists">Assists</option>
-                                    <option value="rebounds">Rebounds</option>
-                                    <option value="steals">Steals</option>
-                                    <option value="blocks">Blocks</option>
-                                    <option value="turnovers">Turnovers</option>
-                                    <option value="three_pointers">3-Pointers Made</option>
-                                    <option value="double_double">Double-Double</option>
-                                    <option value="triple_double">Triple-Double</option>
-                                    <option value="pts_reb">Points + Rebounds</option>
-                                    <option value="pts_ast">Points + Assists</option>
-                                    <option value="ast_reb">Assists + Rebounds</option>
-                                    <option value="pts_ast_reb">Pts + Ast + Reb</option>
+                                    <!-- NBA Props -->
+                                    <template x-if="activeSport === 'NBA'">
+                                        <optgroup label="NBA Props">
+                                            <option value="points">Points</option>
+                                            <option value="assists">Assists</option>
+                                            <option value="rebounds">Rebounds</option>
+                                            <option value="steals">Steals</option>
+                                            <option value="blocks">Blocks</option>
+                                            <option value="turnovers">Turnovers</option>
+                                            <option value="three_pointers">3-Pointers Made</option>
+                                            <option value="double_double">Double-Double</option>
+                                            <option value="triple_double">Triple-Double</option>
+                                            <option value="pts_reb">Points + Rebounds</option>
+                                            <option value="pts_ast">Points + Assists</option>
+                                            <option value="ast_reb">Assists + Rebounds</option>
+                                            <option value="pts_ast_reb">Pts + Ast + Reb</option>
+                                        </optgroup>
+                                    </template>
+                                    <!-- NFL Props -->
+                                    <template x-if="activeSport === 'NFL'">
+                                        <optgroup label="NFL Props">
+                                            <option value="passing_yards">Passing Yards</option>
+                                            <option value="passing_tds">Passing TDs</option>
+                                            <option value="rushing_yards">Rushing Yards</option>
+                                            <option value="rushing_tds">Rushing TDs</option>
+                                            <option value="receiving_yards">Receiving Yards</option>
+                                            <option value="receiving_tds">Receiving TDs</option>
+                                            <option value="receptions">Receptions</option>
+                                            <option value="interceptions">Interceptions</option>
+                                            <option value="fumbles">Fumbles</option>
+                                            <option value="completions">Completions</option>
+                                            <option value="pass_attempts">Pass Attempts</option>
+                                            <option value="longest_completion">Longest Completion</option>
+                                        </optgroup>
+                                    </template>
                                 </select>
                             </div>
                             <div>
@@ -170,8 +208,18 @@
                             <label class="flex items-center space-x-2">
                                 <input type="checkbox" x-model="includeSituational" class="rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500">
                                 <span class="text-sm">Include Situational Analysis</span>
-                                <i class="fas fa-info-circle text-blue-400 cursor-help" title="Analyze revenge games, milestones, rest advantages"></i>
+                                <i class="fas fa-info-circle text-blue-400 cursor-help" 
+                                   :title="activeSport === 'NBA' ? 'Analyze revenge games, milestones, rest advantages' : 'Analyze divisional games, weather impact, home/away splits'"></i>
                             </label>
+                            
+                            <!-- NFL Weather Analysis -->
+                            <template x-if="activeSport === 'NFL'">
+                                <label class="flex items-center space-x-2">
+                                    <input type="checkbox" x-model="includeWeather" class="rounded bg-gray-700 border-gray-600 text-green-600 focus:ring-green-500">
+                                    <span class="text-sm">Include Weather Analysis</span>
+                                    <i class="fas fa-cloud-rain text-green-400 cursor-help" title="Analyze weather impact for outdoor stadiums"></i>
+                                </label>
+                            </template>
                         </div>
                     </div>
                 </div>
@@ -185,6 +233,70 @@
                         <i x-show="isAnalyzing" class="fas fa-spinner fa-spin mr-2"></i>
                         <span x-text="isAnalyzing ? 'Analyzing...' : 'Analyze Prop'"></span>
                     </button>
+                </div>
+            </div>
+
+            <!-- NFL Weather Component -->
+            <div x-show="activeSport === 'NFL' && analysisResults?.weather_analysis" 
+                 class="bg-gradient-to-br from-blue-900 to-green-900 rounded-xl shadow-2xl p-6 border border-blue-400">
+                <h3 class="text-xl font-bold mb-4 flex items-center">
+                    <i class="fas fa-cloud-rain mr-2 text-blue-400"></i>
+                    Weather Impact Analysis
+                </h3>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="bg-gray-800 bg-opacity-60 rounded-lg p-4">
+                        <h4 class="font-semibold text-blue-300 mb-2">Current Conditions</h4>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span>Stadium Type:</span>
+                                <span class="font-semibold" x-text="analysisResults?.weather_analysis?.stadium_type || 'Unknown'"></span>
+                            </div>
+                            <div class="flex justify-between" x-show="analysisResults?.weather_analysis?.temperature">
+                                <span>Temperature:</span>
+                                <span x-text="analysisResults?.weather_analysis?.temperature + '°F'"></span>
+                            </div>
+                            <div class="flex justify-between" x-show="analysisResults?.weather_analysis?.wind_speed">
+                                <span>Wind Speed:</span>
+                                <span x-text="analysisResults?.weather_analysis?.wind_speed + ' mph'"></span>
+                            </div>
+                            <div class="flex justify-between" x-show="analysisResults?.weather_analysis?.precipitation_chance">
+                                <span>Rain Chance:</span>
+                                <span x-text="analysisResults?.weather_analysis?.precipitation_chance + '%'"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-800 bg-opacity-60 rounded-lg p-4">
+                        <h4 class="font-semibold text-green-300 mb-2">Impact Assessment</h4>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span>Impact Level:</span>
+                                <span class="font-bold" 
+                                      :class="{
+                                          'text-green-400': analysisResults?.weather_analysis?.impact_level === 'NONE',
+                                          'text-yellow-400': analysisResults?.weather_analysis?.impact_level === 'LOW',
+                                          'text-orange-400': analysisResults?.weather_analysis?.impact_level === 'MEDIUM',
+                                          'text-red-400': analysisResults?.weather_analysis?.impact_level === 'HIGH'
+                                      }"
+                                      x-text="analysisResults?.weather_analysis?.impact_level || 'UNKNOWN'">
+                                </span>
+                            </div>
+                            <div x-show="analysisResults?.weather_analysis?.passing_factor">
+                                <span>Passing Impact:</span>
+                                <span x-text="(analysisResults?.weather_analysis?.passing_factor * 100).toFixed(0) + '%'"></span>
+                            </div>
+                            <div x-show="analysisResults?.weather_analysis?.rushing_factor">
+                                <span>Rushing Impact:</span>
+                                <span x-text="(analysisResults?.weather_analysis?.rushing_factor * 100).toFixed(0) + '%'"></span>
+                            </div>
+                        </div>
+                        <div class="mt-3 p-2 bg-blue-600 bg-opacity-30 rounded text-xs" 
+                             x-show="analysisResults?.weather_analysis?.recommendation">
+                            <strong>Weather Recommendation:</strong> 
+                            <span x-text="analysisResults?.weather_analysis?.recommendation"></span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -493,6 +605,16 @@
                     Enterprise AI Intelligence Platform
                 </h2>
                 
+                <!-- Active Sport Indicator -->
+                <div class="text-center mb-6">
+                    <div class="inline-flex items-center px-4 py-2 bg-gray-800 rounded-full border-2" 
+                         :class="activeSport === 'NBA' ? 'border-orange-500' : 'border-green-500'">
+                        <i :class="activeSport === 'NBA' ? 'fas fa-basketball-ball text-orange-500' : 'fas fa-football-ball text-green-500'" 
+                           class="text-lg mr-2"></i>
+                        <span class="font-bold text-lg" x-text="activeSport + ' Analysis Active'"></span>
+                    </div>
+                </div>
+                
                 <!-- System Status -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
                     <div class="bg-gray-800 rounded-lg p-4 border border-purple-400">
@@ -656,6 +778,14 @@
                         <h4 class="font-bold text-orange-200 mb-2">📊 Live Markets</h4>
                         <p class="text-sm text-orange-100">Real-time odds from 15+ sportsbooks with arbitrage detection</p>
                     </div>
+                    <div x-show="activeSport === 'NFL'" class="bg-gradient-to-br from-blue-800 to-blue-900 p-4 rounded-lg border border-blue-400">
+                        <h4 class="font-bold text-blue-200 mb-2">🌦️ Weather Intelligence</h4>
+                        <p class="text-sm text-blue-100">Advanced weather analysis for outdoor stadiums with prop impact modeling</p>
+                    </div>
+                    <div x-show="activeSport === 'NFL'" class="bg-gradient-to-br from-red-800 to-red-900 p-4 rounded-lg border border-red-400">
+                        <h4 class="font-bold text-red-200 mb-2">🏈 Divisional Analysis</h4>
+                        <p class="text-sm text-red-100">Division rivalry impact analysis with historical performance modeling</p>
+                    </div>
                     <div class="bg-gradient-to-br from-pink-800 to-pink-900 p-4 rounded-lg border border-pink-400">
                         <h4 class="font-bold text-pink-200 mb-2">🔔 Smart Alerts</h4>
                         <p class="text-sm text-pink-100">AI-powered notifications for optimal betting opportunities</p>
@@ -681,6 +811,7 @@
         function nbaPropsApp() {
             return {
                 activeTab: 'analyzer',
+                activeSport: 'NBA', // Multi-sport support
                 
                 // Analyzer State
                 playerSearch: '',
@@ -690,6 +821,7 @@
                 propLine: '',
                 opponentTeamId: '',
                 includeSituational: true,
+                includeWeather: false, // NFL only
                 isAnalyzing: false,
                 analysisResults: null,
                 
@@ -723,6 +855,32 @@
                     this.loadPerformanceAnalytics();
                 },
                 
+                async switchSport(sport) {
+                    try {
+                        const response = await fetch('/sports/switch', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ sport: sport })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            this.activeSport = sport;
+                            // Reset form
+                            this.playerSearch = '';
+                            this.playerSuggestions = [];
+                            this.selectedPlayer = null;
+                            this.selectedPropType = '';
+                            this.propLine = '';
+                            this.opponentTeamId = '';
+                            this.analysisResults = null;
+                            this.includeWeather = false;
+                        }
+                    } catch (error) {
+                        console.error('Error switching sport:', error);
+                    }
+                },
+                
                 async searchPlayers() {
                     if (this.playerSearch.length < 2) {
                         this.playerSuggestions = [];
@@ -730,7 +888,8 @@
                     }
                     
                     try {
-                        const response = await fetch(`/search_players?q=${encodeURIComponent(this.playerSearch)}`);
+                        const endpoint = this.activeSport === 'NFL' ? '/nfl/search_players' : '/search_players';
+                        const response = await fetch(`${endpoint}?q=${encodeURIComponent(this.playerSearch)}`);
                         const data = await response.json();
                         this.playerSuggestions = data || [];
                     } catch (error) {
@@ -750,17 +909,26 @@
                     this.analysisResults = null;
                     
                     try {
-                        const response = await fetch('/analyze_prop', {
+                        const endpoint = this.activeSport === 'NFL' ? '/nfl/analyze_prop' : '/analyze_prop';
+                        const payload = {
+                            player_id: this.selectedPlayer.id,
+                            player_name: this.selectedPlayer.full_name,
+                            prop_type: this.selectedPropType,
+                            line: parseFloat(this.propLine),
+                            opponent_team_id: parseInt(this.opponentTeamId),
+                            include_situational: this.includeSituational,
+                            sport: this.activeSport
+                        };
+                        
+                        // Add NFL-specific options
+                        if (this.activeSport === 'NFL') {
+                            payload.include_weather = this.includeWeather;
+                        }
+                        
+                        const response = await fetch(endpoint, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                player_id: this.selectedPlayer.id,
-                                player_name: this.selectedPlayer.full_name,
-                                prop_type: this.selectedPropType,
-                                line: parseFloat(this.propLine),
-                                opponent_team_id: parseInt(this.opponentTeamId),
-                                include_situational: this.includeSituational
-                            })
+                            body: JSON.stringify(payload)
                         });
                         
                         const data = await response.json();
@@ -898,12 +1066,13 @@
                 async loadLiveOdds() {
                     this.isLoading = true;
                     try {
-                        const response = await fetch('/odds/live/basketball_nba');
+                        const sport_key = this.activeSport === 'NBA' ? 'basketball_nba' : 'americanfootball_nfl';
+                        const response = await fetch(`/odds/live/${sport_key}`);
                         const data = await response.json();
                         
                         if (data.success) {
                             this.liveOddsData = data.odds;
-                            console.log('Live odds loaded:', this.liveOddsData);
+                            console.log(`Live odds loaded for ${this.activeSport}:`, this.liveOddsData);
                         }
                     } catch (error) {
                         console.error('Error loading live odds:', error);

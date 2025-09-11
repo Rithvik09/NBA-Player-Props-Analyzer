@@ -1,5 +1,7 @@
 from flask import Flask, render_template, request, jsonify, session
 from .basketball_betting_helper import BasketballBettingHelper
+from .nfl_betting_helper import NFLBettingHelper
+from .nfl_weather import NFLWeatherSystem
 import logging
 from logging.handlers import RotatingFileHandler
 import os
@@ -8,11 +10,22 @@ from functools import wraps
 from nba_api.stats.static import players
 # Enterprise imports
 try:
-    from .auth.user_management import UserManager
-    from .notifications.notification_system import NotificationManager
+    from .auth.simple_auth import simple_auth
     AUTH_AVAILABLE = True
-except ImportError:
+    print("✅ Simple authentication system loaded")
+except ImportError as e:
+    print(f"Warning: Auth not available: {e}")
     AUTH_AVAILABLE = False
+    simple_auth = None
+
+try:
+    from .notifications.notification_system import NotificationManager
+    NOTIFICATIONS_AVAILABLE = True
+    print("✅ Notifications system loaded")
+except ImportError as e:
+    print(f"Warning: Notifications not available: {e}")
+    NOTIFICATIONS_AVAILABLE = False
+    NotificationManager = None
 
 # Initialize Flask app
 app = Flask(__name__, 
@@ -25,10 +38,13 @@ app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-producti
 
 # Initialize enterprise features
 if AUTH_AVAILABLE:
-    user_manager = UserManager()
-    notification_manager = NotificationManager()
+    user_manager = simple_auth
 else:
     user_manager = None
+
+if NOTIFICATIONS_AVAILABLE:
+    notification_manager = NotificationManager()
+else:
     notification_manager = None
 
 if not os.path.exists('logs'):
@@ -45,6 +61,18 @@ app.logger.info('Basketball Betting Helper startup')
 
 # Initialize betting helper with enterprise features
 betting_helper = BasketballBettingHelper()
+nfl_helper = None
+nfl_weather = None
+
+# Initialize NFL systems
+try:
+    nfl_helper = NFLBettingHelper()
+    nfl_weather = NFLWeatherSystem()
+    print("✅ NFL betting system initialized")
+except Exception as e:
+    print(f"Warning: NFL system not available: {e}")
+    nfl_helper = None
+    nfl_weather = None
 
 def async_route(f):
     """Decorator to handle async routes"""
@@ -63,7 +91,7 @@ def require_auth(f):
         token = request.headers.get('Authorization')
         if token and token.startswith('Bearer '):
             token = token[7:]
-            user_data = user_manager.verify_jwt_token(token)
+            user_data = user_manager.verify_token(token) if user_manager else None
             if user_data:
                 request.current_user = user_data
                 return f(*args, **kwargs)
@@ -344,14 +372,30 @@ def login_user():
 @app.route('/odds/live/<sport>')
 @async_route
 async def get_live_odds(sport):
-    """Get live odds for specified sport"""
+    """Get live odds for specified sport (NBA or NFL)"""
     try:
-        enterprise_helper = BasketballBettingHelper()
+        sport_upper = sport.upper()
         
-        if enterprise_helper.odds_aggregator:
-            odds = await enterprise_helper.odds_aggregator.fetch_all_odds(sport)
+        if sport_upper == 'NBA':
+            enterprise_helper = BasketballBettingHelper()
+        elif sport_upper == 'NFL':
+            if not nfl_helper:
+                return jsonify({
+                    'success': False,
+                    'error': 'NFL system not available'
+                }), 501
+            enterprise_helper = nfl_helper
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Unsupported sport: {sport}'
+            }), 400
+        
+        if hasattr(enterprise_helper, 'odds_aggregator') and enterprise_helper.odds_aggregator:
+            odds = await enterprise_helper.odds_aggregator.fetch_all_odds(sport_upper)
             return jsonify({
                 'success': True,
+                'sport': sport_upper,
                 'odds': odds,
                 'timestamp': odds.get('timestamp') if odds else None
             })
@@ -362,7 +406,7 @@ async def get_live_odds(sport):
             }), 501
             
     except Exception as e:
-        app.logger.error(f'Error getting live odds: {e}')
+        app.logger.error(f'Error getting live odds for {sport}: {e}')
         return jsonify({'error': str(e), 'success': False}), 500
 
 @app.route('/ai/models/status')
@@ -428,6 +472,241 @@ def system_status():
         
     except Exception as e:
         app.logger.error(f'Error getting system status: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
+# ==============================================================================
+# NFL ENDPOINTS
+# ==============================================================================
+
+@app.route('/nfl/search_players')
+def nfl_search_players():
+    """Search NFL players"""
+    if not nfl_helper:
+        return jsonify({'error': 'NFL system not available'}), 501
+    
+    try:
+        query = request.args.get('q', '')
+        
+        if not query or len(query) < 2:
+            return jsonify([])
+            
+        suggestions = nfl_helper.get_player_suggestions(query)
+        return jsonify(suggestions)
+        
+    except Exception as e:
+        app.logger.error(f'Error searching NFL players: {e}')
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/nfl/get_player_stats/<int:player_id>')
+def nfl_get_player_stats(player_id):
+    """Get comprehensive NFL player statistics"""
+    if not nfl_helper:
+        return jsonify({'error': 'NFL system not available'}), 501
+    
+    try:
+        stats = nfl_helper.get_player_stats(player_id)
+        if stats:
+            return jsonify(stats)
+        else:
+            return jsonify({'error': 'Unable to retrieve NFL player stats'}), 404
+            
+    except Exception as e:
+        app.logger.error(f'Error getting NFL player stats: {e}')
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/nfl/analyze_prop', methods=['POST'])
+@async_route
+async def nfl_analyze_prop():
+    """Analyze NFL prop bet with enterprise AI models"""
+    if not nfl_helper:
+        return jsonify({'error': 'NFL system not available'}), 501
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        required_fields = ['player_id', 'prop_type', 'line', 'opponent_team_id']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': f'Missing required fields. Required: {required_fields}'}), 400
+
+        player_id = data['player_id']
+        player_name = data.get('player_name', 'Unknown Player')
+        prop_type = data['prop_type']
+        line = float(data['line'])
+        opponent_team_id = int(data['opponent_team_id'])
+        user_id = data.get('user_id', 'anonymous')
+        decimal_odds = data.get('decimal_odds', 1.91)
+        
+        # Use enterprise NFL helper with user context
+        enterprise_nfl_helper = NFLBettingHelper(user_id=user_id)
+        
+        analysis = await enterprise_nfl_helper.analyze_prop_bet(
+            player_id=player_id,
+            prop_type=prop_type,
+            line=line,
+            opponent_team_id=opponent_team_id
+        )
+        
+        if not analysis or not analysis.get('success'):
+            return jsonify({'error': 'Unable to perform NFL analysis', 'success': False}), 500
+        
+        # Add player and sport info to analysis
+        analysis['player_name'] = player_name
+        analysis['prop_type'] = prop_type
+        analysis['line'] = line
+        analysis['sport'] = 'NFL'
+        
+        return jsonify(analysis)
+            
+    except Exception as e:
+        app.logger.error(f'Error analyzing NFL prop: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
+@app.route('/nfl/weather/analysis', methods=['POST'])
+def nfl_weather_analysis():
+    """Get NFL weather impact analysis for outdoor games"""
+    if not nfl_weather:
+        return jsonify({'error': 'NFL weather system not available'}), 501
+    
+    try:
+        data = request.get_json()
+        home_team = data.get('home_team')
+        game_date = data.get('game_date')
+        prop_type = data.get('prop_type', 'passing_yards')
+        
+        if not home_team or not game_date:
+            return jsonify({'error': 'home_team and game_date required'}), 400
+        
+        weather_analysis = nfl_weather.get_weather_impact_analysis(
+            home_team=home_team,
+            game_date=game_date,
+            prop_type=prop_type
+        )
+        
+        return jsonify({
+            'success': True,
+            'weather_analysis': weather_analysis,
+            'sport': 'NFL'
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error getting NFL weather analysis: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
+@app.route('/nfl/weather/forecast')
+def nfl_weather_forecast():
+    """Get current NFL weather forecast for all outdoor games"""
+    if not nfl_weather:
+        return jsonify({'error': 'NFL weather system not available'}), 501
+    
+    try:
+        forecast = nfl_weather.get_weekly_weather_outlook()
+        
+        return jsonify({
+            'success': True,
+            'forecast': forecast,
+            'sport': 'NFL'
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error getting NFL weather forecast: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
+@app.route('/nfl/teams/outdoor')
+def nfl_outdoor_teams():
+    """Get list of NFL teams with outdoor stadiums"""
+    if not nfl_weather:
+        return jsonify({'error': 'NFL weather system not available'}), 501
+    
+    try:
+        outdoor_teams = nfl_weather.get_outdoor_stadium_teams()
+        
+        return jsonify({
+            'success': True,
+            'outdoor_teams': outdoor_teams,
+            'sport': 'NFL'
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error getting NFL outdoor teams: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
+@app.route('/nfl/situational/divisional', methods=['POST'])
+def nfl_divisional_analysis():
+    """Analyze NFL divisional game impact"""
+    if not nfl_helper:
+        return jsonify({'error': 'NFL system not available'}), 501
+    
+    try:
+        data = request.get_json()
+        home_team = data.get('home_team')
+        away_team = data.get('away_team')
+        
+        if not home_team or not away_team:
+            return jsonify({'error': 'home_team and away_team required'}), 400
+        
+        analysis = nfl_helper.analyze_divisional_matchup(home_team, away_team)
+        
+        return jsonify({
+            'success': True,
+            'divisional_analysis': analysis,
+            'sport': 'NFL'
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error analyzing NFL divisional matchup: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
+# Multi-Sport Endpoints
+@app.route('/sports/supported')
+def supported_sports():
+    """Get list of supported sports and their status"""
+    try:
+        sports_status = {
+            'NBA': {
+                'available': True,
+                'features': ['prop_analysis', 'live_odds', 'enterprise_ai', 'bankroll_management']
+            },
+            'NFL': {
+                'available': nfl_helper is not None,
+                'features': ['prop_analysis', 'weather_analysis', 'divisional_analysis', 'enterprise_ai'] if nfl_helper else []
+            }
+        }
+        
+        return jsonify({
+            'success': True,
+            'sports': sports_status
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error getting supported sports: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
+@app.route('/sports/switch', methods=['POST'])
+def switch_sport():
+    """Switch active sport context"""
+    try:
+        data = request.get_json()
+        sport = data.get('sport', 'NBA').upper()
+        
+        if sport not in ['NBA', 'NFL']:
+            return jsonify({'error': 'Unsupported sport'}), 400
+        
+        if sport == 'NFL' and not nfl_helper:
+            return jsonify({'error': 'NFL system not available'}), 501
+        
+        # Store sport preference in session if needed
+        session['active_sport'] = sport
+        
+        return jsonify({
+            'success': True,
+            'active_sport': sport,
+            'message': f'Switched to {sport} analysis'
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error switching sport: {e}')
         return jsonify({'error': str(e), 'success': False}), 500
 
 @app.errorhandler(404)
