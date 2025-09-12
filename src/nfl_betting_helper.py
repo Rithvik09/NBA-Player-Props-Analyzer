@@ -744,3 +744,112 @@ class NFLBettingHelper:
     def get_team_info(self, team_abbr):
         """Get detailed team information by abbreviation"""
         return self.nfl_teams.get(team_abbr, None)
+    
+    def get_player_suggestions(self, query):
+        """Search for NFL players with comprehensive database"""
+        # Expanded NFL player database for better search functionality
+        nfl_players = [
+            # AFC East
+            {'id': 'nfl_1', 'full_name': 'Josh Allen', 'position': 'QB', 'team': 'BUF', 'is_active': True},
+            {'id': 'nfl_2', 'full_name': 'Stefon Diggs', 'position': 'WR', 'team': 'BUF', 'is_active': True},
+            {'id': 'nfl_3', 'full_name': 'Tua Tagovailoa', 'position': 'QB', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_4', 'full_name': 'Tyreek Hill', 'position': 'WR', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_5', 'full_name': 'Mac Jones', 'position': 'QB', 'team': 'NE', 'is_active': True},
+            {'id': 'nfl_6', 'full_name': 'Aaron Rodgers', 'position': 'QB', 'team': 'NYJ', 'is_active': True},
+            
+            # AFC North
+            {'id': 'nfl_7', 'full_name': 'Lamar Jackson', 'position': 'QB', 'team': 'BAL', 'is_active': True},
+            {'id': 'nfl_8', 'full_name': 'Mark Andrews', 'position': 'TE', 'team': 'BAL', 'is_active': True},
+            {'id': 'nfl_9', 'full_name': 'Joe Burrow', 'position': 'QB', 'team': 'CIN', 'is_active': True},
+            {'id': 'nfl_10', 'full_name': 'Ja\'Marr Chase', 'position': 'WR', 'team': 'CIN', 'is_active': True},
+            {'id': 'nfl_11', 'full_name': 'Deshaun Watson', 'position': 'QB', 'team': 'CLE', 'is_active': True},
+            {'id': 'nfl_12', 'full_name': 'Nick Chubb', 'position': 'RB', 'team': 'CLE', 'is_active': True},
+            {'id': 'nfl_13', 'full_name': 'Kenny Pickett', 'position': 'QB', 'team': 'PIT', 'is_active': True},
+            {'id': 'nfl_14', 'full_name': 'T.J. Watt', 'position': 'OLB', 'team': 'PIT', 'is_active': True},
+            
+            # AFC South
+            {'id': 'nfl_15', 'full_name': 'C.J. Stroud', 'position': 'QB', 'team': 'HOU', 'is_active': True},
+            {'id': 'nfl_16', 'full_name': 'Nico Collins', 'position': 'WR', 'team': 'HOU', 'is_active': True},
+            {'id': 'nfl_17', 'full_name': 'Anthony Richardson', 'position': 'QB', 'team': 'IND', 'is_active': True},
+            {'id': 'nfl_18', 'full_name': 'Jonathan Taylor', 'position': 'RB', 'team': 'IND', 'is_active': True},
+            {'id': 'nfl_19', 'full_name': 'Trevor Lawrence', 'position': 'QB', 'team': 'JAX', 'is_active': True},
+            {'id': 'nfl_20', 'full_name': 'Calvin Ridley', 'position': 'WR', 'team': 'JAX', 'is_active': True},
+            {'id': 'nfl_21', 'full_name': 'Will Levis', 'position': 'QB', 'team': 'TEN', 'is_active': True},
+            {'id': 'nfl_22', 'full_name': 'Derrick Henry', 'position': 'RB', 'team': 'TEN', 'is_active': True},
+            
+            # AFC West
+            {'id': 'nfl_23', 'full_name': 'Russell Wilson', 'position': 'QB', 'team': 'DEN', 'is_active': True},
+            {'id': 'nfl_24', 'full_name': 'Courtland Sutton', 'position': 'WR', 'team': 'DEN', 'is_active': True},
+            {'id': 'nfl_25', 'full_name': 'Patrick Mahomes', 'position': 'QB', 'team': 'KC', 'is_active': True},
+            {'id': 'nfl_26', 'full_name': 'Travis Kelce', 'position': 'TE', 'team': 'KC', 'is_active': True},
+            {'id': 'nfl_27', 'full_name': 'Aidan O\'Connell', 'position': 'QB', 'team': 'LV', 'is_active': True},
+            {'id': 'nfl_28', 'full_name': 'Davante Adams', 'position': 'WR', 'team': 'LV', 'is_active': True},
+            {'id': 'nfl_29', 'full_name': 'Justin Herbert', 'position': 'QB', 'team': 'LAC', 'is_active': True},
+            {'id': 'nfl_30', 'full_name': 'Keenan Allen', 'position': 'WR', 'team': 'LAC', 'is_active': True},
+            
+            # NFC East
+            {'id': 'nfl_31', 'full_name': 'Dak Prescott', 'position': 'QB', 'team': 'DAL', 'is_active': True},
+            {'id': 'nfl_32', 'full_name': 'CeeDee Lamb', 'position': 'WR', 'team': 'DAL', 'is_active': True},
+            {'id': 'nfl_33', 'full_name': 'Daniel Jones', 'position': 'QB', 'team': 'NYG', 'is_active': True},
+            {'id': 'nfl_34', 'full_name': 'Saquon Barkley', 'position': 'RB', 'team': 'PHI', 'is_active': True},
+            {'id': 'nfl_35', 'full_name': 'Jalen Hurts', 'position': 'QB', 'team': 'PHI', 'is_active': True},
+            {'id': 'nfl_36', 'full_name': 'A.J. Brown', 'position': 'WR', 'team': 'PHI', 'is_active': True},
+            {'id': 'nfl_37', 'full_name': 'Jayden Daniels', 'position': 'QB', 'team': 'WAS', 'is_active': True},
+            {'id': 'nfl_38', 'full_name': 'Terry McLaurin', 'position': 'WR', 'team': 'WAS', 'is_active': True},
+            
+            # NFC North
+            {'id': 'nfl_39', 'full_name': 'Caleb Williams', 'position': 'QB', 'team': 'CHI', 'is_active': True},
+            {'id': 'nfl_40', 'full_name': 'D.J. Moore', 'position': 'WR', 'team': 'CHI', 'is_active': True},
+            {'id': 'nfl_41', 'full_name': 'Jared Goff', 'position': 'QB', 'team': 'DET', 'is_active': True},
+            {'id': 'nfl_42', 'full_name': 'Amon-Ra St. Brown', 'position': 'WR', 'team': 'DET', 'is_active': True},
+            {'id': 'nfl_43', 'full_name': 'Jordan Love', 'position': 'QB', 'team': 'GB', 'is_active': True},
+            {'id': 'nfl_44', 'full_name': 'Jayden Reed', 'position': 'WR', 'team': 'GB', 'is_active': True},
+            {'id': 'nfl_45', 'full_name': 'Sam Darnold', 'position': 'QB', 'team': 'MIN', 'is_active': True},
+            {'id': 'nfl_46', 'full_name': 'Justin Jefferson', 'position': 'WR', 'team': 'MIN', 'is_active': True},
+            
+            # NFC South
+            {'id': 'nfl_47', 'full_name': 'Kirk Cousins', 'position': 'QB', 'team': 'ATL', 'is_active': True},
+            {'id': 'nfl_48', 'full_name': 'Drake London', 'position': 'WR', 'team': 'ATL', 'is_active': True},
+            {'id': 'nfl_49', 'full_name': 'Bryce Young', 'position': 'QB', 'team': 'CAR', 'is_active': True},
+            {'id': 'nfl_50', 'full_name': 'Christian McCaffrey', 'position': 'RB', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_51', 'full_name': 'Derek Carr', 'position': 'QB', 'team': 'NO', 'is_active': True},
+            {'id': 'nfl_52', 'full_name': 'Alvin Kamara', 'position': 'RB', 'team': 'NO', 'is_active': True},
+            {'id': 'nfl_53', 'full_name': 'Baker Mayfield', 'position': 'QB', 'team': 'TB', 'is_active': True},
+            {'id': 'nfl_54', 'full_name': 'Mike Evans', 'position': 'WR', 'team': 'TB', 'is_active': True},
+            
+            # NFC West
+            {'id': 'nfl_55', 'full_name': 'Kyler Murray', 'position': 'QB', 'team': 'ARI', 'is_active': True},
+            {'id': 'nfl_56', 'full_name': 'Marvin Harrison Jr.', 'position': 'WR', 'team': 'ARI', 'is_active': True},
+            {'id': 'nfl_57', 'full_name': 'Matthew Stafford', 'position': 'QB', 'team': 'LAR', 'is_active': True},
+            {'id': 'nfl_58', 'full_name': 'Cooper Kupp', 'position': 'WR', 'team': 'LAR', 'is_active': True},
+            {'id': 'nfl_59', 'full_name': 'Brock Purdy', 'position': 'QB', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_60', 'full_name': 'Deebo Samuel', 'position': 'WR', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_61', 'full_name': 'Geno Smith', 'position': 'QB', 'team': 'SEA', 'is_active': True},
+            {'id': 'nfl_62', 'full_name': 'DK Metcalf', 'position': 'WR', 'team': 'SEA', 'is_active': True},
+        ]
+        
+        if len(query) < 2:
+            return []
+        
+        query_lower = query.lower()
+        matches = []
+        
+        # Search by full name, first name, last name
+        for player in nfl_players:
+            name_parts = player['full_name'].lower().split()
+            if (query_lower in player['full_name'].lower() or 
+                any(query_lower in part for part in name_parts)):
+                matches.append(player)
+        
+        # Sort by relevance (exact matches first, then partial matches)
+        def sort_key(player):
+            name_lower = player['full_name'].lower()
+            if name_lower.startswith(query_lower):
+                return 0  # Exact start match
+            elif query_lower in name_lower:
+                return 1  # Contains match
+            else:
+                return 2  # Other matches
+        
+        matches.sort(key=sort_key)
+        return matches[:15]  # Return top 15 matches
