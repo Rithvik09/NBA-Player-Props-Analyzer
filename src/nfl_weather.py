@@ -377,4 +377,120 @@ class NFLWeatherSystem:
             if wind > 20:
                 affected_props.extend(['field_goals', 'extra_points'])
         
+        return affected_props
+    
+    def get_outdoor_stadium_teams(self):
+        """Get list of NFL teams with outdoor stadiums"""
+        outdoor_teams = []
+        
+        for team, stadium_info in self.nfl_stadiums.items():
+            if stadium_info.get('type') == 'outdoor':
+                outdoor_teams.append({
+                    'team': team,
+                    'stadium': stadium_info.get('name'),
+                    'city': stadium_info.get('city'),
+                    'state': stadium_info.get('state'),
+                    'climate_zone': stadium_info.get('climate_zone', 'temperate')
+                })
+        
+        return outdoor_teams
+    
+    def get_weekly_weather_outlook(self):
+        """Get weather outlook for all outdoor stadiums for the upcoming week"""
+        outlook = {
+            'timestamp': datetime.now().isoformat(),
+            'outdoor_stadiums': [],
+            'weather_alerts': []
+        }
+        
+        outdoor_teams = self.get_outdoor_stadium_teams()
+        
+        for team_info in outdoor_teams:
+            team = team_info['team']
+            # Simulate weather forecast for the week
+            forecast = self._generate_weekly_forecast(team_info)
+            
+            outlook['outdoor_stadiums'].append({
+                'team': team,
+                'stadium': team_info['stadium'],
+                'location': f"{team_info['city']}, {team_info['state']}",
+                'forecast': forecast
+            })
+            
+            # Check for weather alerts
+            if any(day.get('precipitation_chance', 0) > 70 for day in forecast):
+                outlook['weather_alerts'].append(f"{team}: High chance of precipitation this week")
+            
+            if any(day.get('wind_speed', 0) > 25 for day in forecast):
+                outlook['weather_alerts'].append(f"{team}: High winds expected this week")
+        
+        return outlook
+    
+    def _generate_weekly_forecast(self, team_info):
+        """Generate a 7-day weather forecast for a team's location"""
+        forecast = []
+        
+        for day in range(7):
+            date = datetime.now() + timedelta(days=day)
+            
+            # Simulate weather based on location and season
+            weather_data = self._generate_sample_weather(
+                team_info['city'], 
+                team_info['state'], 
+                date.strftime('%Y-%m-%d')
+            )
+            
+            forecast.append({
+                'date': date.strftime('%Y-%m-%d'),
+                'day_of_week': date.strftime('%A'),
+                'temperature': weather_data.get('temperature'),
+                'condition': weather_data.get('condition'),
+                'precipitation_chance': weather_data.get('precipitation_chance'),
+                'wind_speed': weather_data.get('wind_speed'),
+                'impact_level': self._assess_weather_impact(weather_data)
+            })
+        
+        return forecast
+    
+    def _assess_weather_impact(self, weather_data):
+        """Assess the impact level of weather conditions"""
+        temp = weather_data.get('temperature', 70)
+        wind = weather_data.get('wind_speed', 5)
+        precip = weather_data.get('precipitation_chance', 0)
+        
+        impact_score = 0
+        
+        # Temperature impact
+        if temp < 32 or temp > 95:
+            impact_score += 3
+        elif temp < 45 or temp > 85:
+            impact_score += 2
+        elif temp < 55 or temp > 75:
+            impact_score += 1
+        
+        # Wind impact
+        if wind > 25:
+            impact_score += 3
+        elif wind > 15:
+            impact_score += 2
+        elif wind > 10:
+            impact_score += 1
+        
+        # Precipitation impact
+        if precip > 80:
+            impact_score += 3
+        elif precip > 50:
+            impact_score += 2
+        elif precip > 30:
+            impact_score += 1
+        
+        # Determine impact level
+        if impact_score >= 6:
+            return 'HIGH'
+        elif impact_score >= 4:
+            return 'MEDIUM'
+        elif impact_score >= 2:
+            return 'LOW'
+        else:
+            return 'NONE'
         return list(set(affected_props))  # Remove duplicates

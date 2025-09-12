@@ -1831,3 +1831,117 @@ Traceback (most recent call last):
     ai_insights[f\"{pred['model']}_insights\"] = pred['ai_insights']
                   ^
 SyntaxError: unexpected character after line continuation character
+[2025-09-11 22:33:58,440] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-11 22:34:00,467] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 141-989-138
+10.12.174.242 - - [11/Sep/2025 22:34:06] "GET /sports/supported HTTP/1.1" 200 -
+10.12.174.242 - - [11/Sep/2025 22:34:11] "GET /system/status HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:11:37] "GET / HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:11:37] "[36mGET /css/enhanced_style.css HTTP/1.1[0m" 304 -
+10.12.246.252 - - [12/Sep/2025 19:11:38] "GET /analytics/performance HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:11:38] "GET /bankroll/dashboard HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:11:41] "POST /sports/switch HTTP/1.1" 200 -
+[2025-09-12 19:11:43,610] ERROR in app: Error searching NFL players: 'NFLBettingHelper' object has no attribute 'get_player_suggestions'
+10.12.246.252 - - [12/Sep/2025 19:11:43] "[35m[1mGET /nfl/search_players?q=ty HTTP/1.1[0m" 500 -
+[2025-09-12 19:11:43,736] ERROR in app: Error searching NFL players: 'NFLBettingHelper' object has no attribute 'get_player_suggestions'
+10.12.246.252 - - [12/Sep/2025 19:11:43] "[35m[1mGET /nfl/search_players?q=tyr HTTP/1.1[0m" 500 -
+[2025-09-12 19:11:43,966] ERROR in app: Error searching NFL players: 'NFLBettingHelper' object has no attribute 'get_player_suggestions'
+10.12.246.252 - - [12/Sep/2025 19:11:43] "[35m[1mGET /nfl/search_players?q=tyre HTTP/1.1[0m" 500 -
+[2025-09-12 19:11:44,036] ERROR in app: Error searching NFL players: 'NFLBettingHelper' object has no attribute 'get_player_suggestions'
+10.12.246.252 - - [12/Sep/2025 19:11:44] "[35m[1mGET /nfl/search_players?q=tyree HTTP/1.1[0m" 500 -
+[2025-09-12 19:11:44,394] ERROR in app: Error searching NFL players: 'NFLBettingHelper' object has no attribute 'get_player_suggestions'
+10.12.246.252 - - [12/Sep/2025 19:11:44] "[35m[1mGET /nfl/search_players?q=tyreek HTTP/1.1[0m" 500 -
+[2025-09-12 19:11:45,943] ERROR in app: Error searching NFL players: 'NFLBettingHelper' object has no attribute 'get_player_suggestions'
+10.12.246.252 - - [12/Sep/2025 19:11:45] "[35m[1mGET /nfl/search_players?q=tyreek%20 HTTP/1.1[0m" 500 -
+[2025-09-12 19:11:46,361] ERROR in app: Error searching NFL players: 'NFLBettingHelper' object has no attribute 'get_player_suggestions'
+10.12.246.252 - - [12/Sep/2025 19:11:46] "[35m[1mGET /nfl/search_players?q=tyreek%20h HTTP/1.1[0m" 500 -
+[2025-09-12 19:11:46,758] ERROR in app: Error searching NFL players: 'NFLBettingHelper' object has no attribute 'get_player_suggestions'
+10.12.246.252 - - [12/Sep/2025 19:11:46] "[35m[1mGET /nfl/search_players?q=tyreek%20hi HTTP/1.1[0m" 500 -
+[2025-09-12 19:11:47,414] ERROR in app: Error searching NFL players: 'NFLBettingHelper' object has no attribute 'get_player_suggestions'
+10.12.246.252 - - [12/Sep/2025 19:11:47] "[35m[1mGET /nfl/search_players?q=tyreek%20hil HTTP/1.1[0m" 500 -
+[2025-09-12 19:11:47,604] ERROR in app: Error searching NFL players: 'NFLBettingHelper' object has no attribute 'get_player_suggestions'
+10.12.246.252 - - [12/Sep/2025 19:11:47] "[35m[1mGET /nfl/search_players?q=tyreek%20hill HTTP/1.1[0m" 500 -
+10.12.246.252 - - [12/Sep/2025 19:12:00] "POST /sports/switch HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:12:02] "POST /sports/switch HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:12:06] "POST /sports/switch HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:12:07] "POST /sports/switch HTTP/1.1" 200 -
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:14:32,932] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:14:40,842] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:14:46,226] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+[2025-09-12 19:14:56,702] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:14:58,673] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+[2025-09-12 19:15:00,132] ERROR in app: Error getting NFL outdoor teams: 'NFLWeatherSystem' object has no attribute 'get_outdoor_stadium_teams'
+10.12.246.252 - - [12/Sep/2025 19:15:00] "[35m[1mGET /nfl/teams/outdoor HTTP/1.1[0m" 500 -
+ * Detected change in '/home/user/webapp/src/nfl_weather.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_weather.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_weather.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_weather.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_weather.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:15:39,000] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+[2025-09-12 19:15:42,864] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:15:44,732] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+[2025-09-12 19:15:46,832] ERROR in app: Error getting NFL outdoor teams: 'NFLWeatherSystem' object has no attribute 'stadiums'
+10.12.246.252 - - [12/Sep/2025 19:15:46] "[35m[1mGET /nfl/teams/outdoor HTTP/1.1[0m" 500 -
+ * Detected change in '/home/user/webapp/src/nfl_weather.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_weather.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_weather.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:15:59,122] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+[2025-09-12 19:16:02,759] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:16:04,691] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+10.12.246.252 - - [12/Sep/2025 19:16:05] "GET /nfl/teams/outdoor HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:16:10] "POST /nfl/situational/divisional HTTP/1.1" 200 -

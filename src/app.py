@@ -171,7 +171,7 @@ async def analyze_prop():
         player_name = data.get('player_name', 'Unknown Player')
         prop_type = data['prop_type']
         line = float(data['line'])
-        opponent_team_id = int(data['opponent_team_id'])
+        opponent_team_id = int(data['opponent_team_id'])  # Convert to int for NBA
         user_id = data.get('user_id', 'default')
         decimal_odds = data.get('decimal_odds', 1.91)
         
@@ -534,7 +534,7 @@ async def nfl_analyze_prop():
         player_name = data.get('player_name', 'Unknown Player')
         prop_type = data['prop_type']
         line = float(data['line'])
-        opponent_team_id = int(data['opponent_team_id'])
+        opponent_team_id = data['opponent_team_id']  # Keep as string for NFL (team abbreviation)
         user_id = data.get('user_id', 'anonymous')
         decimal_odds = data.get('decimal_odds', 1.91)
         
@@ -545,7 +545,7 @@ async def nfl_analyze_prop():
             player_id=player_id,
             prop_type=prop_type,
             line=line,
-            opponent_team_id=opponent_team_id
+            opponent_team_id=opponent_team_id  # Pass team abbreviation string
         )
         
         if not analysis or not analysis.get('success'):

@@ -170,36 +170,94 @@
                             <label class="block text-sm font-medium text-gray-300 mb-2">Opponent Team</label>
                             <select x-model="opponentTeamId" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white">
                                 <option value="">Select Opponent</option>
-                                <option value="1610612737">Atlanta Hawks</option>
-                                <option value="1610612738">Boston Celtics</option>
-                                <option value="1610612751">Brooklyn Nets</option>
-                                <option value="1610612766">Charlotte Hornets</option>
-                                <option value="1610612741">Chicago Bulls</option>
-                                <option value="1610612739">Cleveland Cavaliers</option>
-                                <option value="1610612742">Dallas Mavericks</option>
-                                <option value="1610612743">Denver Nuggets</option>
-                                <option value="1610612765">Detroit Pistons</option>
-                                <option value="1610612744">Golden State Warriors</option>
-                                <option value="1610612745">Houston Rockets</option>
-                                <option value="1610612754">Indiana Pacers</option>
-                                <option value="1610612746">LA Clippers</option>
-                                <option value="1610612747">Los Angeles Lakers</option>
-                                <option value="1610612763">Memphis Grizzlies</option>
-                                <option value="1610612748">Miami Heat</option>
-                                <option value="1610612749">Milwaukee Bucks</option>
-                                <option value="1610612750">Minnesota Timberwolves</option>
-                                <option value="1610612740">New Orleans Pelicans</option>
-                                <option value="1610612752">New York Knicks</option>
-                                <option value="1610612760">Oklahoma City Thunder</option>
-                                <option value="1610612753">Orlando Magic</option>
-                                <option value="1610612755">Philadelphia 76ers</option>
-                                <option value="1610612756">Phoenix Suns</option>
-                                <option value="1610612757">Portland Trail Blazers</option>
-                                <option value="1610612758">Sacramento Kings</option>
-                                <option value="1610612759">San Antonio Spurs</option>
-                                <option value="1610612761">Toronto Raptors</option>
-                                <option value="1610612762">Utah Jazz</option>
-                                <option value="1610612764">Washington Wizards</option>
+                                
+                                <!-- NBA Teams -->
+                                <template x-if="activeSport === 'NBA'">
+                                    <optgroup label="NBA Teams">
+                                        <option value="1610612737">Atlanta Hawks</option>
+                                        <option value="1610612738">Boston Celtics</option>
+                                        <option value="1610612751">Brooklyn Nets</option>
+                                        <option value="1610612766">Charlotte Hornets</option>
+                                        <option value="1610612741">Chicago Bulls</option>
+                                        <option value="1610612739">Cleveland Cavaliers</option>
+                                        <option value="1610612742">Dallas Mavericks</option>
+                                        <option value="1610612743">Denver Nuggets</option>
+                                        <option value="1610612765">Detroit Pistons</option>
+                                        <option value="1610612744">Golden State Warriors</option>
+                                        <option value="1610612745">Houston Rockets</option>
+                                        <option value="1610612754">Indiana Pacers</option>
+                                        <option value="1610612746">LA Clippers</option>
+                                        <option value="1610612747">Los Angeles Lakers</option>
+                                        <option value="1610612763">Memphis Grizzlies</option>
+                                        <option value="1610612748">Miami Heat</option>
+                                        <option value="1610612749">Milwaukee Bucks</option>
+                                        <option value="1610612750">Minnesota Timberwolves</option>
+                                        <option value="1610612740">New Orleans Pelicans</option>
+                                        <option value="1610612752">New York Knicks</option>
+                                        <option value="1610612760">Oklahoma City Thunder</option>
+                                        <option value="1610612753">Orlando Magic</option>
+                                        <option value="1610612755">Philadelphia 76ers</option>
+                                        <option value="1610612756">Phoenix Suns</option>
+                                        <option value="1610612757">Portland Trail Blazers</option>
+                                        <option value="1610612758">Sacramento Kings</option>
+                                        <option value="1610612759">San Antonio Spurs</option>
+                                        <option value="1610612761">Toronto Raptors</option>
+                                        <option value="1610612762">Utah Jazz</option>
+                                        <option value="1610612764">Washington Wizards</option>
+                                    </optgroup>
+                                </template>
+                                
+                                <!-- NFL Teams -->
+                                <template x-if="activeSport === 'NFL'">
+                                    <optgroup label="AFC East">
+                                        <option value="BUF">Buffalo Bills</option>
+                                        <option value="MIA">Miami Dolphins</option>
+                                        <option value="NE">New England Patriots</option>
+                                        <option value="NYJ">New York Jets</option>
+                                    </optgroup>
+                                    <optgroup label="AFC North">
+                                        <option value="BAL">Baltimore Ravens</option>
+                                        <option value="CIN">Cincinnati Bengals</option>
+                                        <option value="CLE">Cleveland Browns</option>
+                                        <option value="PIT">Pittsburgh Steelers</option>
+                                    </optgroup>
+                                    <optgroup label="AFC South">
+                                        <option value="HOU">Houston Texans</option>
+                                        <option value="IND">Indianapolis Colts</option>
+                                        <option value="JAX">Jacksonville Jaguars</option>
+                                        <option value="TEN">Tennessee Titans</option>
+                                    </optgroup>
+                                    <optgroup label="AFC West">
+                                        <option value="DEN">Denver Broncos</option>
+                                        <option value="KC">Kansas City Chiefs</option>
+                                        <option value="LV">Las Vegas Raiders</option>
+                                        <option value="LAC">Los Angeles Chargers</option>
+                                    </optgroup>
+                                    <optgroup label="NFC East">
+                                        <option value="DAL">Dallas Cowboys</option>
+                                        <option value="NYG">New York Giants</option>
+                                        <option value="PHI">Philadelphia Eagles</option>
+                                        <option value="WAS">Washington Commanders</option>
+                                    </optgroup>
+                                    <optgroup label="NFC North">
+                                        <option value="CHI">Chicago Bears</option>
+                                        <option value="DET">Detroit Lions</option>
+                                        <option value="GB">Green Bay Packers</option>
+                                        <option value="MIN">Minnesota Vikings</option>
+                                    </optgroup>
+                                    <optgroup label="NFC South">
+                                        <option value="ATL">Atlanta Falcons</option>
+                                        <option value="CAR">Carolina Panthers</option>
+                                        <option value="NO">New Orleans Saints</option>
+                                        <option value="TB">Tampa Bay Buccaneers</option>
+                                    </optgroup>
+                                    <optgroup label="NFC West">
+                                        <option value="ARI">Arizona Cardinals</option>
+                                        <option value="LAR">Los Angeles Rams</option>
+                                        <option value="SF">San Francisco 49ers</option>
+                                        <option value="SEA">Seattle Seahawks</option>
+                                    </optgroup>
+                                </template>
                             </select>
                         </div>
 
@@ -866,18 +924,24 @@
                         const data = await response.json();
                         if (data.success) {
                             this.activeSport = sport;
-                            // Reset form
+                            // Reset form completely when switching sports
                             this.playerSearch = '';
                             this.playerSuggestions = [];
                             this.selectedPlayer = null;
                             this.selectedPropType = '';
                             this.propLine = '';
-                            this.opponentTeamId = '';
+                            this.opponentTeamId = ''; // Important: Reset opponent selection
                             this.analysisResults = null;
                             this.includeWeather = false;
+                            
+                            // Show success message
+                            console.log(`Switched to ${sport} analysis mode`);
+                        } else {
+                            alert('Error switching sport: ' + (data.error || 'Unknown error'));
                         }
                     } catch (error) {
                         console.error('Error switching sport:', error);
+                        alert('Error switching sport: ' + error.message);
                     }
                 },
                 
@@ -915,7 +979,7 @@
                             player_name: this.selectedPlayer.full_name,
                             prop_type: this.selectedPropType,
                             line: parseFloat(this.propLine),
-                            opponent_team_id: parseInt(this.opponentTeamId),
+                            opponent_team_id: this.activeSport === 'NBA' ? parseInt(this.opponentTeamId) : this.opponentTeamId,
                             include_situational: this.includeSituational,
                             sport: this.activeSport
                         };

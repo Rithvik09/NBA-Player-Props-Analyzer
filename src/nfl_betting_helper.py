@@ -687,3 +687,60 @@ class NFLBettingHelper:
             {'id': prop_id, 'name': prop_name}
             for prop_id, prop_name in self.nfl_prop_types.items()
         ]
+    
+    def analyze_divisional_matchup(self, home_team, away_team):
+        """Analyze if this is a divisional game and its implications"""
+        try:
+            home_info = self.nfl_teams.get(home_team, {})
+            away_info = self.nfl_teams.get(away_team, {})
+            
+            if not home_info or not away_info:
+                return {
+                    'is_divisional': False,
+                    'error': 'Invalid team abbreviations'
+                }
+            
+            is_divisional = home_info['division'] == away_info['division']
+            is_conference = home_info['conference'] == away_info['conference']
+            
+            analysis = {
+                'is_divisional': is_divisional,
+                'is_conference': is_conference,
+                'home_team_info': home_info,
+                'away_team_info': away_info,
+                'matchup_type': 'Division' if is_divisional else ('Conference' if is_conference else 'Inter-Conference'),
+                'implications': []
+            }
+            
+            if is_divisional:
+                analysis['implications'].extend([
+                    'Teams play twice per season - familiarity factor high',
+                    'Divisional games often closer than expected',
+                    'Increased motivation and intensity',
+                    'Historical rivalry may affect performance'
+                ])
+                analysis['intensity_factor'] = 'HIGH'
+            elif is_conference:
+                analysis['implications'].extend([
+                    'Conference implications for playoff seeding',
+                    'Moderate familiarity between teams'
+                ])
+                analysis['intensity_factor'] = 'MEDIUM'
+            else:
+                analysis['implications'].extend([
+                    'Cross-conference matchup',
+                    'Less frequent meetings - lower familiarity'
+                ])
+                analysis['intensity_factor'] = 'STANDARD'
+            
+            return analysis
+            
+        except Exception as e:
+            return {
+                'is_divisional': False,
+                'error': f'Error analyzing divisional matchup: {str(e)}'
+            }
+    
+    def get_team_info(self, team_abbr):
+        """Get detailed team information by abbreviation"""
+        return self.nfl_teams.get(team_abbr, None)

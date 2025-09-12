@@ -465,3 +465,22 @@
 2025-09-08 06:08:54,697 INFO spawned: 'nba_props_analyzer' with pid 14746
 2025-09-08 06:08:54,981 WARN exited: nba_props_analyzer (exit status 1; not expected)
 2025-09-08 06:08:55,982 INFO gave up: nba_props_analyzer entered FATAL state, too many start retries too quickly
+2025-09-11 22:33:46,542 WARN received SIGTERM indicating exit request
+2025-09-11 22:33:53,714 INFO RPC interface 'supervisor' initialized
+2025-09-11 22:33:53,714 CRIT Server 'unix_http_server' running without any HTTP authentication checking
+2025-09-11 22:33:53,716 INFO daemonizing the supervisord process
+2025-09-11 22:33:53,717 INFO supervisord started with pid 134525
+2025-09-11 22:33:54,721 INFO spawned: 'nba_props_analyzer' with pid 134527
+2025-09-11 22:33:55,723 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-12 19:14:54,093 INFO waiting for nba_props_analyzer to stop
+2025-09-12 19:14:54,704 INFO stopped: nba_props_analyzer (exit status 0)
+2025-09-12 19:14:54,711 INFO spawned: 'nba_props_analyzer' with pid 152110
+2025-09-12 19:14:55,713 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-12 19:15:40,270 INFO waiting for nba_props_analyzer to stop
+2025-09-12 19:15:40,900 INFO stopped: nba_props_analyzer (exit status 0)
+2025-09-12 19:15:40,905 INFO spawned: 'nba_props_analyzer' with pid 152449
+2025-09-12 19:15:41,907 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-12 19:16:00,331 INFO waiting for nba_props_analyzer to stop
+2025-09-12 19:16:00,807 INFO stopped: nba_props_analyzer (exit status 0)
+2025-09-12 19:16:00,812 INFO spawned: 'nba_props_analyzer' with pid 152590
+2025-09-12 19:16:01,815 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
