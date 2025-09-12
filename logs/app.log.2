@@ -1,89 +1,74 @@
-2024-12-06 13:36:53,458 ERROR: Exception on / [GET] [in /Users/rithv/Data Management/AI Basketball Helper/.venv/lib/python3.12/site-packages/flask/app.py:875]
-Traceback (most recent call last):
-  File "/Users/rithv/Data Management/AI Basketball Helper/.venv/lib/python3.12/site-packages/flask/app.py", line 1511, in wsgi_app
-    response = self.full_dispatch_request()
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/rithv/Data Management/AI Basketball Helper/.venv/lib/python3.12/site-packages/flask/app.py", line 919, in full_dispatch_request
-    rv = self.handle_user_exception(e)
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/rithv/Data Management/AI Basketball Helper/.venv/lib/python3.12/site-packages/flask/app.py", line 917, in full_dispatch_request
-    rv = self.dispatch_request()
-         ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/rithv/Data Management/AI Basketball Helper/.venv/lib/python3.12/site-packages/flask/app.py", line 902, in dispatch_request
-    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/rithv/Data Management/AI Basketball Helper/src/app.py", line 48, in home
-    return render_template('index.html')
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/rithv/Data Management/AI Basketball Helper/.venv/lib/python3.12/site-packages/flask/templating.py", line 149, in render_template
-    template = app.jinja_env.get_or_select_template(template_name_or_list)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/rithv/Data Management/AI Basketball Helper/.venv/lib/python3.12/site-packages/jinja2/environment.py", line 1084, in get_or_select_template
-    return self.get_template(template_name_or_list, parent, globals)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/rithv/Data Management/AI Basketball Helper/.venv/lib/python3.12/site-packages/jinja2/environment.py", line 1013, in get_template
-    return self._load_template(name, globals)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/rithv/Data Management/AI Basketball Helper/.venv/lib/python3.12/site-packages/jinja2/environment.py", line 972, in _load_template
-    template = self.loader.load(self, name, self.make_globals(globals))
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/rithv/Data Management/AI Basketball Helper/.venv/lib/python3.12/site-packages/jinja2/loaders.py", line 126, in load
-    source, filename, uptodate = self.get_source(environment, name)
-                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/rithv/Data Management/AI Basketball Helper/.venv/lib/python3.12/site-packages/flask/templating.py", line 65, in get_source
-    return self._get_source_fast(environment, template)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/rithv/Data Management/AI Basketball Helper/.venv/lib/python3.12/site-packages/flask/templating.py", line 99, in _get_source_fast
-    raise TemplateNotFound(template)
-jinja2.exceptions.TemplateNotFound: index.html
-2024-12-06 13:36:53,483 ERROR: Server Error: 500 Internal Server Error: The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application. [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:127]
-2024-12-06 13:48:35,337 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-06 13:48:37,496 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-06 13:50:20,395 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-06 13:50:23,160 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-06 13:51:47,149 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-06 13:51:48,914 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-07 19:39:32,293 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-07 19:39:36,749 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-08 19:13:41,625 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-08 19:13:55,187 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-08 19:14:00,381 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 14:16:14,567 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 14:16:18,380 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 14:41:11,470 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 14:42:49,450 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 14:42:50,884 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:03:24,018 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:03:28,046 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:03:34,224 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:03:35,668 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:21:02,004 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:31:59,832 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:33:24,711 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:39:03,073 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:39:09,075 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:39:10,530 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:43:13,285 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:43:15,309 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:45:46,214 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:45:56,496 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:46:31,926 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:46:33,414 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:57:04,859 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:57:08,006 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 15:57:09,769 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 16:11:59,936 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 16:13:53,119 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:25]
-2024-12-09 16:14:43,991 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
-2024-12-09 16:17:21,410 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
-2024-12-09 16:17:22,951 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
-2024-12-24 20:49:29,116 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
-2024-12-24 20:49:34,243 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
-2024-12-27 15:46:26,295 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
-2024-12-27 15:46:27,691 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
-2025-01-08 22:59:03,765 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
-2025-01-08 22:59:08,835 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
-2025-01-08 23:23:04,829 INFO: Basketball Props Analyzer startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:161]
-2025-01-08 23:27:50,526 INFO: Basketball Props Analyzer startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:161]
-2025-01-08 23:30:20,338 INFO: Basketball Props Analyzer startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:161]
-2025-01-09 00:19:00,013 INFO: Basketball Props Analyzer startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:161]
+2025-01-09 00:19:01,511 INFO: Basketball Props Analyzer startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:161]
+2025-01-09 00:31:44,164 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-09 16:40:44,030 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-09 16:41:05,590 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-09 16:41:07,291 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-09 16:41:44,830 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-09 16:42:10,914 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-09 16:42:13,407 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-09 23:52:54,016 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 00:20:24,509 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 00:20:27,149 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 00:22:13,104 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 00:22:26,162 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 00:22:33,745 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 00:58:20,815 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 00:58:22,686 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 00:58:40,013 ERROR: Error analyzing prop: BasketballBettingHelper.analyze_prop_bet() missing 1 required positional argument: 'opponent_team_id' [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:116]
+2025-01-10 01:23:47,540 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 01:23:49,270 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 01:24:24,946 ERROR: Error analyzing prop: BasketballBettingHelper.analyze_prop_bet() missing 1 required positional argument: 'opponent_team_id' [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:116]
+2025-01-10 01:29:06,059 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 01:29:33,022 ERROR: Error analyzing prop: BasketballBettingHelper.analyze_prop_bet() missing 1 required positional argument: 'opponent_team_id' [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:116]
+2025-01-10 01:31:41,941 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 01:48:01,661 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 01:50:40,008 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 02:00:33,243 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 02:00:35,419 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 20:00:33,107 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 20:00:35,127 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 20:20:59,814 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 20:21:04,413 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 20:21:05,938 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 20:23:49,535 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 20:25:30,602 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 20:28:09,218 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 20:32:59,369 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 20:34:54,615 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 20:41:29,299 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 20:50:06,703 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 21:01:10,623 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 21:08:42,810 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 21:25:50,200 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 21:30:35,339 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 21:30:37,739 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 21:34:45,264 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 21:34:47,747 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 21:54:10,168 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 21:54:42,240 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 21:55:22,253 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 22:05:59,003 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 22:06:00,477 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 22:16:17,703 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 22:19:44,573 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-10 22:19:46,768 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-11 21:02:41,439 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-11 21:02:46,150 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 14:50:41,278 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 15:11:52,456 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 15:13:57,712 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 15:35:33,344 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 15:35:42,993 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 15:36:00,605 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 16:03:33,344 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 16:07:00,782 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 16:07:04,029 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 16:16:23,423 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 16:16:26,335 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 16:23:45,083 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 16:23:46,665 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 16:28:33,036 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 16:28:35,313 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 16:34:19,122 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 16:34:20,869 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]
+2025-01-12 16:44:21,351 INFO: Basketball Betting Helper startup [in /Users/rithv/Data Management/AI Basketball Helper/src/app.py:24]

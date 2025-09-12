@@ -1983,3 +1983,163 @@ SyntaxError: unexpected character after line continuation character
 10.12.246.252 - - [12/Sep/2025 19:35:37] "GET /nfl/search_players?q=mahomes HTTP/1.1" 200 -
 10.12.246.252 - - [12/Sep/2025 19:35:40] "GET /nfl/search_players?q=allen HTTP/1.1" 200 -
 10.12.246.252 - - [12/Sep/2025 19:35:44] "GET /system/status HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:52:31] "GET / HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:52:32] "[36mGET /css/enhanced_style.css HTTP/1.1[0m" 304 -
+10.12.246.252 - - [12/Sep/2025 19:52:32] "GET /analytics/performance HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:52:32] "GET /bankroll/dashboard HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:52:35] "GET /search_players?q=jo HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:52:35] "GET /search_players?q=jos HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:52:35] "GET /search_players?q=josh HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:52:36] "GET /search_players?q=josh%20 HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:52:36] "GET /search_players?q=josh%20a HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:52:36] "GET /search_players?q=josh%20all HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:52:36] "GET /search_players?q=josh%20al HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:52:38] "POST /sports/switch HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:52:39] "GET /nfl/search_players?q=jo HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:52:40] "GET /nfl/search_players?q=jos HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:52:40] "GET /nfl/search_players?q=josh HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:52:40] "GET /nfl/search_players?q=josh%20 HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:52:40] "GET /nfl/search_players?q=josh%20a HTTP/1.1" 200 -
+[2025-09-12 19:53:03,263] ERROR in app: Error analyzing NFL prop: 'NFLBettingHelper' object has no attribute 'analyze_prop_bet'
+10.12.246.252 - - [12/Sep/2025 19:53:03] "[35m[1mPOST /nfl/analyze_prop HTTP/1.1[0m" 500 -
+[2025-09-12 19:53:06,370] ERROR in app: Error analyzing NFL prop: 'NFLBettingHelper' object has no attribute 'analyze_prop_bet'
+10.12.246.252 - - [12/Sep/2025 19:53:06] "[35m[1mPOST /nfl/analyze_prop HTTP/1.1[0m" 500 -
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:53:50,480] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:54:33,377] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+[2025-09-12 19:54:36,999] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:54:38,863] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+10.12.246.252 - - [12/Sep/2025 19:54:47] "[35m[1mPOST /nfl/analyze_prop HTTP/1.1[0m" 500 -
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:55:24,107] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+[2025-09-12 19:55:38,513] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:55:40,671] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+Traceback (most recent call last):
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 544, in analyze_nfl_prop_bet
+    final_prediction = self._ensemble_nfl_predictions(ml_predictions)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 707, in _ensemble_nfl_predictions
+    'edge': (weighted_value - line) / line if line > 0 else 0
+                                              ^^^^
+NameError: name 'line' is not defined
+10.12.246.252 - - [12/Sep/2025 19:55:44] "[35m[1mPOST /nfl/analyze_prop HTTP/1.1[0m" 500 -
+10.12.246.252 - - [12/Sep/2025 19:55:54] "[33mGET /nfl/get_player_stats/nfl_25 HTTP/1.1[0m" 404 -
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:56:17,455] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+[2025-09-12 19:56:20,822] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:56:23,073] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+10.12.246.252 - - [12/Sep/2025 19:56:25] "GET /nfl/get_player_stats/nfl_25 HTTP/1.1" 200 -
+Traceback (most recent call last):
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 544, in analyze_nfl_prop_bet
+    final_prediction = self._ensemble_nfl_predictions(ml_predictions)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 707, in _ensemble_nfl_predictions
+    'edge': (weighted_value - line) / line if line > 0 else 0
+                                              ^^^^
+NameError: name 'line' is not defined
+10.12.246.252 - - [12/Sep/2025 19:56:31] "[35m[1mPOST /nfl/analyze_prop HTTP/1.1[0m" 500 -
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:56:56,377] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:57:01,194] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+[2025-09-12 19:57:30,220] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:57:32,116] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+Traceback (most recent call last):
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 549, in analyze_nfl_prop_bet
+    final_prediction = self._ensemble_nfl_predictions(ml_predictions)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 712, in _ensemble_nfl_predictions
+    'edge': (weighted_value - line) / line if line > 0 else 0
+                                              ^^^^
+NameError: name 'line' is not defined
+10.12.246.252 - - [12/Sep/2025 19:57:37] "[35m[1mPOST /nfl/analyze_prop HTTP/1.1[0m" 500 -
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:58:08,043] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+[2025-09-12 19:58:17,181] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-12 19:58:19,144] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+10.12.246.252 - - [12/Sep/2025 19:58:22] "POST /nfl/analyze_prop HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 19:58:27] "POST /nfl/analyze_prop HTTP/1.1" 200 -

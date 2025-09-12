@@ -497,7 +497,7 @@ def nfl_search_players():
         app.logger.error(f'Error searching NFL players: {e}')
         return jsonify({'error': str(e)}), 500
 
-@app.route('/nfl/get_player_stats/<int:player_id>')
+@app.route('/nfl/get_player_stats/<player_id>')
 def nfl_get_player_stats(player_id):
     """Get comprehensive NFL player statistics"""
     if not nfl_helper:

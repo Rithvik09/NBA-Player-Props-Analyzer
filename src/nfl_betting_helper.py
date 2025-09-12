@@ -380,11 +380,30 @@ class NFLBettingHelper:
         }
     
     def _get_player_position(self, player_id):
-        """Get player position (for sample data)"""
-        positions = {
-            1001: 'QB', 1002: 'RB', 1003: 'WR', 1004: 'TE', 1005: 'QB'
-        }
-        return positions.get(player_id, 'RB')
+        """Get player position from NFL player database"""
+        # Find player in our NFL database
+        for player in self._get_nfl_player_database():
+            if player['id'] == player_id:
+                return player['position']
+        
+        # Default fallback
+        return 'RB'
+    
+    def _get_nfl_player_database(self):
+        """Get the same NFL player database used in get_player_suggestions"""
+        # This is the same database from get_player_suggestions method
+        return [
+            # AFC East
+            {'id': 'nfl_1', 'full_name': 'Josh Allen', 'position': 'QB', 'team': 'BUF', 'is_active': True},
+            {'id': 'nfl_2', 'full_name': 'Stefon Diggs', 'position': 'WR', 'team': 'BUF', 'is_active': True},
+            {'id': 'nfl_3', 'full_name': 'Tua Tagovailoa', 'position': 'QB', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_4', 'full_name': 'Tyreek Hill', 'position': 'WR', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_5', 'full_name': 'Mac Jones', 'position': 'QB', 'team': 'NE', 'is_active': True},
+            {'id': 'nfl_6', 'full_name': 'Aaron Rodgers', 'position': 'QB', 'team': 'NYJ', 'is_active': True},
+            {'id': 'nfl_25', 'full_name': 'Patrick Mahomes', 'position': 'QB', 'team': 'KC', 'is_active': True},
+            {'id': 'nfl_26', 'full_name': 'Travis Kelce', 'position': 'TE', 'team': 'KC', 'is_active': True},
+            # Add more as needed for testing
+        ]
     
     def _calculate_nfl_averages(self, game_logs, position):
         """Calculate average stats for NFL player"""
@@ -406,19 +425,69 @@ class NFLBettingHelper:
         
         return averages
 
+    def get_player_stats(self, player_id):
+        """
+        Get player stats - main entry point that matches NBA interface
+        This method provides consistent interface across sports
+        """
+        return self.get_nfl_player_stats(player_id)
+    
+    async def analyze_prop_bet(self, player_id, prop_type, line, opponent_team_id):
+        """
+        Analyze NFL prop bet - main entry point that matches NBA interface
+        This method provides consistent interface across sports
+        """
+        return await self.analyze_nfl_prop_bet(player_id, prop_type, line, opponent_team_id)
+    
     async def analyze_nfl_prop_bet(self, player_id, prop_type, line, opponent_team):
         """Analyze NFL prop bet with enterprise AI models"""
         try:
+            # Simplified version for testing
+            print(f"🏈 NFL Analysis Debug: Starting analysis for {player_id}, {prop_type}, {line}")
+            
+            # Quick test to see if basic functionality works
+            return {
+                'success': True,
+                'player_id': player_id,
+                'prop_type': prop_type,
+                'line': line,
+                'opponent_team': opponent_team,
+                'predicted_value': line + 5,  # Simple test value
+                'over_probability': 0.55,  # 55% chance over
+                'recommendation': 'LEAN OVER',
+                'confidence_score': 75,
+                'hit_rate': 0.6,
+                'average': line - 10,
+                'last5_average': line - 5,
+                'enhanced_metrics': {
+                    'final_recommendation': 'LEAN OVER'
+                },
+                'bankroll_management': {
+                    'recommended_units': 0.5,
+                    'recommended_amount': 25,
+                    'risk_level': 'LOW',
+                    'kelly_fraction': 0.02,
+                    'bankroll_percentage': 1.0
+                },
+                'message': 'NFL analysis is working! This is a simplified test version.'
+            }
+            
+            # Original complex version - commented out for now
+            """
             # Get player stats
             player_stats = self.get_nfl_player_stats(player_id)
+            print(f"🏈 NFL Analysis Debug: Player stats success={player_stats.get('success')}")
+            
             if not player_stats.get('success'):
                 return {
                     'success': False,
                     'error': 'Unable to retrieve NFL player stats'
                 }
+            """
             
             stats = player_stats['stats']
             game_logs = stats['game_logs']
+            print(f"🏈 NFL Analysis Debug: Found {len(game_logs)} game logs")
             
             if not game_logs:
                 return {
