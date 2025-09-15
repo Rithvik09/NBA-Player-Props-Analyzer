@@ -2935,3 +2935,103 @@ SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
 [2025-09-15 16:08:12,314] INFO in app: Basketball Betting Helper startup
  * Debugger is active!
  * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 16:34:35,103] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 16:35:11,032] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 16:35:25,208] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/test_nfl_player_search.py', reloading
+ * Detected change in '/home/user/webapp/test_nfl_player_search.py', reloading
+ * Detected change in '/home/user/webapp/test_nfl_player_search.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 16:35:58,437] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 16:36:31,173] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 16:36:39,383] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 16:36:44,859] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 16:36:57,131] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114

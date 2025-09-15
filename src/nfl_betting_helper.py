@@ -2004,89 +2004,395 @@ class NFLBettingHelper:
         return self.nfl_teams.get(team_abbr, None)
     
     def _get_comprehensive_nfl_players(self):
-        """Comprehensive NFL player database - single source of truth"""
+        """Comprehensive NFL player database - 300+ players covering all teams and positions"""
         return [
-            # AFC East
+            # AFC East - Buffalo Bills
             {'id': 'nfl_1', 'full_name': 'Josh Allen', 'position': 'QB', 'team': 'BUF', 'is_active': True},
-            {'id': 'nfl_2', 'full_name': 'Stefon Diggs', 'position': 'WR', 'team': 'BUF', 'is_active': True},
-            {'id': 'nfl_3', 'full_name': 'Tua Tagovailoa', 'position': 'QB', 'team': 'MIA', 'is_active': True},
-            {'id': 'nfl_4', 'full_name': 'Tyreek Hill', 'position': 'WR', 'team': 'MIA', 'is_active': True},
-            {'id': 'nfl_5', 'full_name': 'Mac Jones', 'position': 'QB', 'team': 'NE', 'is_active': True},
-            {'id': 'nfl_6', 'full_name': 'Aaron Rodgers', 'position': 'QB', 'team': 'NYJ', 'is_active': True},
+            {'id': 'nfl_2', 'full_name': 'Stefon Diggs', 'position': 'WR', 'team': 'HOU', 'is_active': True},  # Updated team
+            {'id': 'nfl_3', 'full_name': 'Amari Cooper', 'position': 'WR', 'team': 'BUF', 'is_active': True},
+            {'id': 'nfl_4', 'full_name': 'Khalil Shakir', 'position': 'WR', 'team': 'BUF', 'is_active': True},
+            {'id': 'nfl_5', 'full_name': 'James Cook', 'position': 'RB', 'team': 'BUF', 'is_active': True},
+            {'id': 'nfl_6', 'full_name': 'Dalton Kincaid', 'position': 'TE', 'team': 'BUF', 'is_active': True},
+            {'id': 'nfl_7', 'full_name': 'Dawson Knox', 'position': 'TE', 'team': 'BUF', 'is_active': True},
+            {'id': 'nfl_8', 'full_name': 'Ty Johnson', 'position': 'RB', 'team': 'BUF', 'is_active': True},
+            {'id': 'nfl_9', 'full_name': 'Curtis Samuel', 'position': 'WR', 'team': 'BUF', 'is_active': True},
+            {'id': 'nfl_10', 'full_name': 'Mack Hollins', 'position': 'WR', 'team': 'BUF', 'is_active': True},
             
-            # AFC North
-            {'id': 'nfl_7', 'full_name': 'Lamar Jackson', 'position': 'QB', 'team': 'BAL', 'is_active': True},
-            {'id': 'nfl_8', 'full_name': 'Mark Andrews', 'position': 'TE', 'team': 'BAL', 'is_active': True},
-            {'id': 'nfl_9', 'full_name': 'Joe Burrow', 'position': 'QB', 'team': 'CIN', 'is_active': True},
-            {'id': 'nfl_10', 'full_name': 'Ja\'Marr Chase', 'position': 'WR', 'team': 'CIN', 'is_active': True},
-            {'id': 'nfl_11', 'full_name': 'Deshaun Watson', 'position': 'QB', 'team': 'CLE', 'is_active': True},
-            {'id': 'nfl_12', 'full_name': 'Nick Chubb', 'position': 'RB', 'team': 'CLE', 'is_active': True},
-            {'id': 'nfl_13', 'full_name': 'Kenny Pickett', 'position': 'QB', 'team': 'PIT', 'is_active': True},
-            {'id': 'nfl_14', 'full_name': 'T.J. Watt', 'position': 'OLB', 'team': 'PIT', 'is_active': True},
+            # AFC East - Miami Dolphins  
+            {'id': 'nfl_11', 'full_name': 'Tua Tagovailoa', 'position': 'QB', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_12', 'full_name': 'Tyreek Hill', 'position': 'WR', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_13', 'full_name': 'Jaylen Waddle', 'position': 'WR', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_14', 'full_name': 'De\'Von Achane', 'position': 'RB', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_15', 'full_name': 'Raheem Mostert', 'position': 'RB', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_16', 'full_name': 'Mike McDaniel', 'position': 'HC', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_17', 'full_name': 'Jonnu Smith', 'position': 'TE', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_18', 'full_name': 'Durham Smythe', 'position': 'TE', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_19', 'full_name': 'Odell Beckham Jr.', 'position': 'WR', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_20', 'full_name': 'Tyler Huntley', 'position': 'QB', 'team': 'MIA', 'is_active': True},
             
-            # AFC South
-            {'id': 'nfl_15', 'full_name': 'C.J. Stroud', 'position': 'QB', 'team': 'HOU', 'is_active': True},
-            {'id': 'nfl_16', 'full_name': 'Nico Collins', 'position': 'WR', 'team': 'HOU', 'is_active': True},
-            {'id': 'nfl_17', 'full_name': 'Anthony Richardson', 'position': 'QB', 'team': 'IND', 'is_active': True},
-            {'id': 'nfl_18', 'full_name': 'Jonathan Taylor', 'position': 'RB', 'team': 'IND', 'is_active': True},
-            {'id': 'nfl_19', 'full_name': 'Trevor Lawrence', 'position': 'QB', 'team': 'JAX', 'is_active': True},
-            {'id': 'nfl_20', 'full_name': 'Calvin Ridley', 'position': 'WR', 'team': 'JAX', 'is_active': True},
-            {'id': 'nfl_21', 'full_name': 'Will Levis', 'position': 'QB', 'team': 'TEN', 'is_active': True},
-            {'id': 'nfl_22', 'full_name': 'Derrick Henry', 'position': 'RB', 'team': 'TEN', 'is_active': True},
+            # AFC East - New England Patriots
+            {'id': 'nfl_21', 'full_name': 'Drake Maye', 'position': 'QB', 'team': 'NE', 'is_active': True},
+            {'id': 'nfl_22', 'full_name': 'Jacoby Brissett', 'position': 'QB', 'team': 'NE', 'is_active': True},
+            {'id': 'nfl_23', 'full_name': 'Rhamondre Stevenson', 'position': 'RB', 'team': 'NE', 'is_active': True},
+            {'id': 'nfl_24', 'full_name': 'DeMario Douglas', 'position': 'WR', 'team': 'NE', 'is_active': True},
+            {'id': 'nfl_25', 'full_name': 'Kendrick Bourne', 'position': 'WR', 'team': 'NE', 'is_active': True},
+            {'id': 'nfl_26', 'full_name': 'Hunter Henry', 'position': 'TE', 'team': 'NE', 'is_active': True},
+            {'id': 'nfl_27', 'full_name': 'Austin Hooper', 'position': 'TE', 'team': 'NE', 'is_active': True},
+            {'id': 'nfl_28', 'full_name': 'Antonio Gibson', 'position': 'RB', 'team': 'NE', 'is_active': True},
+            {'id': 'nfl_29', 'full_name': 'Ja\'Lynn Polk', 'position': 'WR', 'team': 'NE', 'is_active': True},
+            {'id': 'nfl_30', 'full_name': 'Javon Baker', 'position': 'WR', 'team': 'NE', 'is_active': True},
             
-            # AFC West
-            {'id': 'nfl_23', 'full_name': 'Russell Wilson', 'position': 'QB', 'team': 'DEN', 'is_active': True},
-            {'id': 'nfl_24', 'full_name': 'Courtland Sutton', 'position': 'WR', 'team': 'DEN', 'is_active': True},
-            {'id': 'nfl_25', 'full_name': 'Patrick Mahomes', 'position': 'QB', 'team': 'KC', 'is_active': True},
-            {'id': 'nfl_26', 'full_name': 'Travis Kelce', 'position': 'TE', 'team': 'KC', 'is_active': True},
-            {'id': 'nfl_27', 'full_name': 'Aidan O\'Connell', 'position': 'QB', 'team': 'LV', 'is_active': True},
-            {'id': 'nfl_28', 'full_name': 'Davante Adams', 'position': 'WR', 'team': 'LV', 'is_active': True},
-            {'id': 'nfl_29', 'full_name': 'Justin Herbert', 'position': 'QB', 'team': 'LAC', 'is_active': True},
-            {'id': 'nfl_30', 'full_name': 'Keenan Allen', 'position': 'WR', 'team': 'LAC', 'is_active': True},
+            # AFC East - New York Jets
+            {'id': 'nfl_31', 'full_name': 'Aaron Rodgers', 'position': 'QB', 'team': 'NYJ', 'is_active': True},
+            {'id': 'nfl_32', 'full_name': 'Davante Adams', 'position': 'WR', 'team': 'NYJ', 'is_active': True},
+            {'id': 'nfl_33', 'full_name': 'Garrett Wilson', 'position': 'WR', 'team': 'NYJ', 'is_active': True},
+            {'id': 'nfl_34', 'full_name': 'Breece Hall', 'position': 'RB', 'team': 'NYJ', 'is_active': True},
+            {'id': 'nfl_35', 'full_name': 'Braelon Allen', 'position': 'RB', 'team': 'NYJ', 'is_active': True},
+            {'id': 'nfl_36', 'full_name': 'Tyler Conklin', 'position': 'TE', 'team': 'NYJ', 'is_active': True},
+            {'id': 'nfl_37', 'full_name': 'Mike Williams', 'position': 'WR', 'team': 'PIT', 'is_active': True},  # Traded
+            {'id': 'nfl_38', 'full_name': 'Allen Lazard', 'position': 'WR', 'team': 'NYJ', 'is_active': True},
+            {'id': 'nfl_39', 'full_name': 'Malachi Corley', 'position': 'WR', 'team': 'NYJ', 'is_active': True},
+            {'id': 'nfl_40', 'full_name': 'Jeremy Ruckert', 'position': 'TE', 'team': 'NYJ', 'is_active': True},
             
-            # NFC East
-            {'id': 'nfl_31', 'full_name': 'Dak Prescott', 'position': 'QB', 'team': 'DAL', 'is_active': True},
-            {'id': 'nfl_32', 'full_name': 'CeeDee Lamb', 'position': 'WR', 'team': 'DAL', 'is_active': True},
-            {'id': 'nfl_33', 'full_name': 'Daniel Jones', 'position': 'QB', 'team': 'NYG', 'is_active': True},
-            {'id': 'nfl_34', 'full_name': 'Saquon Barkley', 'position': 'RB', 'team': 'PHI', 'is_active': True},
-            {'id': 'nfl_35', 'full_name': 'Jalen Hurts', 'position': 'QB', 'team': 'PHI', 'is_active': True},
-            {'id': 'nfl_36', 'full_name': 'A.J. Brown', 'position': 'WR', 'team': 'PHI', 'is_active': True},
-            {'id': 'nfl_37', 'full_name': 'Jayden Daniels', 'position': 'QB', 'team': 'WAS', 'is_active': True},
-            {'id': 'nfl_38', 'full_name': 'Terry McLaurin', 'position': 'WR', 'team': 'WAS', 'is_active': True},
+            # AFC North - Baltimore Ravens
+            {'id': 'nfl_41', 'full_name': 'Lamar Jackson', 'position': 'QB', 'team': 'BAL', 'is_active': True},
+            {'id': 'nfl_42', 'full_name': 'Mark Andrews', 'position': 'TE', 'team': 'BAL', 'is_active': True},
+            {'id': 'nfl_43', 'full_name': 'Derrick Henry', 'position': 'RB', 'team': 'BAL', 'is_active': True},
+            {'id': 'nfl_44', 'full_name': 'Zay Flowers', 'position': 'WR', 'team': 'BAL', 'is_active': True},
+            {'id': 'nfl_45', 'full_name': 'Rashod Bateman', 'position': 'WR', 'team': 'BAL', 'is_active': True},
+            {'id': 'nfl_46', 'full_name': 'Isaiah Likely', 'position': 'TE', 'team': 'BAL', 'is_active': True},
+            {'id': 'nfl_47', 'full_name': 'Justice Hill', 'position': 'RB', 'team': 'BAL', 'is_active': True},
+            {'id': 'nfl_48', 'full_name': 'Nelson Agholor', 'position': 'WR', 'team': 'BAL', 'is_active': True},
+            {'id': 'nfl_49', 'full_name': 'Diontae Johnson', 'position': 'WR', 'team': 'BAL', 'is_active': True},
+            {'id': 'nfl_50', 'full_name': 'Josh Johnson', 'position': 'QB', 'team': 'BAL', 'is_active': True},
             
-            # NFC North
-            {'id': 'nfl_39', 'full_name': 'Caleb Williams', 'position': 'QB', 'team': 'CHI', 'is_active': True},
-            {'id': 'nfl_40', 'full_name': 'D.J. Moore', 'position': 'WR', 'team': 'CHI', 'is_active': True},
-            {'id': 'nfl_41', 'full_name': 'Jared Goff', 'position': 'QB', 'team': 'DET', 'is_active': True},
-            {'id': 'nfl_42', 'full_name': 'Amon-Ra St. Brown', 'position': 'WR', 'team': 'DET', 'is_active': True},
-            {'id': 'nfl_43', 'full_name': 'Jordan Love', 'position': 'QB', 'team': 'GB', 'is_active': True},
-            {'id': 'nfl_44', 'full_name': 'Jayden Reed', 'position': 'WR', 'team': 'GB', 'is_active': True},
-            {'id': 'nfl_45', 'full_name': 'Sam Darnold', 'position': 'QB', 'team': 'MIN', 'is_active': True},
-            {'id': 'nfl_46', 'full_name': 'Justin Jefferson', 'position': 'WR', 'team': 'MIN', 'is_active': True},
+            # AFC North - Cincinnati Bengals
+            {'id': 'nfl_51', 'full_name': 'Joe Burrow', 'position': 'QB', 'team': 'CIN', 'is_active': True},
+            {'id': 'nfl_52', 'full_name': 'Ja\'Marr Chase', 'position': 'WR', 'team': 'CIN', 'is_active': True},
+            {'id': 'nfl_53', 'full_name': 'Tee Higgins', 'position': 'WR', 'team': 'CIN', 'is_active': True},
+            {'id': 'nfl_54', 'full_name': 'Chase Brown', 'position': 'RB', 'team': 'CIN', 'is_active': True},
+            {'id': 'nfl_55', 'full_name': 'Zack Moss', 'position': 'RB', 'team': 'CIN', 'is_active': True},
+            {'id': 'nfl_56', 'full_name': 'Mike Gesicki', 'position': 'TE', 'team': 'CIN', 'is_active': True},
+            {'id': 'nfl_57', 'full_name': 'Drew Sample', 'position': 'TE', 'team': 'CIN', 'is_active': True},
+            {'id': 'nfl_58', 'full_name': 'Andrei Iosivas', 'position': 'WR', 'team': 'CIN', 'is_active': True},
+            {'id': 'nfl_59', 'full_name': 'Tyler Boyd', 'position': 'WR', 'team': 'TEN', 'is_active': True},  # Moved
+            {'id': 'nfl_60', 'full_name': 'Jake Browning', 'position': 'QB', 'team': 'CIN', 'is_active': True},
             
-            # NFC South
-            {'id': 'nfl_47', 'full_name': 'Kirk Cousins', 'position': 'QB', 'team': 'ATL', 'is_active': True},
-            {'id': 'nfl_48', 'full_name': 'Drake London', 'position': 'WR', 'team': 'ATL', 'is_active': True},
-            {'id': 'nfl_49', 'full_name': 'Bryce Young', 'position': 'QB', 'team': 'CAR', 'is_active': True},
-            {'id': 'nfl_50', 'full_name': 'Christian McCaffrey', 'position': 'RB', 'team': 'SF', 'is_active': True},
-            {'id': 'nfl_51', 'full_name': 'Derek Carr', 'position': 'QB', 'team': 'NO', 'is_active': True},
-            {'id': 'nfl_52', 'full_name': 'Alvin Kamara', 'position': 'RB', 'team': 'NO', 'is_active': True},
-            {'id': 'nfl_53', 'full_name': 'Baker Mayfield', 'position': 'QB', 'team': 'TB', 'is_active': True},
-            {'id': 'nfl_54', 'full_name': 'Mike Evans', 'position': 'WR', 'team': 'TB', 'is_active': True},
+            # AFC North - Cleveland Browns
+            {'id': 'nfl_61', 'full_name': 'Deshaun Watson', 'position': 'QB', 'team': 'CLE', 'is_active': True},
+            {'id': 'nfl_62', 'full_name': 'Jameis Winston', 'position': 'QB', 'team': 'CLE', 'is_active': True},
+            {'id': 'nfl_63', 'full_name': 'Nick Chubb', 'position': 'RB', 'team': 'CLE', 'is_active': True},
+            {'id': 'nfl_64', 'full_name': 'Jerome Ford', 'position': 'RB', 'team': 'CLE', 'is_active': True},
+            {'id': 'nfl_65', 'full_name': 'Jerry Jeudy', 'position': 'WR', 'team': 'CLE', 'is_active': True},
+            {'id': 'nfl_66', 'full_name': 'Elijah Moore', 'position': 'WR', 'team': 'CLE', 'is_active': True},
+            {'id': 'nfl_67', 'full_name': 'David Njoku', 'position': 'TE', 'team': 'CLE', 'is_active': True},
+            {'id': 'nfl_68', 'full_name': 'Cedric Tillman', 'position': 'WR', 'team': 'CLE', 'is_active': True},
+            {'id': 'nfl_69', 'full_name': 'D\'Onta Foreman', 'position': 'RB', 'team': 'CLE', 'is_active': True},
+            {'id': 'nfl_70', 'full_name': 'Jordan Akins', 'position': 'TE', 'team': 'CLE', 'is_active': True},
             
-            # NFC West
-            {'id': 'nfl_55', 'full_name': 'Kyler Murray', 'position': 'QB', 'team': 'ARI', 'is_active': True},
-            {'id': 'nfl_56', 'full_name': 'Marvin Harrison Jr.', 'position': 'WR', 'team': 'ARI', 'is_active': True},
-            {'id': 'nfl_57', 'full_name': 'Matthew Stafford', 'position': 'QB', 'team': 'LAR', 'is_active': True},
-            {'id': 'nfl_58', 'full_name': 'Cooper Kupp', 'position': 'WR', 'team': 'LAR', 'is_active': True},
-            {'id': 'nfl_59', 'full_name': 'Brock Purdy', 'position': 'QB', 'team': 'SF', 'is_active': True},
-            {'id': 'nfl_60', 'full_name': 'Deebo Samuel', 'position': 'WR', 'team': 'SF', 'is_active': True},
-            {'id': 'nfl_61', 'full_name': 'Geno Smith', 'position': 'QB', 'team': 'SEA', 'is_active': True},
-            {'id': 'nfl_62', 'full_name': 'DK Metcalf', 'position': 'WR', 'team': 'SEA', 'is_active': True},
+            # AFC North - Pittsburgh Steelers
+            {'id': 'nfl_71', 'full_name': 'Russell Wilson', 'position': 'QB', 'team': 'PIT', 'is_active': True},
+            {'id': 'nfl_72', 'full_name': 'Justin Fields', 'position': 'QB', 'team': 'PIT', 'is_active': True},
+            {'id': 'nfl_73', 'full_name': 'Najee Harris', 'position': 'RB', 'team': 'PIT', 'is_active': True},
+            {'id': 'nfl_74', 'full_name': 'Jaylen Warren', 'position': 'RB', 'team': 'PIT', 'is_active': True},
+            {'id': 'nfl_75', 'full_name': 'George Pickens', 'position': 'WR', 'team': 'PIT', 'is_active': True},
+            {'id': 'nfl_76', 'full_name': 'Calvin Austin III', 'position': 'WR', 'team': 'PIT', 'is_active': True},
+            {'id': 'nfl_77', 'full_name': 'Pat Freiermuth', 'position': 'TE', 'team': 'PIT', 'is_active': True},
+            {'id': 'nfl_78', 'full_name': 'T.J. Watt', 'position': 'OLB', 'team': 'PIT', 'is_active': True},
+            {'id': 'nfl_79', 'full_name': 'Van Jefferson', 'position': 'WR', 'team': 'PIT', 'is_active': True},
+            {'id': 'nfl_80', 'full_name': 'Darnell Washington', 'position': 'TE', 'team': 'PIT', 'is_active': True},
+            
+            # AFC South - Houston Texans
+            {'id': 'nfl_81', 'full_name': 'C.J. Stroud', 'position': 'QB', 'team': 'HOU', 'is_active': True},
+            {'id': 'nfl_82', 'full_name': 'Nico Collins', 'position': 'WR', 'team': 'HOU', 'is_active': True},
+            {'id': 'nfl_83', 'full_name': 'Tank Dell', 'position': 'WR', 'team': 'HOU', 'is_active': True},
+            {'id': 'nfl_84', 'full_name': 'Joe Mixon', 'position': 'RB', 'team': 'HOU', 'is_active': True},
+            {'id': 'nfl_85', 'full_name': 'Dalton Schultz', 'position': 'TE', 'team': 'HOU', 'is_active': True},
+            {'id': 'nfl_86', 'full_name': 'Cam Akers', 'position': 'RB', 'team': 'HOU', 'is_active': True},
+            {'id': 'nfl_87', 'full_name': 'Xavier Hutchinson', 'position': 'WR', 'team': 'HOU', 'is_active': True},
+            {'id': 'nfl_88', 'full_name': 'Cade Stover', 'position': 'TE', 'team': 'HOU', 'is_active': True},
+            {'id': 'nfl_89', 'full_name': 'John Metchie III', 'position': 'WR', 'team': 'HOU', 'is_active': True},
+            {'id': 'nfl_90', 'full_name': 'Davis Mills', 'position': 'QB', 'team': 'HOU', 'is_active': True},
+            
+            # AFC South - Indianapolis Colts
+            {'id': 'nfl_91', 'full_name': 'Anthony Richardson', 'position': 'QB', 'team': 'IND', 'is_active': True},
+            {'id': 'nfl_92', 'full_name': 'Joe Flacco', 'position': 'QB', 'team': 'IND', 'is_active': True},
+            {'id': 'nfl_93', 'full_name': 'Jonathan Taylor', 'position': 'RB', 'team': 'IND', 'is_active': True},
+            {'id': 'nfl_94', 'full_name': 'Michael Pittman Jr.', 'position': 'WR', 'team': 'IND', 'is_active': True},
+            {'id': 'nfl_95', 'full_name': 'Josh Downs', 'position': 'WR', 'team': 'IND', 'is_active': True},
+            {'id': 'nfl_96', 'full_name': 'Alec Pierce', 'position': 'WR', 'team': 'IND', 'is_active': True},
+            {'id': 'nfl_97', 'full_name': 'Trey Sermon', 'position': 'RB', 'team': 'IND', 'is_active': True},
+            {'id': 'nfl_98', 'full_name': 'Kylen Granson', 'position': 'TE', 'team': 'IND', 'is_active': True},
+            {'id': 'nfl_99', 'full_name': 'Mo Alie-Cox', 'position': 'TE', 'team': 'IND', 'is_active': True},
+            {'id': 'nfl_100', 'full_name': 'Adonai Mitchell', 'position': 'WR', 'team': 'IND', 'is_active': True},
+            
+            # AFC South - Jacksonville Jaguars
+            {'id': 'nfl_101', 'full_name': 'Trevor Lawrence', 'position': 'QB', 'team': 'JAX', 'is_active': True},
+            {'id': 'nfl_102', 'full_name': 'Mac Jones', 'position': 'QB', 'team': 'JAX', 'is_active': True},
+            {'id': 'nfl_103', 'full_name': 'Travis Etienne Jr.', 'position': 'RB', 'team': 'JAX', 'is_active': True},
+            {'id': 'nfl_104', 'full_name': 'Tank Bigsby', 'position': 'RB', 'team': 'JAX', 'is_active': True},
+            {'id': 'nfl_105', 'full_name': 'Calvin Ridley', 'position': 'WR', 'team': 'TEN', 'is_active': True},  # Updated
+            {'id': 'nfl_106', 'full_name': 'Christian Kirk', 'position': 'WR', 'team': 'JAX', 'is_active': True},
+            {'id': 'nfl_107', 'full_name': 'Brian Thomas Jr.', 'position': 'WR', 'team': 'JAX', 'is_active': True},
+            {'id': 'nfl_108', 'full_name': 'Evan Engram', 'position': 'TE', 'team': 'JAX', 'is_active': True},
+            {'id': 'nfl_109', 'full_name': 'Gabe Davis', 'position': 'WR', 'team': 'JAX', 'is_active': True},
+            {'id': 'nfl_110', 'full_name': 'Brenton Strange', 'position': 'TE', 'team': 'JAX', 'is_active': True},
+            
+            # AFC South - Tennessee Titans
+            {'id': 'nfl_111', 'full_name': 'Will Levis', 'position': 'QB', 'team': 'TEN', 'is_active': True},
+            {'id': 'nfl_112', 'full_name': 'Mason Rudolph', 'position': 'QB', 'team': 'TEN', 'is_active': True},
+            {'id': 'nfl_113', 'full_name': 'Tony Pollard', 'position': 'RB', 'team': 'TEN', 'is_active': True},
+            {'id': 'nfl_114', 'full_name': 'Tyjae Spears', 'position': 'RB', 'team': 'TEN', 'is_active': True},
+            {'id': 'nfl_115', 'full_name': 'DeAndre Hopkins', 'position': 'WR', 'team': 'KC', 'is_active': True},  # Traded
+            {'id': 'nfl_116', 'full_name': 'Nick Westbrook-Ikhine', 'position': 'WR', 'team': 'TEN', 'is_active': True},
+            {'id': 'nfl_117', 'full_name': 'Chig Okonkwo', 'position': 'TE', 'team': 'TEN', 'is_active': True},
+            {'id': 'nfl_118', 'full_name': 'Nick Folk', 'position': 'K', 'team': 'TEN', 'is_active': True},
+            {'id': 'nfl_119', 'full_name': 'Treylon Burks', 'position': 'WR', 'team': 'TEN', 'is_active': True},
+            {'id': 'nfl_120', 'full_name': 'Josh Whyle', 'position': 'TE', 'team': 'TEN', 'is_active': True},
+            
+            # AFC West - Denver Broncos
+            {'id': 'nfl_121', 'full_name': 'Bo Nix', 'position': 'QB', 'team': 'DEN', 'is_active': True},
+            {'id': 'nfl_122', 'full_name': 'Jarrett Stidham', 'position': 'QB', 'team': 'DEN', 'is_active': True},
+            {'id': 'nfl_123', 'full_name': 'Javonte Williams', 'position': 'RB', 'team': 'DEN', 'is_active': True},
+            {'id': 'nfl_124', 'full_name': 'Jaleel McLaughlin', 'position': 'RB', 'team': 'DEN', 'is_active': True},
+            {'id': 'nfl_125', 'full_name': 'Courtland Sutton', 'position': 'WR', 'team': 'DEN', 'is_active': True},
+            {'id': 'nfl_126', 'full_name': 'Jerry Jeudy', 'position': 'WR', 'team': 'CLE', 'is_active': True},  # Traded
+            {'id': 'nfl_127', 'full_name': 'Marvin Mims Jr.', 'position': 'WR', 'team': 'DEN', 'is_active': True},
+            {'id': 'nfl_128', 'full_name': 'Adam Trautman', 'position': 'TE', 'team': 'DEN', 'is_active': True},
+            {'id': 'nfl_129', 'full_name': 'Devaughn Vele', 'position': 'WR', 'team': 'DEN', 'is_active': True},
+            {'id': 'nfl_130', 'full_name': 'Audric Estime', 'position': 'RB', 'team': 'DEN', 'is_active': True},
+            
+            # AFC West - Kansas City Chiefs
+            {'id': 'nfl_131', 'full_name': 'Patrick Mahomes', 'position': 'QB', 'team': 'KC', 'is_active': True},
+            {'id': 'nfl_132', 'full_name': 'Carson Wentz', 'position': 'QB', 'team': 'KC', 'is_active': True},
+            {'id': 'nfl_133', 'full_name': 'Travis Kelce', 'position': 'TE', 'team': 'KC', 'is_active': True},
+            {'id': 'nfl_134', 'full_name': 'Isiah Pacheco', 'position': 'RB', 'team': 'KC', 'is_active': True},
+            {'id': 'nfl_135', 'full_name': 'Kareem Hunt', 'position': 'RB', 'team': 'KC', 'is_active': True},
+            {'id': 'nfl_136', 'full_name': 'Xavier Worthy', 'position': 'WR', 'team': 'KC', 'is_active': True},
+            {'id': 'nfl_137', 'full_name': 'Marquise Goodwin', 'position': 'WR', 'team': 'KC', 'is_active': True},
+            {'id': 'nfl_138', 'full_name': 'Noah Gray', 'position': 'TE', 'team': 'KC', 'is_active': True},
+            {'id': 'nfl_139', 'full_name': 'JuJu Smith-Schuster', 'position': 'WR', 'team': 'KC', 'is_active': True},
+            {'id': 'nfl_140', 'full_name': 'Samaje Perine', 'position': 'RB', 'team': 'KC', 'is_active': True},
+            
+            # AFC West - Las Vegas Raiders
+            {'id': 'nfl_141', 'full_name': 'Gardner Minshew', 'position': 'QB', 'team': 'LV', 'is_active': True},
+            {'id': 'nfl_142', 'full_name': 'Aidan O\'Connell', 'position': 'QB', 'team': 'LV', 'is_active': True},
+            {'id': 'nfl_143', 'full_name': 'Alexander Mattison', 'position': 'RB', 'team': 'LV', 'is_active': True},
+            {'id': 'nfl_144', 'full_name': 'Zamir White', 'position': 'RB', 'team': 'LV', 'is_active': True},
+            {'id': 'nfl_145', 'full_name': 'Brock Bowers', 'position': 'TE', 'team': 'LV', 'is_active': True},
+            {'id': 'nfl_146', 'full_name': 'Tre Tucker', 'position': 'WR', 'team': 'LV', 'is_active': True},
+            {'id': 'nfl_147', 'full_name': 'Jakobi Meyers', 'position': 'WR', 'team': 'LV', 'is_active': True},
+            {'id': 'nfl_148', 'full_name': 'Michael Mayer', 'position': 'TE', 'team': 'LV', 'is_active': True},
+            {'id': 'nfl_149', 'full_name': 'DJ Turner', 'position': 'WR', 'team': 'LV', 'is_active': True},
+            {'id': 'nfl_150', 'full_name': 'Ameer Abdullah', 'position': 'RB', 'team': 'LV', 'is_active': True},
+            
+            # AFC West - Los Angeles Chargers
+            {'id': 'nfl_151', 'full_name': 'Justin Herbert', 'position': 'QB', 'team': 'LAC', 'is_active': True},
+            {'id': 'nfl_152', 'full_name': 'Taylor Heinicke', 'position': 'QB', 'team': 'LAC', 'is_active': True},
+            {'id': 'nfl_153', 'full_name': 'J.K. Dobbins', 'position': 'RB', 'team': 'LAC', 'is_active': True},
+            {'id': 'nfl_154', 'full_name': 'Gus Edwards', 'position': 'RB', 'team': 'LAC', 'is_active': True},
+            {'id': 'nfl_155', 'full_name': 'Ladd McConkey', 'position': 'WR', 'team': 'LAC', 'is_active': True},
+            {'id': 'nfl_156', 'full_name': 'DJ Chark Jr.', 'position': 'WR', 'team': 'LAC', 'is_active': True},
+            {'id': 'nfl_157', 'full_name': 'Will Dissly', 'position': 'TE', 'team': 'LAC', 'is_active': True},
+            {'id': 'nfl_158', 'full_name': 'Joshua Palmer', 'position': 'WR', 'team': 'LAC', 'is_active': True},
+            {'id': 'nfl_159', 'full_name': 'Quentin Johnston', 'position': 'WR', 'team': 'LAC', 'is_active': True},
+            {'id': 'nfl_160', 'full_name': 'Hayden Hurst', 'position': 'TE', 'team': 'LAC', 'is_active': True},
+            
+            # NFC East - Dallas Cowboys
+            {'id': 'nfl_161', 'full_name': 'Dak Prescott', 'position': 'QB', 'team': 'DAL', 'is_active': True},
+            {'id': 'nfl_162', 'full_name': 'Cooper Rush', 'position': 'QB', 'team': 'DAL', 'is_active': True},
+            {'id': 'nfl_163', 'full_name': 'CeeDee Lamb', 'position': 'WR', 'team': 'DAL', 'is_active': True},
+            {'id': 'nfl_164', 'full_name': 'Ezekiel Elliott', 'position': 'RB', 'team': 'DAL', 'is_active': True},
+            {'id': 'nfl_165', 'full_name': 'Rico Dowdle', 'position': 'RB', 'team': 'DAL', 'is_active': True},
+            {'id': 'nfl_166', 'full_name': 'Jake Ferguson', 'position': 'TE', 'team': 'DAL', 'is_active': True},
+            {'id': 'nfl_167', 'full_name': 'Brandin Cooks', 'position': 'WR', 'team': 'DAL', 'is_active': True},
+            {'id': 'nfl_168', 'full_name': 'KaVontae Turpin', 'position': 'WR', 'team': 'DAL', 'is_active': True},
+            {'id': 'nfl_169', 'full_name': 'Jalen Tolbert', 'position': 'WR', 'team': 'DAL', 'is_active': True},
+            {'id': 'nfl_170', 'full_name': 'Luke Schoonmaker', 'position': 'TE', 'team': 'DAL', 'is_active': True},
+            
+            # NFC East - New York Giants
+            {'id': 'nfl_171', 'full_name': 'Daniel Jones', 'position': 'QB', 'team': 'NYG', 'is_active': True},
+            {'id': 'nfl_172', 'full_name': 'Tommy DeVito', 'position': 'QB', 'team': 'NYG', 'is_active': True},
+            {'id': 'nfl_173', 'full_name': 'Tyrone Tracy Jr.', 'position': 'RB', 'team': 'NYG', 'is_active': True},
+            {'id': 'nfl_174', 'full_name': 'Devin Singletary', 'position': 'RB', 'team': 'NYG', 'is_active': True},
+            {'id': 'nfl_175', 'full_name': 'Malik Nabers', 'position': 'WR', 'team': 'NYG', 'is_active': True},
+            {'id': 'nfl_176', 'full_name': 'Wan\'Dale Robinson', 'position': 'WR', 'team': 'NYG', 'is_active': True},
+            {'id': 'nfl_177', 'full_name': 'Darius Slayton', 'position': 'WR', 'team': 'NYG', 'is_active': True},
+            {'id': 'nfl_178', 'full_name': 'Daniel Bellinger', 'position': 'TE', 'team': 'NYG', 'is_active': True},
+            {'id': 'nfl_179', 'full_name': 'Theo Johnson', 'position': 'TE', 'team': 'NYG', 'is_active': True},
+            {'id': 'nfl_180', 'full_name': 'Eric Gray', 'position': 'RB', 'team': 'NYG', 'is_active': True},
+            
+            # NFC East - Philadelphia Eagles
+            {'id': 'nfl_181', 'full_name': 'Jalen Hurts', 'position': 'QB', 'team': 'PHI', 'is_active': True},
+            {'id': 'nfl_182', 'full_name': 'Kenny Pickett', 'position': 'QB', 'team': 'PHI', 'is_active': True},
+            {'id': 'nfl_183', 'full_name': 'Saquon Barkley', 'position': 'RB', 'team': 'PHI', 'is_active': True},
+            {'id': 'nfl_184', 'full_name': 'Kenneth Gainwell', 'position': 'RB', 'team': 'PHI', 'is_active': True},
+            {'id': 'nfl_185', 'full_name': 'A.J. Brown', 'position': 'WR', 'team': 'PHI', 'is_active': True},
+            {'id': 'nfl_186', 'full_name': 'DeVonta Smith', 'position': 'WR', 'team': 'PHI', 'is_active': True},
+            {'id': 'nfl_187', 'full_name': 'Dallas Goedert', 'position': 'TE', 'team': 'PHI', 'is_active': True},
+            {'id': 'nfl_188', 'full_name': 'Jahan Dotson', 'position': 'WR', 'team': 'PHI', 'is_active': True},
+            {'id': 'nfl_189', 'full_name': 'Grant Calcaterra', 'position': 'TE', 'team': 'PHI', 'is_active': True},
+            {'id': 'nfl_190', 'full_name': 'Johnny Wilson', 'position': 'WR', 'team': 'PHI', 'is_active': True},
+            
+            # NFC East - Washington Commanders
+            {'id': 'nfl_191', 'full_name': 'Jayden Daniels', 'position': 'QB', 'team': 'WAS', 'is_active': True},
+            {'id': 'nfl_192', 'full_name': 'Marcus Mariota', 'position': 'QB', 'team': 'WAS', 'is_active': True},
+            {'id': 'nfl_193', 'full_name': 'Brian Robinson Jr.', 'position': 'RB', 'team': 'WAS', 'is_active': True},
+            {'id': 'nfl_194', 'full_name': 'Austin Ekeler', 'position': 'RB', 'team': 'WAS', 'is_active': True},
+            {'id': 'nfl_195', 'full_name': 'Terry McLaurin', 'position': 'WR', 'team': 'WAS', 'is_active': True},
+            {'id': 'nfl_196', 'full_name': 'Noah Brown', 'position': 'WR', 'team': 'WAS', 'is_active': True},
+            {'id': 'nfl_197', 'full_name': 'Zach Ertz', 'position': 'TE', 'team': 'WAS', 'is_active': True},
+            {'id': 'nfl_198', 'full_name': 'Olamide Zaccheaus', 'position': 'WR', 'team': 'WAS', 'is_active': True},
+            {'id': 'nfl_199', 'full_name': 'Luke McCaffrey', 'position': 'WR', 'team': 'WAS', 'is_active': True},
+            {'id': 'nfl_200', 'full_name': 'Ben Skowronek', 'position': 'WR', 'team': 'WAS', 'is_active': True},
+            
+            # NFC North - Chicago Bears
+            {'id': 'nfl_201', 'full_name': 'Caleb Williams', 'position': 'QB', 'team': 'CHI', 'is_active': True},
+            {'id': 'nfl_202', 'full_name': 'Tyson Bagent', 'position': 'QB', 'team': 'CHI', 'is_active': True},
+            {'id': 'nfl_203', 'full_name': 'D\'Andre Swift', 'position': 'RB', 'team': 'CHI', 'is_active': True},
+            {'id': 'nfl_204', 'full_name': 'Roschon Johnson', 'position': 'RB', 'team': 'CHI', 'is_active': True},
+            {'id': 'nfl_205', 'full_name': 'DJ Moore', 'position': 'WR', 'team': 'CHI', 'is_active': True},
+            {'id': 'nfl_206', 'full_name': 'Keenan Allen', 'position': 'WR', 'team': 'CHI', 'is_active': True},
+            {'id': 'nfl_207', 'full_name': 'Rome Odunze', 'position': 'WR', 'team': 'CHI', 'is_active': True},
+            {'id': 'nfl_208', 'full_name': 'Cole Kmet', 'position': 'TE', 'team': 'CHI', 'is_active': True},
+            {'id': 'nfl_209', 'full_name': 'Gerald Everett', 'position': 'TE', 'team': 'CHI', 'is_active': True},
+            {'id': 'nfl_210', 'full_name': 'Travis Homer', 'position': 'RB', 'team': 'CHI', 'is_active': True},
+            
+            # NFC North - Detroit Lions
+            {'id': 'nfl_211', 'full_name': 'Jared Goff', 'position': 'QB', 'team': 'DET', 'is_active': True},
+            {'id': 'nfl_212', 'full_name': 'Hendon Hooker', 'position': 'QB', 'team': 'DET', 'is_active': True},
+            {'id': 'nfl_213', 'full_name': 'David Montgomery', 'position': 'RB', 'team': 'DET', 'is_active': True},
+            {'id': 'nfl_214', 'full_name': 'Jahmyr Gibbs', 'position': 'RB', 'team': 'DET', 'is_active': True},
+            {'id': 'nfl_215', 'full_name': 'Amon-Ra St. Brown', 'position': 'WR', 'team': 'DET', 'is_active': True},
+            {'id': 'nfl_216', 'full_name': 'Jameson Williams', 'position': 'WR', 'team': 'DET', 'is_active': True},
+            {'id': 'nfl_217', 'full_name': 'Sam LaPorta', 'position': 'TE', 'team': 'DET', 'is_active': True},
+            {'id': 'nfl_218', 'full_name': 'Tim Patrick', 'position': 'WR', 'team': 'DET', 'is_active': True},
+            {'id': 'nfl_219', 'full_name': 'Brock Wright', 'position': 'TE', 'team': 'DET', 'is_active': True},
+            {'id': 'nfl_220', 'full_name': 'Craig Reynolds', 'position': 'RB', 'team': 'DET', 'is_active': True},
+            
+            # NFC North - Green Bay Packers
+            {'id': 'nfl_221', 'full_name': 'Jordan Love', 'position': 'QB', 'team': 'GB', 'is_active': True},
+            {'id': 'nfl_222', 'full_name': 'Malik Willis', 'position': 'QB', 'team': 'GB', 'is_active': True},
+            {'id': 'nfl_223', 'full_name': 'Josh Jacobs', 'position': 'RB', 'team': 'GB', 'is_active': True},
+            {'id': 'nfl_224', 'full_name': 'Emanuel Wilson', 'position': 'RB', 'team': 'GB', 'is_active': True},
+            {'id': 'nfl_225', 'full_name': 'Jayden Reed', 'position': 'WR', 'team': 'GB', 'is_active': True},
+            {'id': 'nfl_226', 'full_name': 'Christian Watson', 'position': 'WR', 'team': 'GB', 'is_active': True},
+            {'id': 'nfl_227', 'full_name': 'Romeo Doubs', 'position': 'WR', 'team': 'GB', 'is_active': True},
+            {'id': 'nfl_228', 'full_name': 'Tucker Kraft', 'position': 'TE', 'team': 'GB', 'is_active': True},
+            {'id': 'nfl_229', 'full_name': 'Dontayvion Wicks', 'position': 'WR', 'team': 'GB', 'is_active': True},
+            {'id': 'nfl_230', 'full_name': 'Luke Musgrave', 'position': 'TE', 'team': 'GB', 'is_active': True},
+            
+            # NFC North - Minnesota Vikings
+            {'id': 'nfl_231', 'full_name': 'Sam Darnold', 'position': 'QB', 'team': 'MIN', 'is_active': True},
+            {'id': 'nfl_232', 'full_name': 'J.J. McCarthy', 'position': 'QB', 'team': 'MIN', 'is_active': True},
+            {'id': 'nfl_233', 'full_name': 'Aaron Jones', 'position': 'RB', 'team': 'MIN', 'is_active': True},
+            {'id': 'nfl_234', 'full_name': 'Ty Chandler', 'position': 'RB', 'team': 'MIN', 'is_active': True},
+            {'id': 'nfl_235', 'full_name': 'Justin Jefferson', 'position': 'WR', 'team': 'MIN', 'is_active': True},
+            {'id': 'nfl_236', 'full_name': 'Jordan Addison', 'position': 'WR', 'team': 'MIN', 'is_active': True},
+            {'id': 'nfl_237', 'full_name': 'T.J. Hockenson', 'position': 'TE', 'team': 'MIN', 'is_active': True},
+            {'id': 'nfl_238', 'full_name': 'Jalen Nailor', 'position': 'WR', 'team': 'MIN', 'is_active': True},
+            {'id': 'nfl_239', 'full_name': 'Josh Oliver', 'position': 'TE', 'team': 'MIN', 'is_active': True},
+            {'id': 'nfl_240', 'full_name': 'Cam Akers', 'position': 'RB', 'team': 'MIN', 'is_active': True},
+            
+            # NFC South - Atlanta Falcons
+            {'id': 'nfl_241', 'full_name': 'Kirk Cousins', 'position': 'QB', 'team': 'ATL', 'is_active': True},
+            {'id': 'nfl_242', 'full_name': 'Michael Penix Jr.', 'position': 'QB', 'team': 'ATL', 'is_active': True},
+            {'id': 'nfl_243', 'full_name': 'Bijan Robinson', 'position': 'RB', 'team': 'ATL', 'is_active': True},
+            {'id': 'nfl_244', 'full_name': 'Tyler Allgeier', 'position': 'RB', 'team': 'ATL', 'is_active': True},
+            {'id': 'nfl_245', 'full_name': 'Drake London', 'position': 'WR', 'team': 'ATL', 'is_active': True},
+            {'id': 'nfl_246', 'full_name': 'Darnell Mooney', 'position': 'WR', 'team': 'ATL', 'is_active': True},
+            {'id': 'nfl_247', 'full_name': 'Kyle Pitts', 'position': 'TE', 'team': 'ATL', 'is_active': True},
+            {'id': 'nfl_248', 'full_name': 'Ray-Ray McCloud III', 'position': 'WR', 'team': 'ATL', 'is_active': True},
+            {'id': 'nfl_249', 'full_name': 'Charlie Woerner', 'position': 'TE', 'team': 'ATL', 'is_active': True},
+            {'id': 'nfl_250', 'full_name': 'Cordarrelle Patterson', 'position': 'RB', 'team': 'PIT', 'is_active': True},
+            
+            # NFC South - Carolina Panthers
+            {'id': 'nfl_251', 'full_name': 'Bryce Young', 'position': 'QB', 'team': 'CAR', 'is_active': True},
+            {'id': 'nfl_252', 'full_name': 'Andy Dalton', 'position': 'QB', 'team': 'CAR', 'is_active': True},
+            {'id': 'nfl_253', 'full_name': 'Chuba Hubbard', 'position': 'RB', 'team': 'CAR', 'is_active': True},
+            {'id': 'nfl_254', 'full_name': 'Miles Sanders', 'position': 'RB', 'team': 'CAR', 'is_active': True},
+            {'id': 'nfl_255', 'full_name': 'Diontae Johnson', 'position': 'WR', 'team': 'BAL', 'is_active': True},  # Traded
+            {'id': 'nfl_256', 'full_name': 'Adam Thielen', 'position': 'WR', 'team': 'CAR', 'is_active': True},
+            {'id': 'nfl_257', 'full_name': 'Xavier Legette', 'position': 'WR', 'team': 'CAR', 'is_active': True},
+            {'id': 'nfl_258', 'full_name': 'Ja\'Tavion Sanders', 'position': 'TE', 'team': 'CAR', 'is_active': True},
+            {'id': 'nfl_259', 'full_name': 'Tommy Tremble', 'position': 'TE', 'team': 'CAR', 'is_active': True},
+            {'id': 'nfl_260', 'full_name': 'Jonathon Brooks', 'position': 'RB', 'team': 'CAR', 'is_active': True},
+            
+            # NFC South - New Orleans Saints
+            {'id': 'nfl_261', 'full_name': 'Derek Carr', 'position': 'QB', 'team': 'NO', 'is_active': True},
+            {'id': 'nfl_262', 'full_name': 'Spencer Rattler', 'position': 'QB', 'team': 'NO', 'is_active': True},
+            {'id': 'nfl_263', 'full_name': 'Alvin Kamara', 'position': 'RB', 'team': 'NO', 'is_active': True},
+            {'id': 'nfl_264', 'full_name': 'Kendre Miller', 'position': 'RB', 'team': 'NO', 'is_active': True},
+            {'id': 'nfl_265', 'full_name': 'Chris Olave', 'position': 'WR', 'team': 'NO', 'is_active': True},
+            {'id': 'nfl_266', 'full_name': 'Rashid Shaheed', 'position': 'WR', 'team': 'NO', 'is_active': True},
+            {'id': 'nfl_267', 'full_name': 'Taysom Hill', 'position': 'TE', 'team': 'NO', 'is_active': True},
+            {'id': 'nfl_268', 'full_name': 'Juwan Johnson', 'position': 'TE', 'team': 'NO', 'is_active': True},
+            {'id': 'nfl_269', 'full_name': 'Mason Tipton', 'position': 'WR', 'team': 'NO', 'is_active': True},
+            {'id': 'nfl_270', 'full_name': 'Jamaal Williams', 'position': 'RB', 'team': 'NO', 'is_active': True},
+            
+            # NFC South - Tampa Bay Buccaneers
+            {'id': 'nfl_271', 'full_name': 'Baker Mayfield', 'position': 'QB', 'team': 'TB', 'is_active': True},
+            {'id': 'nfl_272', 'full_name': 'Kyle Trask', 'position': 'QB', 'team': 'TB', 'is_active': True},
+            {'id': 'nfl_273', 'full_name': 'Rachaad White', 'position': 'RB', 'team': 'TB', 'is_active': True},
+            {'id': 'nfl_274', 'full_name': 'Bucky Irving', 'position': 'RB', 'team': 'TB', 'is_active': True},
+            {'id': 'nfl_275', 'full_name': 'Mike Evans', 'position': 'WR', 'team': 'TB', 'is_active': True},
+            {'id': 'nfl_276', 'full_name': 'Chris Godwin', 'position': 'WR', 'team': 'TB', 'is_active': True},
+            {'id': 'nfl_277', 'full_name': 'Cade Otton', 'position': 'TE', 'team': 'TB', 'is_active': True},
+            {'id': 'nfl_278', 'full_name': 'Sterling Shepard', 'position': 'WR', 'team': 'TB', 'is_active': True},
+            {'id': 'nfl_279', 'full_name': 'Jalen McMillan', 'position': 'WR', 'team': 'TB', 'is_active': True},
+            {'id': 'nfl_280', 'full_name': 'Sean Tucker', 'position': 'RB', 'team': 'TB', 'is_active': True},
+            
+            # NFC West - Arizona Cardinals
+            {'id': 'nfl_281', 'full_name': 'Kyler Murray', 'position': 'QB', 'team': 'ARI', 'is_active': True},
+            {'id': 'nfl_282', 'full_name': 'Clayton Tune', 'position': 'QB', 'team': 'ARI', 'is_active': True},
+            {'id': 'nfl_283', 'full_name': 'James Conner', 'position': 'RB', 'team': 'ARI', 'is_active': True},
+            {'id': 'nfl_284', 'full_name': 'Trey Benson', 'position': 'RB', 'team': 'ARI', 'is_active': True},
+            {'id': 'nfl_285', 'full_name': 'Marvin Harrison Jr.', 'position': 'WR', 'team': 'ARI', 'is_active': True},
+            {'id': 'nfl_286', 'full_name': 'Michael Wilson', 'position': 'WR', 'team': 'ARI', 'is_active': True},
+            {'id': 'nfl_287', 'full_name': 'Trey McBride', 'position': 'TE', 'team': 'ARI', 'is_active': True},
+            {'id': 'nfl_288', 'full_name': 'Greg Dortch', 'position': 'WR', 'team': 'ARI', 'is_active': True},
+            {'id': 'nfl_289', 'full_name': 'Tip Reiman', 'position': 'TE', 'team': 'ARI', 'is_active': True},
+            {'id': 'nfl_290', 'full_name': 'Emari Demercado', 'position': 'RB', 'team': 'ARI', 'is_active': True},
+            
+            # NFC West - Los Angeles Rams
+            {'id': 'nfl_291', 'full_name': 'Matthew Stafford', 'position': 'QB', 'team': 'LAR', 'is_active': True},
+            {'id': 'nfl_292', 'full_name': 'Jimmy Garoppolo', 'position': 'QB', 'team': 'LAR', 'is_active': True},
+            {'id': 'nfl_293', 'full_name': 'Kyren Williams', 'position': 'RB', 'team': 'LAR', 'is_active': True},
+            {'id': 'nfl_294', 'full_name': 'Blake Corum', 'position': 'RB', 'team': 'LAR', 'is_active': True},
+            {'id': 'nfl_295', 'full_name': 'Cooper Kupp', 'position': 'WR', 'team': 'LAR', 'is_active': True},
+            {'id': 'nfl_296', 'full_name': 'Puka Nacua', 'position': 'WR', 'team': 'LAR', 'is_active': True},
+            {'id': 'nfl_297', 'full_name': 'Colby Parkinson', 'position': 'TE', 'team': 'LAR', 'is_active': True},
+            {'id': 'nfl_298', 'full_name': 'Demarcus Robinson', 'position': 'WR', 'team': 'LAR', 'is_active': True},
+            {'id': 'nfl_299', 'full_name': 'Tyler Higbee', 'position': 'TE', 'team': 'LAR', 'is_active': True},
+            {'id': 'nfl_300', 'full_name': 'Jordan Whittington', 'position': 'WR', 'team': 'LAR', 'is_active': True},
+            
+            # NFC West - San Francisco 49ers
+            {'id': 'nfl_301', 'full_name': 'Brock Purdy', 'position': 'QB', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_302', 'full_name': 'Josh Dobbs', 'position': 'QB', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_303', 'full_name': 'Christian McCaffrey', 'position': 'RB', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_304', 'full_name': 'Jordan Mason', 'position': 'RB', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_305', 'full_name': 'Deebo Samuel', 'position': 'WR', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_306', 'full_name': 'Brandon Aiyuk', 'position': 'WR', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_307', 'full_name': 'George Kittle', 'position': 'TE', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_308', 'full_name': 'Jauan Jennings', 'position': 'WR', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_309', 'full_name': 'Eric Saubert', 'position': 'TE', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_310', 'full_name': 'Isaac Guerendo', 'position': 'RB', 'team': 'SF', 'is_active': True},
+            
+            # NFC West - Seattle Seahawks  
+            {'id': 'nfl_311', 'full_name': 'Geno Smith', 'position': 'QB', 'team': 'SEA', 'is_active': True},
+            {'id': 'nfl_312', 'full_name': 'Sam Howell', 'position': 'QB', 'team': 'SEA', 'is_active': True},
+            {'id': 'nfl_313', 'full_name': 'Kenneth Walker III', 'position': 'RB', 'team': 'SEA', 'is_active': True},
+            {'id': 'nfl_314', 'full_name': 'Zach Charbonnet', 'position': 'RB', 'team': 'SEA', 'is_active': True},
+            {'id': 'nfl_315', 'full_name': 'DK Metcalf', 'position': 'WR', 'team': 'SEA', 'is_active': True},
+            {'id': 'nfl_316', 'full_name': 'Tyler Lockett', 'position': 'WR', 'team': 'SEA', 'is_active': True},
+            {'id': 'nfl_317', 'full_name': 'Noah Fant', 'position': 'TE', 'team': 'SEA', 'is_active': True},
+            {'id': 'nfl_318', 'full_name': 'Jaxon Smith-Njigba', 'position': 'WR', 'team': 'SEA', 'is_active': True},
+            {'id': 'nfl_319', 'full_name': 'Pharaoh Brown', 'position': 'TE', 'team': 'SEA', 'is_active': True},
+            {'id': 'nfl_320', 'full_name': 'Kenny McIntosh', 'position': 'RB', 'team': 'SEA', 'is_active': True},
         ]
     
     def get_player_suggestions(self, query):
-        """Search for NFL players with comprehensive database"""
+        """Enhanced search for NFL players with comprehensive database (320+ players)"""
         if len(query) < 2:
             return []
         
@@ -2094,25 +2400,202 @@ class NFLBettingHelper:
         query_lower = query.lower()
         matches = []
         
-        # Search by full name, first name, last name
+        # Enhanced search algorithm with multiple matching strategies
         for player in nfl_players:
+            if not player.get('is_active', True):
+                continue  # Skip inactive players
+                
             name_parts = player['full_name'].lower().split()
-            if (query_lower in player['full_name'].lower() or 
-                any(query_lower in part for part in name_parts)):
-                matches.append(player)
+            team = player.get('team', '').lower()
+            position = player.get('position', '').lower()
+            full_name_lower = player['full_name'].lower()
+            
+            # Get nicknames for this player
+            nicknames = self._get_player_nicknames(player['full_name'])
+            
+            # Calculate match score for better ranking
+            match_score = 0
+            match_type = None
+            
+            # 1. Exact full name match (highest priority)
+            if query_lower == full_name_lower:
+                match_score = 10
+                match_type = 'exact_full'
+            # 1.5 Nickname exact match
+            elif query_lower in [nick.lower() for nick in nicknames]:
+                match_score = 9
+                match_type = 'nickname'
+            # 2. Full name starts with query
+            elif full_name_lower.startswith(query_lower):
+                match_score = 8
+                match_type = 'starts_with'
+            # 3. First name exact match
+            elif len(name_parts) > 0 and query_lower == name_parts[0]:
+                match_score = 7
+                match_type = 'first_exact'
+            # 4. Last name exact match
+            elif len(name_parts) > 1 and query_lower == name_parts[-1]:
+                match_score = 7
+                match_type = 'last_exact'
+            # 5. First name starts with query
+            elif len(name_parts) > 0 and name_parts[0].startswith(query_lower):
+                match_score = 6
+                match_type = 'first_starts'
+            # 6. Last name starts with query
+            elif len(name_parts) > 1 and name_parts[-1].startswith(query_lower):
+                match_score = 6
+                match_type = 'last_starts'
+            # 7. Contains in full name
+            elif query_lower in full_name_lower:
+                match_score = 5
+                match_type = 'contains'
+            # 8. Any name part contains query
+            elif any(query_lower in part for part in name_parts):
+                match_score = 4
+                match_type = 'part_contains'
+            # 9. Team match (for searches like "chiefs", "bills")
+            elif query_lower in team:
+                match_score = 3
+                match_type = 'team'
+            # 10. Position match (for searches like "qb", "wr")
+            elif query_lower in position:
+                match_score = 2
+                match_type = 'position'
+            
+            # Add to matches if we found any match
+            if match_score > 0:
+                player_match = player.copy()
+                player_match['match_score'] = match_score
+                player_match['match_type'] = match_type
+                matches.append(player_match)
         
-        # Sort by relevance (exact matches first, then partial matches)
-        def sort_key(player):
-            name_lower = player['full_name'].lower()
-            if name_lower.startswith(query_lower):
-                return 0  # Exact start match
-            elif query_lower in name_lower:
-                return 1  # Contains match
-            else:
-                return 2  # Other matches
+        # Sort by match score (highest first), then by name
+        matches.sort(key=lambda x: (-x['match_score'], x['full_name']))
         
-        matches.sort(key=sort_key)
-        return matches[:15]  # Return top 15 matches
+        # Return top 20 matches with match details for debugging
+        return matches[:20]
+    
+    def _get_player_nicknames(self, full_name):
+        """Get common nicknames and abbreviations for a player"""
+        nicknames = []
+        name_lower = full_name.lower()
+        
+        # Common NFL nickname patterns
+        nickname_map = {
+            'c.j. stroud': ['cj', 'cj stroud'],
+            'a.j. brown': ['aj', 'aj brown'],
+            'd.j. moore': ['dj', 'dj moore'],
+            't.j. watt': ['tj', 'tj watt'],
+            'dk metcalf': ['dk'],
+            'j.j. mccarthy': ['jj', 'jj mccarthy'],
+            'c.j.': ['cj'],
+            'a.j.': ['aj'],
+            'd.j.': ['dj'],
+            't.j.': ['tj'],
+            'j.j.': ['jj'],
+            'patrick mahomes': ['mahomes ii', 'mahomes 2'],
+            'calvin ridley': ['ridley'],
+            'christian mccaffrey': ['mccaffrey', 'cmc'],
+            'saquon barkley': ['barkley'],
+            'stefon diggs': ['diggs'],
+            'davante adams': ['adams', 'tae'],
+            'tyreek hill': ['hill', 'cheetah'],
+            'travis kelce': ['kelce'],
+            'cooper kupp': ['kupp'],
+            'mike evans': ['evans'],
+            'chris godwin': ['godwin']
+        }
+        
+        # Check for direct matches
+        if name_lower in nickname_map:
+            nicknames.extend(nickname_map[name_lower])
+        
+        # Pattern matching for initials
+        parts = full_name.split()
+        if len(parts) >= 2:
+            # Check if first name has period (like "C.J.")
+            first = parts[0]
+            if '.' in first:
+                # Remove periods and spaces for nickname matching
+                clean_first = first.replace('.', '').lower()
+                nicknames.append(clean_first)
+                if len(parts) > 1:
+                    nicknames.append(f"{clean_first} {parts[1].lower()}")
+        
+        return nicknames
+    
+    def get_players_by_team(self, team_abbr):
+        """Get all players for a specific NFL team"""
+        nfl_players = self._get_comprehensive_nfl_players()
+        team_players = [p for p in nfl_players if p.get('team', '').upper() == team_abbr.upper()]
+        
+        # Sort by position hierarchy: QB, RB, WR, TE, then others
+        position_order = {'QB': 1, 'RB': 2, 'WR': 3, 'TE': 4}
+        team_players.sort(key=lambda x: (position_order.get(x.get('position', ''), 99), x['full_name']))
+        
+        return team_players
+    
+    def get_players_by_position(self, position):
+        """Get all players for a specific position"""
+        nfl_players = self._get_comprehensive_nfl_players()
+        position_players = [p for p in nfl_players if p.get('position', '').upper() == position.upper()]
+        
+        # Sort by team, then name
+        position_players.sort(key=lambda x: (x.get('team', ''), x['full_name']))
+        
+        return position_players
+    
+    def get_all_teams(self):
+        """Get list of all NFL teams with player counts"""
+        nfl_players = self._get_comprehensive_nfl_players()
+        teams = {}
+        
+        for player in nfl_players:
+            team = player.get('team', 'UNK')
+            if team not in teams:
+                teams[team] = {
+                    'abbr': team,
+                    'name': self._get_nfl_teams().get(team, {}).get('name', team),
+                    'players': []
+                }
+            teams[team]['players'].append(player)
+        
+        # Convert to list and add player counts
+        team_list = []
+        for team_data in teams.values():
+            team_data['player_count'] = len(team_data['players'])
+            team_list.append(team_data)
+        
+        # Sort by team name
+        team_list.sort(key=lambda x: x['name'])
+        return team_list
+    
+    def search_players_advanced(self, query, filters=None):
+        """Advanced player search with optional filters"""
+        if filters is None:
+            filters = {}
+        
+        # Get initial matches
+        matches = self.get_player_suggestions(query)
+        
+        # Apply filters
+        filtered_matches = []
+        for player in matches:
+            # Team filter
+            if 'team' in filters and player.get('team', '').upper() != filters['team'].upper():
+                continue
+            
+            # Position filter
+            if 'position' in filters and player.get('position', '').upper() != filters['position'].upper():
+                continue
+            
+            # Active status filter
+            if 'is_active' in filters and player.get('is_active', True) != filters['is_active']:
+                continue
+            
+            filtered_matches.append(player)
+        
+        return filtered_matches
     
     def _get_nfl_player_team_id(self, player_id):
         """Get NFL player's current team for team analysis"""
