@@ -427,20 +427,9 @@ class NFLBettingHelper:
         return 'RB'
     
     def _get_nfl_player_database(self):
-        """Get the same NFL player database used in get_player_suggestions"""
-        # This is the same database from get_player_suggestions method
-        return [
-            # AFC East
-            {'id': 'nfl_1', 'full_name': 'Josh Allen', 'position': 'QB', 'team': 'BUF', 'is_active': True},
-            {'id': 'nfl_2', 'full_name': 'Stefon Diggs', 'position': 'WR', 'team': 'BUF', 'is_active': True},
-            {'id': 'nfl_3', 'full_name': 'Tua Tagovailoa', 'position': 'QB', 'team': 'MIA', 'is_active': True},
-            {'id': 'nfl_4', 'full_name': 'Tyreek Hill', 'position': 'WR', 'team': 'MIA', 'is_active': True},
-            {'id': 'nfl_5', 'full_name': 'Mac Jones', 'position': 'QB', 'team': 'NE', 'is_active': True},
-            {'id': 'nfl_6', 'full_name': 'Aaron Rodgers', 'position': 'QB', 'team': 'NYJ', 'is_active': True},
-            {'id': 'nfl_25', 'full_name': 'Patrick Mahomes', 'position': 'QB', 'team': 'KC', 'is_active': True},
-            {'id': 'nfl_26', 'full_name': 'Travis Kelce', 'position': 'TE', 'team': 'KC', 'is_active': True},
-            # Add more as needed for testing
-        ]
+        """Get the same comprehensive NFL player database used in get_player_suggestions"""
+        # Use the exact same database as get_player_suggestions to ensure consistency
+        return self._get_comprehensive_nfl_players()
     
     def _calculate_nfl_averages(self, game_logs, position):
         """Calculate average stats for NFL player"""
@@ -1709,10 +1698,9 @@ class NFLBettingHelper:
         """Get detailed team information by abbreviation"""
         return self.nfl_teams.get(team_abbr, None)
     
-    def get_player_suggestions(self, query):
-        """Search for NFL players with comprehensive database"""
-        # Expanded NFL player database for better search functionality
-        nfl_players = [
+    def _get_comprehensive_nfl_players(self):
+        """Comprehensive NFL player database - single source of truth"""
+        return [
             # AFC East
             {'id': 'nfl_1', 'full_name': 'Josh Allen', 'position': 'QB', 'team': 'BUF', 'is_active': True},
             {'id': 'nfl_2', 'full_name': 'Stefon Diggs', 'position': 'WR', 'team': 'BUF', 'is_active': True},
@@ -1791,10 +1779,13 @@ class NFLBettingHelper:
             {'id': 'nfl_61', 'full_name': 'Geno Smith', 'position': 'QB', 'team': 'SEA', 'is_active': True},
             {'id': 'nfl_62', 'full_name': 'DK Metcalf', 'position': 'WR', 'team': 'SEA', 'is_active': True},
         ]
-        
+    
+    def get_player_suggestions(self, query):
+        """Search for NFL players with comprehensive database"""
         if len(query) < 2:
             return []
         
+        nfl_players = self._get_comprehensive_nfl_players()
         query_lower = query.lower()
         matches = []
         
