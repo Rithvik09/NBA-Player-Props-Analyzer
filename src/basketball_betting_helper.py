@@ -9,31 +9,50 @@ from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
 import asyncio
-from .models import EnhancedMLPredictor
-from .situational_analyzer import SituationalAnalyzer
-from .bankroll_manager import BankrollManager
-from .parlay_optimizer import ParlayOptimizer
+try:
+    from .models import EnhancedMLPredictor
+    from .situational_analyzer import SituationalAnalyzer
+    from .bankroll_manager import BankrollManager
+    from .parlay_optimizer import ParlayOptimizer
+except ImportError:
+    from models import EnhancedMLPredictor
+    from situational_analyzer import SituationalAnalyzer
+    from bankroll_manager import BankrollManager
+    from parlay_optimizer import ParlayOptimizer
 # Enterprise AI Models
 try:
     from .ai_models.tensorflow_predictor import TensorFlowPredictor
     from .ai_models.pytorch_predictor import PyTorchPredictor
     ADVANCED_AI_AVAILABLE = True
 except ImportError:
-    print("Warning: Advanced AI models not available. Using standard models.")
-    ADVANCED_AI_AVAILABLE = False
+    try:
+        from ai_models.tensorflow_predictor import TensorFlowPredictor
+        from ai_models.pytorch_predictor import PyTorchPredictor
+        ADVANCED_AI_AVAILABLE = True
+    except ImportError:
+        ADVANCED_AI_AVAILABLE = False
 # Cloud Infrastructure
 try:
     from .cloud.aws_integration import AWSIntegration
     CLOUD_AVAILABLE = True
 except ImportError:
-    print("Warning: Cloud integration not available. Using local storage.")
-    CLOUD_AVAILABLE = False
+    try:
+        from cloud.aws_integration import AWSIntegration
+        CLOUD_AVAILABLE = True
+    except ImportError:
+        print("Warning: Cloud integration not available. Using local storage.")
+        CLOUD_AVAILABLE = False
 # Live Odds Integration
 try:
     from .live_data.odds_integration import OddsAggregator
     LIVE_ODDS_AVAILABLE = True
 except ImportError:
-    print("Warning: Live odds integration not available.")
+    try:
+        from live_data.odds_integration import OddsAggregator
+        LIVE_ODDS_AVAILABLE = True
+    except ImportError:
+        print("Warning: Live odds integration not available.")
+        LIVE_ODDS_AVAILABLE = False
     LIVE_ODDS_AVAILABLE = False
 # Authentication System
 try:

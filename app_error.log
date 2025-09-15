@@ -2143,3 +2143,440 @@ NameError: name 'line' is not defined
  * Debugger PIN: 961-301-114
 10.12.246.252 - - [12/Sep/2025 19:58:22] "POST /nfl/analyze_prop HTTP/1.1" 200 -
 10.12.246.252 - - [12/Sep/2025 19:58:27] "POST /nfl/analyze_prop HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:26:51] "GET / HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:26:51] "[36mGET /css/enhanced_style.css HTTP/1.1[0m" 304 -
+10.12.246.252 - - [12/Sep/2025 20:26:52] "GET /analytics/performance HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:26:52] "GET /bankroll/dashboard HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:26:53] "GET /search_players?q=jos HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:26:53] "GET /search_players?q=jo HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:26:54] "GET /search_players?q=josh HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:26:54] "GET /search_players?q=josh%20 HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:26:55] "GET /search_players?q=josh%20a HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:26:55] "GET /search_players?q=josh%20al HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:26:55] "GET /search_players?q=josh%20all HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:26:56] "POST /sports/switch HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:26:57] "GET /nfl/search_players?q=al HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:26:57] "GET /nfl/search_players?q=all HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:27:04] "POST /nfl/analyze_prop HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:27:13] "POST /sports/switch HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:27:15] "GET /search_players?q=do HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:27:15] "GET /search_players?q=don HTTP/1.1" 200 -
+10.12.246.252 - - [12/Sep/2025 20:27:15] "GET /search_players?q=dono HTTP/1.1" 200 -
+Traceback (most recent call last):
+  File "/home/user/webapp/src/basketball_betting_helper.py", line 215, in get_player_stats
+    raise Exception("Could not fetch any game data")
+Exception: Could not fetch any game data
+10.12.246.252 - - [12/Sep/2025 20:28:20] "[35m[1mPOST /analyze_prop HTTP/1.1[0m" 500 -
+10.12.246.252 - - [12/Sep/2025 20:28:26] "POST /sports/switch HTTP/1.1" 200 -
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-12 20:29:25,435] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-12 20:30:20,815] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-12 20:31:07,161] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+[2025-09-15 01:23:16,821] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-15 01:23:19,028] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+Traceback (most recent call last):
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 516, in analyze_nfl_prop_bet
+    final_prediction = self._combine_all_factors(
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: NFLBettingHelper._combine_all_factors() missing 1 required keyword-only argument: 'line'
+10.12.115.196 - - [15/Sep/2025 01:23:21] "[35m[1mPOST /nfl/analyze_prop HTTP/1.1[0m" 500 -
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+Traceback (most recent call last):
+  File "/home/user/webapp/run.py", line 1, in <module>
+    from src.app import app
+  File "/home/user/webapp/src/app.py", line 3, in <module>
+    from .nfl_betting_helper import NFLBettingHelper
+  File "/home/user/webapp/src/nfl_betting_helper.py", line 1575
+    """Search for NFL players with comprehensive database"""
+                                                         ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 1681)
+[2025-09-15 01:25:18,157] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-15 01:25:20,409] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 01:25:56,714] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+[2025-09-15 01:26:06,408] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-15 01:26:08,323] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+[2025-09-15 01:26:19,148] ERROR in app: Error analyzing NFL prop: Object of type bool_ is not JSON serializable
+10.12.115.196 - - [15/Sep/2025 01:26:19] "[35m[1mPOST /nfl/analyze_prop HTTP/1.1[0m" 500 -
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 01:27:35,857] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/basketball_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/basketball_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/basketball_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 01:28:01,847] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/basketball_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/basketball_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/basketball_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/basketball_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/basketball_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 01:28:18,240] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 01:28:28,319] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/models.py', reloading
+ * Detected change in '/home/user/webapp/src/models.py', reloading
+ * Detected change in '/home/user/webapp/src/models.py', reloading
+ * Detected change in '/home/user/webapp/src/models.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 01:28:59,544] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 01:29:58,807] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 01:31:01,471] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Detected change in '/home/user/webapp/src/nfl_betting_helper.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 01:31:32,686] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+10.12.115.196 - - [15/Sep/2025 01:36:42] "GET / HTTP/1.1" 200 -
+10.12.115.196 - - [15/Sep/2025 01:36:42] "[36mGET /css/enhanced_style.css HTTP/1.1[0m" 304 -
+10.12.115.196 - - [15/Sep/2025 01:36:44] "GET /analytics/performance HTTP/1.1" 200 -
+10.12.115.196 - - [15/Sep/2025 01:36:44] "GET /bankroll/dashboard HTTP/1.1" 200 -
+10.12.115.196 - - [15/Sep/2025 01:36:50] "GET /search_players?q=jus HTTP/1.1" 200 -
+10.12.115.196 - - [15/Sep/2025 01:36:50] "GET /search_players?q=ju HTTP/1.1" 200 -
+10.12.115.196 - - [15/Sep/2025 01:36:50] "GET /search_players?q=just HTTP/1.1" 200 -
+10.12.115.196 - - [15/Sep/2025 01:36:50] "GET /search_players?q=justi HTTP/1.1" 200 -
+10.12.115.196 - - [15/Sep/2025 01:36:50] "GET /search_players?q=justin HTTP/1.1" 200 -
+10.12.115.196 - - [15/Sep/2025 01:36:54] "POST /sports/switch HTTP/1.1" 200 -
+10.12.115.196 - - [15/Sep/2025 01:36:55] "GET /nfl/search_players?q=ju HTTP/1.1" 200 -
+10.12.115.196 - - [15/Sep/2025 01:36:55] "GET /nfl/search_players?q=jus HTTP/1.1" 200 -
+10.12.115.196 - - [15/Sep/2025 01:36:56] "GET /nfl/search_players?q=just HTTP/1.1" 200 -
+10.12.115.196 - - [15/Sep/2025 01:36:56] "GET /nfl/search_players?q=justi HTTP/1.1" 200 -
+10.12.115.196 - - [15/Sep/2025 01:36:56] "GET /nfl/search_players?q=justin HTTP/1.1" 200 -
+10.12.115.196 - - [15/Sep/2025 01:36:56] "GET /nfl/search_players?q=justin%20 HTTP/1.1" 200 -
+10.12.115.196 - - [15/Sep/2025 01:37:11] "[35m[1mPOST /nfl/analyze_prop HTTP/1.1[0m" 500 -
+10.12.115.196 - - [15/Sep/2025 01:37:15] "[35m[1mPOST /nfl/analyze_prop HTTP/1.1[0m" 500 -
+10.12.115.196 - - [15/Sep/2025 01:37:26] "POST /sports/switch HTTP/1.1" 200 -
+10.12.115.196 - - [15/Sep/2025 01:37:29] "POST /sports/switch HTTP/1.1" 200 -
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Detected change in '/home/user/webapp/src/app.py', reloading
+ * Restarting with watchdog (inotify)
+[2025-09-15 01:38:49,120] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114

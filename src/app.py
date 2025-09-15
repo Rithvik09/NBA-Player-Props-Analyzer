@@ -1,7 +1,17 @@
 from flask import Flask, render_template, request, jsonify, session
-from .basketball_betting_helper import BasketballBettingHelper
-from .nfl_betting_helper import NFLBettingHelper
-from .nfl_weather import NFLWeatherSystem
+try:
+    # Try relative imports first (when running as module)
+    from .basketball_betting_helper import BasketballBettingHelper
+    from .nfl_betting_helper import NFLBettingHelper
+    from .nfl_weather import NFLWeatherSystem
+except ImportError:
+    # Fallback to absolute imports (when running directly)
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from basketball_betting_helper import BasketballBettingHelper
+    from nfl_betting_helper import NFLBettingHelper
+    from nfl_weather import NFLWeatherSystem
 import logging
 from logging.handlers import RotatingFileHandler
 import os
@@ -13,10 +23,15 @@ try:
     from .auth.simple_auth import simple_auth
     AUTH_AVAILABLE = True
     print("✅ Simple authentication system loaded")
-except ImportError as e:
-    print(f"Warning: Auth not available: {e}")
-    AUTH_AVAILABLE = False
-    simple_auth = None
+except ImportError:
+    try:
+        from auth.simple_auth import simple_auth
+        AUTH_AVAILABLE = True
+        print("✅ Simple authentication system loaded")
+    except ImportError as e:
+        print(f"Warning: Auth not available: {e}")
+        AUTH_AVAILABLE = False
+        simple_auth = None
 
 try:
     from .notifications.notification_system import NotificationManager
@@ -549,7 +564,9 @@ async def nfl_analyze_prop():
         )
         
         if not analysis or not analysis.get('success'):
-            return jsonify({'error': 'Unable to perform NFL analysis', 'success': False}), 500
+            # Get the actual error message from the analysis if available
+            error_msg = analysis.get('error', 'Unable to perform NFL analysis') if analysis else 'NFL analysis service unavailable'
+            return jsonify({'error': error_msg, 'success': False}), 500
         
         # Add player and sport info to analysis
         analysis['player_name'] = player_name
@@ -719,4 +736,4 @@ def internal_error(error):
     return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=8080)

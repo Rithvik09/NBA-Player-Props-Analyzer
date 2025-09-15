@@ -286,3 +286,279 @@ Current season set to: 2025-26
 ✅ NFL betting system initialized
  * Serving Flask app 'src.app'
  * Debug mode: on
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+🏈 NFL Analysis Debug: Starting analysis for nfl_25, passing_yards, 280.0
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+🏈 NFL Analysis Debug: Starting analysis for nfl_25, passing_yards, 280.0
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+🏈 NFL Analysis Debug: Starting analysis for nfl_1, passing_yards, 250.5
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+Fetching seasons: ['2025-26', '2024-25']
+Error fetching 2025-26 data: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=30)
+Error fetching 2024-25 data: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=30)
+Error getting player stats: Could not fetch any game data
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+ * Serving Flask app 'src.app'
+ * Debug mode: on
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+🏈 NFL Comprehensive Analysis: Starting for nfl_25, passing_yards, 280.0 vs DEN
+Error in weather analysis: 'NFLBettingHelper' object has no attribute 'nfl_weather'
+Error analyzing NFL prop bet: NFLBettingHelper._combine_all_factors() missing 1 required keyword-only argument: 'line'
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+ * Serving Flask app 'src.app'
+ * Debug mode: on
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+ * Serving Flask app 'src.app'
+ * Debug mode: on
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+🏈 NFL Comprehensive Analysis: Starting for nfl_25, passing_yards, 280.0 vs DEN
+Warning: Advanced AI models not available. Using standard models.
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+Warning: Cloud integration not available. Using local storage.
+Warning: User authentication not available.
+✅ Simple authentication system loaded
+Warning: Notifications not available: cannot import name 'MimeText' from 'email.mime.text' (/usr/local/lib/python3.12/email/mime/text.py)
+📈 Live odds integration enabled!
+Current season set to: 2025-26
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+✅ NFL betting system initialized
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+🏈 NFL Comprehensive Analysis: Starting for nfl_29, passing_yards, 250.5 vs LV
+📊 Live NFL odds integration enabled!
+🏈 Current NFL season set to: 2025
+🏈 NFL Comprehensive Analysis: Starting for nfl_29, passing_yards, 250.5 vs LV

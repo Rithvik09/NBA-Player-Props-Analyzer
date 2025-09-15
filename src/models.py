@@ -12,7 +12,10 @@ import joblib
 import os
 import time
 from datetime import datetime, timedelta
-from .injury_tracker import InjuryTracker
+try:
+    from .injury_tracker import InjuryTracker
+except ImportError:
+    from injury_tracker import InjuryTracker
 
 class EnhancedMLPredictor:
     def __init__(self, model_dir='models'):

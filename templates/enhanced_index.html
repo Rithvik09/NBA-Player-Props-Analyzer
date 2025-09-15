@@ -341,10 +341,11 @@
                         <div x-show="analysisResults?.situational_analysis" class="bg-gray-700 rounded-lg p-4">
                             <h5 class="font-semibold mb-3">
                                 <i class="fas fa-lightning-bolt mr-2 text-yellow-400"></i>
-                                Situational Factors
+                                <span x-text="activeSport === 'NFL' ? 'NFL Situational Factors' : 'Situational Factors'"></span>
                             </h5>
                             
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <!-- NBA Situational Factors -->
+                            <div x-show="activeSport === 'NBA'" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                 <!-- Revenge Game -->
                                 <div x-show="analysisResults?.situational_analysis?.revenge_game?.is_revenge_game" class="bg-red-600 bg-opacity-20 border border-red-500 rounded p-2">
                                     <i class="fas fa-fire mr-1"></i>
@@ -367,6 +368,106 @@
                                 <div class="bg-purple-600 bg-opacity-20 border border-purple-500 rounded p-2">
                                     <i class="fas fa-star mr-1"></i>
                                     Situation Grade: <span x-text="analysisResults?.situational_analysis?.situation_grade || 'D'"></span>
+                                </div>
+                            </div>
+                            
+                            <!-- NFL Comprehensive Situational Factors -->
+                            <div x-show="activeSport === 'NFL'" class="space-y-4">
+                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+                                    <!-- Divisional Game -->
+                                    <div x-show="analysisResults?.situational_analysis?.divisional_game?.is_divisional" 
+                                         class="bg-red-600 bg-opacity-20 border border-red-500 rounded p-2">
+                                        <i class="fas fa-shield-alt mr-1"></i>
+                                        <strong>Divisional Rivalry</strong>
+                                        <div class="text-xs mt-1" x-text="analysisResults?.situational_analysis?.divisional_game?.intensity_factor + ' Intensity'"></div>
+                                    </div>
+                                    
+                                    <!-- Weather Impact -->
+                                    <div x-show="analysisResults?.situational_analysis?.weather_impact?.impact_level !== 'NONE'" 
+                                         :class="'bg-opacity-20 border rounded p-2 ' + (
+                                             analysisResults?.situational_analysis?.weather_impact?.impact_level === 'HIGH' ? 'bg-red-600 border-red-500' :
+                                             analysisResults?.situational_analysis?.weather_impact?.impact_level === 'MEDIUM' ? 'bg-orange-600 border-orange-500' :
+                                             'bg-yellow-600 border-yellow-500'
+                                         )">
+                                        <i class="fas fa-cloud-rain mr-1"></i>
+                                        <strong>Weather Impact</strong>
+                                        <div class="text-xs mt-1" x-text="analysisResults?.situational_analysis?.weather_impact?.impact_level + ' Impact'"></div>
+                                    </div>
+                                    
+                                    <!-- Home Field Advantage -->
+                                    <div x-show="Math.abs(analysisResults?.situational_analysis?.home_away_splits?.home_advantage || 0) > 3" 
+                                         class="bg-green-600 bg-opacity-20 border border-green-500 rounded p-2">
+                                        <i class="fas fa-home mr-1"></i>
+                                        <strong>Home Field Edge</strong>
+                                        <div class="text-xs mt-1" x-text="'+' + (analysisResults?.situational_analysis?.home_away_splits?.home_advantage || 0).toFixed(1) + ' avg'"></div>
+                                    </div>
+                                    
+                                    <!-- Opponent Strength -->
+                                    <div x-show="analysisResults?.situational_analysis?.opponent_strength?.matchup_advantage" 
+                                         class="bg-blue-600 bg-opacity-20 border border-blue-500 rounded p-2">
+                                        <i class="fas fa-crosshairs mr-1"></i>
+                                        <strong>Matchup Advantage</strong>
+                                        <div class="text-xs mt-1" x-text="'vs ' + analysisResults?.situational_analysis?.opponent_strength?.strength_level + ' Defense'"></div>
+                                    </div>
+                                    
+                                    <!-- Recent Form -->
+                                    <div x-show="analysisResults?.situational_analysis?.recent_form?.trend !== 'STABLE'" 
+                                         :class="'bg-opacity-20 border rounded p-2 ' + (
+                                             ['SURGING', 'TRENDING_UP'].includes(analysisResults?.situational_analysis?.recent_form?.trend) ? 'bg-green-600 border-green-500' :
+                                             ['SLUMPING', 'TRENDING_DOWN'].includes(analysisResults?.situational_analysis?.recent_form?.trend) ? 'bg-red-600 border-red-500' :
+                                             'bg-gray-600 border-gray-500'
+                                         )">
+                                        <i :class="['SURGING', 'TRENDING_UP'].includes(analysisResults?.situational_analysis?.recent_form?.trend) ? 'fas fa-arrow-trend-up' : 'fas fa-arrow-trend-down'" class="mr-1"></i>
+                                        <strong>Recent Form</strong>
+                                        <div class="text-xs mt-1" x-text="analysisResults?.situational_analysis?.recent_form?.trend?.replace('_', ' ')"></div>
+                                    </div>
+                                    
+                                    <!-- Game Script -->
+                                    <div x-show="analysisResults?.situational_analysis?.game_script?.script_impact !== 'NEUTRAL'" 
+                                         :class="'bg-opacity-20 border rounded p-2 ' + (
+                                             analysisResults?.situational_analysis?.game_script?.script_impact === 'POSITIVE' ? 'bg-green-600 border-green-500' :
+                                             'bg-orange-600 border-orange-500'
+                                         )">
+                                        <i class="fas fa-play mr-1"></i>
+                                        <strong>Game Script</strong>
+                                        <div class="text-xs mt-1" x-text="analysisResults?.situational_analysis?.game_script?.expected_pace + ' Pace'"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Overall Situation Grade -->
+                                <div class="mt-4 p-3 bg-purple-600 bg-opacity-20 border border-purple-500 rounded">
+                                    <div class="flex justify-between items-center">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-star mr-2"></i>
+                                            <strong>Overall Situation Grade:</strong>
+                                        </div>
+                                        <div class="text-lg font-bold" x-text="analysisResults?.situational_analysis?.situation_grade || 'C'"></div>
+                                    </div>
+                                    <div class="mt-2 text-xs text-gray-300">
+                                        <span x-text="analysisResults?.enhanced_metrics?.total_factors_analyzed || 9"></span> factors analyzed • 
+                                        <span x-text="analysisResults?.enhanced_metrics?.processing_time_ms || 0"></span>ms processing time
+                                    </div>
+                                </div>
+                                
+                                <!-- Factor Details (Expandable) -->
+                                <div x-data="{ showDetails: false }" class="mt-4">
+                                    <button @click="showDetails = !showDetails" class="text-sm text-blue-400 hover:text-blue-300 flex items-center">
+                                        <i :class="showDetails ? 'fas fa-chevron-up' : 'fas fa-chevron-down'" class="mr-1"></i>
+                                        <span x-text="showDetails ? 'Hide' : 'Show'"></span> Factor Details
+                                    </button>
+                                    
+                                    <div x-show="showDetails" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                        <div class="space-y-2">
+                                            <div><strong>Recent Momentum:</strong> <span x-text="(analysisResults?.situational_analysis?.recent_form?.momentum || 0).toFixed(1)"></span></div>
+                                            <div><strong>Seasonal Trend:</strong> <span x-text="(analysisResults?.situational_analysis?.season_trends?.seasonal_trend || 0).toFixed(1)"></span></div>
+                                            <div><strong>Injury Status:</strong> <span x-text="analysisResults?.situational_analysis?.injury_factors?.injury_status || 'HEALTHY'"></span></div>
+                                        </div>
+                                        <div class="space-y-2">
+                                            <div><strong>Opponent Ranking:</strong> #<span x-text="analysisResults?.situational_analysis?.opponent_strength?.defensive_ranking || 16"></span></div>
+                                            <div><strong>Projected Total:</strong> <span x-text="analysisResults?.situational_analysis?.game_script?.projected_total || 47"></span></div>
+                                            <div><strong>Home Games:</strong> <span x-text="analysisResults?.situational_analysis?.home_away_splits?.home_games || 0"></span></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -897,6 +998,31 @@
                     this.isAnalyzing = true;
                     this.analysisResults = null;
                     
+                    // Validation checks
+                    if (!this.selectedPlayer || !this.selectedPlayer.id) {
+                        alert('Please select a valid player from the search results');
+                        this.isAnalyzing = false;
+                        return;
+                    }
+                    
+                    if (!this.selectedPropType) {
+                        alert('Please select a prop type');
+                        this.isAnalyzing = false;
+                        return;
+                    }
+                    
+                    if (!this.propLine || isNaN(parseFloat(this.propLine))) {
+                        alert('Please enter a valid prop line (number)');
+                        this.isAnalyzing = false;
+                        return;
+                    }
+                    
+                    if (!this.opponentTeamId) {
+                        alert('Please select an opponent team');
+                        this.isAnalyzing = false;
+                        return;
+                    }
+                    
                     try {
                         const endpoint = this.activeSport === 'NFL' ? '/nfl/analyze_prop' : '/analyze_prop';
                         const payload = {
@@ -924,7 +1050,17 @@
                         if (data.success) {
                             this.analysisResults = data;
                         } else {
-                            alert('Error analyzing prop: ' + (data.error || 'Unknown error'));
+                            const errorMsg = data.error || 'Unknown error';
+                            let userFriendlyError = errorMsg;
+                            
+                            // Make error messages more user-friendly
+                            if (errorMsg.includes('No data available')) {
+                                userFriendlyError = `No statistical data available for ${this.selectedPlayer.full_name}'s ${this.selectedPropType}. Please try a different prop type or player.`;
+                            } else if (errorMsg.includes('Unable to retrieve')) {
+                                userFriendlyError = `Unable to retrieve data for ${this.selectedPlayer.full_name}. Please try again or select a different player.`;
+                            }
+                            
+                            alert('Analysis Error: ' + userFriendlyError);
                         }
                     } catch (error) {
                         console.error('Error analyzing prop:', error);
