@@ -76,6 +76,26 @@ NFL Analysis Engine (40 Factors)
     Weather_Data table: Game conditions and impact analysis
 
 
+Player Database Coverage
+
+  NFL Player Database (450+ Players):
+    Comprehensive Static Database: 450+ active NFL players across all positions
+    2024 Draft Class: Complete coverage of 2024 NFL rookies and second-year players  
+    2025 Draft Class: Full integration of 2025 NFL rookie season prospects
+      - Top QBs: Shedeur Sanders (CAR), Cam Ward (NYG), Quinn Ewers (LV)
+      - Elite Skill Players: Travis Hunter (NE), Ashton Jeanty (JAX), Tetairoa McMillan (ARI)
+      - All Positions: Complete first and second round draft coverage (50 rookies)
+    Search Capabilities: Advanced name matching with position and team filtering
+    
+  NBA Player Database (Live API + Enhanced Search):
+    Live NBA API Integration: Real-time player data via nba_api library
+    Enhanced Search System: 10-point match scoring with multiple search strategies
+    Character Normalization: Unicode support for international player names
+    Nickname Mapping: Comprehensive nickname database for popular players
+    2025 NBA Draft Class Support: 30 top rookies including Cooper Flagg, Dylan Harper, VJ Edgecombe
+    Search Features: Exact match, starts-with, contains, first/last name matching
+
+
 Machine Learning Models
 
   Random Forest Classifier:

@@ -243,7 +243,9 @@ class BasketballBettingHelper:
                     'lebron james', 'stephen curry', 'kevin durant', 'giannis antetokounmpo',
                     'luka doncic', 'jayson tatum', 'joel embiid', 'nikola jokic',
                     'kawhi leonard', 'jimmy butler', 'anthony davis', 'damian lillard',
-                    'devin booker', 'ja morant', 'zion williamson', 'victor wembanyama'
+                    'devin booker', 'ja morant', 'zion williamson', 'victor wembanyama',
+                    # 2025 Top Rookies - High Profile Prospects
+                    'cooper flagg', 'dylan harper', 'vj edgecombe', 'kon knueppel', 'ace bailey'
                 ]
                 
                 if name_lower in famous_players:
@@ -323,7 +325,39 @@ class BasketballBettingHelper:
             'paolo banchero': ['paolo'],
             'scottie barnes': ['scottie'],
             'franz wagner': ['franz'],
-            'cade cunningham': ['cade']
+            'cade cunningham': ['cade'],
+            
+            # 2025 NBA DRAFT CLASS - ROOKIE SEASON
+            'cooper flagg': ['cooper', 'flagg', 'coop'],
+            'dylan harper': ['dylan', 'harper', 'd-harp'],
+            'vj edgecombe': ['vj', 'edgecombe', 'edge'],
+            'kon knueppel': ['kon', 'knueppel', 'konnie'],
+            'ace bailey': ['ace', 'bailey'],
+            'tre johnson': ['tre', 'johnson'],
+            'jeremiah fears': ['jeremiah', 'fears', 'jfears'],
+            'egor demin': ['egor', 'demin'],
+            'collin murray-boyles': ['collin', 'murray-boyles', 'cmb'],
+            'khaman maluach': ['khaman', 'maluach'],
+            'cedric coward': ['cedric', 'coward'],
+            'noa essengue': ['noa', 'essengue'],
+            'derik queen': ['derik', 'queen'],
+            'carter bryant': ['carter', 'bryant'],
+            'thomas sorber': ['thomas', 'sorber'],
+            'yang hansen': ['yang', 'hansen'],
+            'joan beringer': ['joan', 'beringer'],
+            'walter clayton jr': ['walter', 'clayton', 'wcj'],
+            'nolan traor': ['nolan', 'traor'],
+            'kasparas jakuionis': ['kasparas', 'jakuionis'],
+            'will riley': ['will', 'riley'],
+            'drake powell': ['drake', 'powell'],
+            'asa newell': ['asa', 'newell'],
+            'nique clifford': ['nique', 'clifford'],
+            'jase richardson': ['jase', 'richardson'],
+            'ben saraf': ['ben', 'saraf'],
+            'danny wolf': ['danny', 'wolf'],
+            'hugo gonzlez': ['hugo', 'gonzalez', 'gonzlez'],
+            'liam mcneeley': ['liam', 'mcneeley'],
+            'yanic konan niederhauser': ['yanic', 'niederhauser', 'konan']
         }
         
         # Check for direct matches
