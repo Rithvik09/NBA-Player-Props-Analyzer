@@ -2050,7 +2050,7 @@ class NFLBettingHelper:
         return self.nfl_teams.get(team_abbr, None)
     
     def _get_comprehensive_nfl_players(self):
-        """Comprehensive NFL player database - 450+ players covering all teams, positions, 2024 veterans, and 2025 rookie class"""
+        """Comprehensive NFL player database - 450+ players covering all teams, positions, 2024 veterans, and 2025 rookie class with correct team assignments as of September 2025"""
         return [
             # AFC East - Buffalo Bills
             {'id': 'nfl_1', 'full_name': 'Josh Allen', 'position': 'QB', 'team': 'BUF', 'is_active': True},
@@ -2552,19 +2552,19 @@ class NFLBettingHelper:
             {'id': 'nfl_399', 'full_name': 'Curtis Samuel', 'position': 'WR', 'team': 'BUF', 'is_active': True},
             {'id': 'nfl_400', 'full_name': 'Tank Dell', 'position': 'WR', 'team': 'HOU', 'is_active': True},
             
-            # 2025 NFL DRAFT CLASS - CURRENT ROOKIE SEASON
-            # Top 2025 NFL Draft Picks by Position
+            # 2025 NFL DRAFT CLASS - ACTUAL DRAFT RESULTS (APRIL 2025)
+            # Updated with correct team assignments as of September 2025
             
-            # 2025 Quarterbacks (Top QB Prospects)
-            {'id': 'nfl_401', 'full_name': 'Shedeur Sanders', 'position': 'QB', 'team': 'CAR', 'is_active': True},  # Projected #1 overall
-            {'id': 'nfl_402', 'full_name': 'Cam Ward', 'position': 'QB', 'team': 'NYG', 'is_active': True},       # Projected top 5
-            {'id': 'nfl_403', 'full_name': 'Carson Beck', 'position': 'QB', 'team': 'LV', 'is_active': True},     # Projected first round
-            {'id': 'nfl_404', 'full_name': 'Quinn Ewers', 'position': 'QB', 'team': 'TEN', 'is_active': True},   # Projected first round
-            {'id': 'nfl_405', 'full_name': 'Jalen Milroe', 'position': 'QB', 'team': 'CLE', 'is_active': True},  # Projected second round
+            # 2025 Quarterbacks (Actual Draft Results)
+            {'id': 'nfl_401', 'full_name': 'Shedeur Sanders', 'position': 'QB', 'team': 'CLE', 'is_active': True},  # Round 5, Pick 144
+            {'id': 'nfl_402', 'full_name': 'Cam Ward', 'position': 'QB', 'team': 'TEN', 'is_active': True},       # #1 Overall Pick
+            {'id': 'nfl_403', 'full_name': 'Will Campbell', 'position': 'OT', 'team': 'NE', 'is_active': True},    # #4 Overall Pick - Patriots
+            {'id': 'nfl_404', 'full_name': 'Mason Graham', 'position': 'DT', 'team': 'CLE', 'is_active': True},   # #5 Overall Pick - Browns
+            {'id': 'nfl_405', 'full_name': 'Jalen Milroe', 'position': 'QB', 'team': 'PIT', 'is_active': True},  # Projected second round
             {'id': 'nfl_406', 'full_name': 'Drew Allar', 'position': 'QB', 'team': 'NYJ', 'is_active': True},    # Projected day 2
             
             # 2025 Running Backs (Elite RB Class)
-            {'id': 'nfl_407', 'full_name': 'Ashton Jeanty', 'position': 'RB', 'team': 'JAX', 'is_active': True},    # Heisman contender
+            {'id': 'nfl_407', 'full_name': 'Ashton Jeanty', 'position': 'RB', 'team': 'LV', 'is_active': True},     # #6 Overall Pick - Raiders
             {'id': 'nfl_408', 'full_name': 'Omarr Norman-Lott', 'position': 'RB', 'team': 'ARI', 'is_active': True}, # Top RB prospect
             {'id': 'nfl_409', 'full_name': 'Kaleb Johnson', 'position': 'RB', 'team': 'HOU', 'is_active': True},     # Iowa standout
             {'id': 'nfl_410', 'full_name': 'Jeremiah Smith', 'position': 'WR', 'team': 'WAS', 'is_active': True},    # Multi-position talent
@@ -2572,8 +2572,8 @@ class NFLBettingHelper:
             {'id': 'nfl_412', 'full_name': 'Cam Skattebo', 'position': 'RB', 'team': 'DEN', 'is_active': True},      # Arizona State
             
             # 2025 Wide Receivers (Deep WR Class)
-            {'id': 'nfl_413', 'full_name': 'Travis Hunter', 'position': 'WR', 'team': 'NE', 'is_active': True},      # Two-way superstar
-            {'id': 'nfl_414', 'full_name': 'Tetairoa McMillan', 'position': 'WR', 'team': 'CHI', 'is_active': True}, # Arizona WR1
+            {'id': 'nfl_413', 'full_name': 'Travis Hunter', 'position': 'WR', 'team': 'JAX', 'is_active': True},     # #2 Overall Pick - Jaguars
+            {'id': 'nfl_414', 'full_name': 'Tetairoa McMillan', 'position': 'WR', 'team': 'CAR', 'is_active': True}, # #8 Overall Pick - Panthers
             {'id': 'nfl_415', 'full_name': 'Luther Burden III', 'position': 'WR', 'team': 'MIA', 'is_active': True}, # Missouri star
             {'id': 'nfl_416', 'full_name': 'Elic Ayomanor', 'position': 'WR', 'team': 'LAR', 'is_active': True},     # Stanford WR
             {'id': 'nfl_417', 'full_name': 'Emeka Egbuka', 'position': 'WR', 'team': 'BUF', 'is_active': True},     # Ohio State veteran
@@ -2591,15 +2591,15 @@ class NFLBettingHelper:
             {'id': 'nfl_427', 'full_name': 'Gunnar Helm', 'position': 'TE', 'team': 'PIT', 'is_active': True},      # Texas
             
             # 2025 Defensive Players (Key Defense Prospects)
-            {'id': 'nfl_428', 'full_name': 'Abdul Carter', 'position': 'OLB', 'team': 'CIN', 'is_active': True},     # Penn State EDGE
-            {'id': 'nfl_429', 'full_name': 'Mykel Williams', 'position': 'DE', 'team': 'NO', 'is_active': True},     # Georgia DE
-            {'id': 'nfl_430', 'full_name': 'James Pearce Jr.', 'position': 'DE', 'team': 'BAL', 'is_active': True},  # Tennessee EDGE
+            {'id': 'nfl_428', 'full_name': 'Abdul Carter', 'position': 'EDGE', 'team': 'NYG', 'is_active': True},   # #3 Overall Pick - Giants
+            {'id': 'nfl_429', 'full_name': 'Mykel Williams', 'position': 'EDGE', 'team': 'SF', 'is_active': True},   # #11 Overall Pick - 49ers
+            {'id': 'nfl_430', 'full_name': 'James Pearce Jr.', 'position': 'EDGE', 'team': 'ATL', 'is_active': True}, # #26 Overall Pick - Falcons
             {'id': 'nfl_431', 'full_name': 'Malaki Starks', 'position': 'S', 'team': 'LAC', 'is_active': True},     # Georgia safety
             {'id': 'nfl_432', 'full_name': 'Will Johnson', 'position': 'CB', 'team': 'NYJ', 'is_active': True},     # Michigan CB
             {'id': 'nfl_433', 'full_name': 'Shavon Revel Jr.', 'position': 'CB', 'team': 'CLE', 'is_active': True}, # East Carolina CB
             
             # Additional 2025 Depth Players
-            {'id': 'nfl_434', 'full_name': 'Jaxson Dart', 'position': 'QB', 'team': 'MIA', 'is_active': True},      # Ole Miss QB
+            {'id': 'nfl_434', 'full_name': 'Jaxson Dart', 'position': 'QB', 'team': 'DEN', 'is_active': True},     # #25 Overall Pick - Broncos
             {'id': 'nfl_435', 'full_name': 'Dillon Gabriel', 'position': 'QB', 'team': 'WAS', 'is_active': True},   # Oregon transfer QB
             {'id': 'nfl_436', 'full_name': 'Cam Rising', 'position': 'QB', 'team': 'ARI', 'is_active': True},       # Utah veteran QB
             {'id': 'nfl_437', 'full_name': 'Tahj Washington', 'position': 'WR', 'team': 'HOU', 'is_active': True},  # USC WR
@@ -2610,7 +2610,7 @@ class NFLBettingHelper:
             # International/Transfer Portal Additions
             {'id': 'nfl_441', 'full_name': 'Olumuyiwa Fashanu', 'position': 'OT', 'team': 'NYG', 'is_active': True}, # Penn State OT
             {'id': 'nfl_442', 'full_name': 'Jordan Morgan', 'position': 'OT', 'team': 'MIN', 'is_active': True},     # Arizona OT
-            {'id': 'nfl_443', 'full_name': 'Kelvin Banks Jr.', 'position': 'OT', 'team': 'SEA', 'is_active': True}, # Texas OT
+            {'id': 'nfl_443', 'full_name': 'Kelvin Banks Jr.', 'position': 'OT', 'team': 'MIA', 'is_active': True}, # #9 Overall Pick - Dolphins
             {'id': 'nfl_444', 'full_name': 'Aireontae Ersery', 'position': 'OT', 'team': 'GB', 'is_active': True},  # Minnesota OT
             {'id': 'nfl_445', 'full_name': 'Marcus Haynes', 'position': 'C', 'team': 'BUF', 'is_active': True},     # UConn center
             
