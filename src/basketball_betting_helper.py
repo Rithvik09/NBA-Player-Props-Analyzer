@@ -161,20 +161,98 @@ class BasketballBettingHelper:
         conn.close()
 
     def get_player_suggestions(self, partial_name):
+        """Enhanced NBA player search with character normalization and better matching"""
         if len(partial_name) < 2:
             return []
             
         try:
             all_players = players.get_players()
-            suggestions = [
-                {
-                    'id': player['id'],
-                    'full_name': player['full_name'],
-                    'is_active': player['is_active']
-                }
-                for player in all_players 
-                if player['is_active'] and partial_name.lower() in player['full_name'].lower()
-            ][:10]
+            query_lower = partial_name.lower()
+            query_normalized = self._normalize_name(partial_name)
+            
+            suggestions = []
+            
+            for player in all_players:
+                if not player['is_active']:
+                    continue
+                    
+                player_name = player['full_name']
+                player_name_lower = player_name.lower()
+                player_name_normalized = self._normalize_name(player_name)
+                
+                # Get nicknames for this player
+                nicknames = self._get_nba_nicknames(player_name)
+                
+                match_score = 0
+                match_type = None
+                
+                # 1. Exact match (highest priority)
+                if query_lower == player_name_lower:
+                    match_score = 10
+                    match_type = 'exact'
+                # 1.5. Nickname exact match
+                elif query_lower in [nick.lower() for nick in nicknames]:
+                    match_score = 9
+                    match_type = 'nickname'
+                # 2. Normalized exact match (handles diacritics)
+                elif query_normalized == player_name_normalized:
+                    match_score = 8
+                    match_type = 'normalized_exact'
+                # 3. Starts with query
+                elif player_name_lower.startswith(query_lower):
+                    match_score = 7
+                    match_type = 'starts_with'
+                # 4. Normalized starts with
+                elif player_name_normalized.startswith(query_normalized):
+                    match_score = 6
+                    match_type = 'normalized_starts'
+                # 5. Contains query
+                elif query_lower in player_name_lower:
+                    match_score = 5
+                    match_type = 'contains'
+                # 6. Normalized contains
+                elif query_normalized in player_name_normalized:
+                    match_score = 4
+                    match_type = 'normalized_contains'
+                # 7. First name match
+                elif self._matches_first_name(query_lower, player_name_lower):
+                    match_score = 4
+                    match_type = 'first_name'
+                # 8. Last name match
+                elif self._matches_last_name(query_lower, player_name_lower):
+                    match_score = 4
+                    match_type = 'last_name'
+                
+                if match_score > 0:
+                    suggestions.append({
+                        'id': player['id'],
+                        'full_name': player_name,
+                        'is_active': player['is_active'],
+                        'match_score': match_score,
+                        'match_type': match_type
+                    })
+            
+            # Sort by match score (highest first), then prefer more famous players, then by name
+            def sort_key(player):
+                # Boost score for more famous players
+                name_lower = player['full_name'].lower()
+                fame_boost = 0
+                
+                # Give preference to more well-known players
+                famous_players = [
+                    'lebron james', 'stephen curry', 'kevin durant', 'giannis antetokounmpo',
+                    'luka doncic', 'jayson tatum', 'joel embiid', 'nikola jokic',
+                    'kawhi leonard', 'jimmy butler', 'anthony davis', 'damian lillard',
+                    'devin booker', 'ja morant', 'zion williamson', 'victor wembanyama'
+                ]
+                
+                if name_lower in famous_players:
+                    fame_boost = 0.5
+                
+                return (-player['match_score'] - fame_boost, player['full_name'])
+            
+            suggestions.sort(key=sort_key)
+            suggestions = suggestions[:15]  # Return top 15 matches
             
             conn = self.get_db()
             cursor = conn.cursor()
@@ -197,6 +275,106 @@ class BasketballBettingHelper:
         except Exception as e:
             print(f"Error getting player suggestions: {e}")
             return []
+    
+    def _normalize_name(self, name):
+        """Normalize player names by removing diacritical marks and special characters"""
+        import unicodedata
+        
+        # Convert to lowercase and remove diacritical marks
+        normalized = unicodedata.normalize('NFD', name.lower())
+        # Remove diacritical marks
+        normalized = ''.join(c for c in normalized if unicodedata.category(c) != 'Mn')
+        # Replace common variations
+        normalized = normalized.replace('ć', 'c').replace('č', 'c').replace('š', 's')
+        normalized = normalized.replace('ž', 'z').replace('đ', 'd').replace('ñ', 'n')
+        normalized = normalized.replace('ü', 'u').replace('ö', 'o').replace('ä', 'a')
+        normalized = normalized.replace('é', 'e').replace('è', 'e').replace('ê', 'e')
+        normalized = normalized.replace('á', 'a').replace('à', 'a').replace('â', 'a')
+        normalized = normalized.replace('í', 'i').replace('ì', 'i').replace('î', 'i')
+        normalized = normalized.replace('ó', 'o').replace('ò', 'o').replace('ô', 'o')
+        normalized = normalized.replace('ú', 'u').replace('ù', 'u').replace('û', 'u')
+        
+        return normalized
+    
+    def _get_nba_nicknames(self, full_name):
+        """Get common NBA nicknames and abbreviations"""
+        nicknames = []
+        name_lower = full_name.lower()
+        
+        # Common NBA nickname mappings
+        nickname_map = {
+            'victor wembanyama': ['wemby', 'wembanyama'],
+            'giannis antetokounmpo': ['giannis', 'greek freak'],
+            'lebron james': ['lebron', 'king james', 'bron'],
+            'stephen curry': ['steph', 'chef curry'],
+            'kevin durant': ['kd', 'durant'],
+            'kawhi leonard': ['kawhi', 'the claw'],
+            'james harden': ['the beard', 'harden'],
+            'russell westbrook': ['russ', 'westbrook'],
+            'anthony davis': ['ad', 'brow'],
+            'joel embiid': ['embiid', 'jojo'],
+            'nikola jokic': ['jokic', 'joker'],
+            'luka doncic': ['luka', 'doncic'],
+            'jayson tatum': ['tatum', 'jt'],
+            'damian lillard': ['dame', 'lillard'],
+            'devin booker': ['book', 'booker'],
+            'ja morant': ['ja', 'morant'],
+            'zion williamson': ['zion'],
+            'paolo banchero': ['paolo'],
+            'scottie barnes': ['scottie'],
+            'franz wagner': ['franz'],
+            'cade cunningham': ['cade']
+        }
+        
+        # Check for direct matches
+        if name_lower in nickname_map:
+            nicknames.extend(nickname_map[name_lower])
+        
+        return nicknames
+    
+    def _matches_first_name(self, query, full_name):
+        """Check if query matches the first name"""
+        name_parts = full_name.split()
+        if len(name_parts) > 0:
+            return query == name_parts[0] or query in name_parts[0]
+        return False
+    
+    def _matches_last_name(self, query, full_name):
+        """Check if query matches the last name"""
+        name_parts = full_name.split()
+        if len(name_parts) > 1:
+            return query == name_parts[-1] or query in name_parts[-1]
+        return False
+    
+    def get_players_by_team(self, team_name):
+        """Get all active NBA players for a specific team"""
+        try:
+            all_players = players.get_players()
+            # This would need team roster data from nba_api
+            # For now, return a placeholder
+            return [p for p in all_players if p['is_active']][:10]
+        except Exception as e:
+            print(f"Error getting team players: {e}")
+            return []
+    
+    def search_players_advanced(self, query, filters=None):
+        """Advanced NBA player search with optional filters"""
+        if filters is None:
+            filters = {}
+        
+        # Get initial matches
+        matches = self.get_player_suggestions(query)
+        
+        # Apply filters (can be extended for team, position, etc.)
+        filtered_matches = []
+        for player in matches:
+            # Active status filter
+            if 'is_active' in filters and player.get('is_active', True) != filters['is_active']:
+                continue
+            
+            filtered_matches.append(player)
+        
+        return filtered_matches
 
     def get_player_stats(self, player_id):
         #Get player statistics

@@ -392,6 +392,40 @@ class NFLBettingHelper:
                     'rushing_touchdowns': 0,
                     'fantasy_points': 0
                 }
+            elif position in ['OLB', 'MLB', 'DE', 'DT', 'CB', 'S', 'FS', 'SS']:
+                # Defensive player stats
+                game_log = {
+                    'week': week,
+                    'opponent': 'vs MIA' if week % 2 == 0 else '@ NYJ',
+                    'tackles': max(0, int(np.random.normal(6, 3))),
+                    'sacks': max(0, np.random.poisson(0.4)),
+                    'interceptions': max(0, int(np.random.poisson(0.1))),
+                    'forced_fumbles': max(0, int(np.random.poisson(0.1))),
+                    'pass_deflections': max(0, int(np.random.normal(2, 2))),
+                    'tackles_for_loss': max(0, int(np.random.normal(1, 1.5))),
+                    'fantasy_points': 0
+                }
+            elif position in ['K']:
+                # Kicker stats
+                game_log = {
+                    'week': week,
+                    'opponent': 'vs MIA' if week % 2 == 0 else '@ NYJ',
+                    'field_goals_made': max(0, int(np.random.normal(2.1, 1.2))),
+                    'field_goals_attempted': max(0, int(np.random.normal(2.5, 1.3))),
+                    'extra_points_made': max(0, int(np.random.normal(2.3, 1.5))),
+                    'extra_points_attempted': max(0, int(np.random.normal(2.4, 1.5))),
+                    'fantasy_points': 0
+                }
+            else:
+                # Default stats for other positions
+                game_log = {
+                    'week': week,
+                    'opponent': 'vs MIA' if week % 2 == 0 else '@ NYJ',
+                    'touches': max(0, int(np.random.normal(8, 4))),
+                    'yards': max(0, int(np.random.normal(45, 25))),
+                    'touchdowns': max(0, int(np.random.poisson(0.3))),
+                    'fantasy_points': 0
+                }
             
             # Calculate fantasy points (standard scoring)
             fp = 0
@@ -406,6 +440,26 @@ class NFLBettingHelper:
                 fp += game_log['receiving_yards'] * 0.1
                 fp += game_log['receiving_touchdowns'] * 6
                 fp += game_log['receptions'] * 1  # PPR
+            
+            # Defensive fantasy points
+            if 'tackles' in game_log:
+                fp += game_log['tackles'] * 1
+                fp += game_log.get('sacks', 0) * 4
+                fp += game_log.get('interceptions', 0) * 6
+                fp += game_log.get('forced_fumbles', 0) * 4
+                fp += game_log.get('pass_deflections', 0) * 1.5
+                fp += game_log.get('tackles_for_loss', 0) * 2
+            
+            # Kicker fantasy points
+            if 'field_goals_made' in game_log:
+                fp += game_log['field_goals_made'] * 3
+                fp += game_log.get('extra_points_made', 0) * 1
+            
+            # Default position points
+            if 'touches' in game_log:
+                fp += game_log['touches'] * 0.5
+                fp += game_log.get('yards', 0) * 0.1
+                fp += game_log.get('touchdowns', 0) * 6
             
             game_log['fantasy_points'] = round(fp, 1)
             game_logs.append(game_log)
