@@ -64,6 +64,29 @@
                         <i class="fas fa-robot mr-2 text-purple-300"></i>Enterprise AI
                         <span class="ml-1 px-2 py-0.5 text-xs bg-purple-500 rounded-full">NEW</span>
                     </button>
+                    <!-- NFL Betting Tabs -->
+                    <template x-if="activeSport === 'NFL'">
+                        <div class="flex space-x-2">
+                            <button @click="activeTab = 'moneyline'" 
+                                    :class="{'bg-green-600': activeTab === 'moneyline', 'bg-gray-700': activeTab !== 'moneyline'}"
+                                    class="px-3 py-2 rounded-lg transition-all hover:bg-green-600 text-sm">
+                                <i class="fas fa-dollar-sign mr-1"></i>Moneyline
+                                <span class="ml-1 px-2 py-0.5 text-xs bg-green-500 rounded-full">NEW</span>
+                            </button>
+                            <button @click="activeTab = 'spread'" 
+                                    :class="{'bg-green-600': activeTab === 'spread', 'bg-gray-700': activeTab !== 'spread'}"
+                                    class="px-3 py-2 rounded-lg transition-all hover:bg-green-600 text-sm">
+                                <i class="fas fa-chart-area mr-1"></i>Spread
+                                <span class="ml-1 px-2 py-0.5 text-xs bg-green-500 rounded-full">NEW</span>
+                            </button>
+                            <button @click="activeTab = 'totals'" 
+                                    :class="{'bg-green-600': activeTab === 'totals', 'bg-gray-700': activeTab !== 'totals'}"
+                                    class="px-3 py-2 rounded-lg transition-all hover:bg-green-600 text-sm">
+                                <i class="fas fa-plus-minus mr-1"></i>Over/Under
+                                <span class="ml-1 px-2 py-0.5 text-xs bg-green-500 rounded-full">NEW</span>
+                            </button>
+                        </div>
+                    </template>
                 </div>
             </div>
         </div>
@@ -875,6 +898,367 @@
         </div>
     </div>
 
+    <!-- NFL Moneyline Betting Tab -->
+    <div x-show="activeTab === 'moneyline' && activeSport === 'NFL'" class="space-y-6">
+        <div class="bg-gradient-to-br from-green-900 to-blue-900 rounded-xl shadow-2xl p-6 border border-green-500">
+            <h2 class="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-green-300 to-blue-300 bg-clip-text text-transparent">
+                <i class="fas fa-dollar-sign mr-2 text-green-400"></i>
+                NFL Moneyline Betting Analysis
+            </h2>
+            
+            <!-- Moneyline Form -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Home Team</label>
+                    <select x-model="moneylineForm.homeTeam" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-white">
+                        <option value="">Select Home Team</option>
+                        <option value="ARI">Arizona Cardinals</option>
+                        <option value="ATL">Atlanta Falcons</option>
+                        <option value="BAL">Baltimore Ravens</option>
+                        <option value="BUF">Buffalo Bills</option>
+                        <option value="CAR">Carolina Panthers</option>
+                        <option value="CHI">Chicago Bears</option>
+                        <option value="CIN">Cincinnati Bengals</option>
+                        <option value="CLE">Cleveland Browns</option>
+                        <option value="DAL">Dallas Cowboys</option>
+                        <option value="DEN">Denver Broncos</option>
+                        <option value="DET">Detroit Lions</option>
+                        <option value="GB">Green Bay Packers</option>
+                        <option value="HOU">Houston Texans</option>
+                        <option value="IND">Indianapolis Colts</option>
+                        <option value="JAX">Jacksonville Jaguars</option>
+                        <option value="KC">Kansas City Chiefs</option>
+                        <option value="LV">Las Vegas Raiders</option>
+                        <option value="LAC">Los Angeles Chargers</option>
+                        <option value="LAR">Los Angeles Rams</option>
+                        <option value="MIA">Miami Dolphins</option>
+                        <option value="MIN">Minnesota Vikings</option>
+                        <option value="NE">New England Patriots</option>
+                        <option value="NO">New Orleans Saints</option>
+                        <option value="NYG">New York Giants</option>
+                        <option value="NYJ">New York Jets</option>
+                        <option value="PHI">Philadelphia Eagles</option>
+                        <option value="PIT">Pittsburgh Steelers</option>
+                        <option value="SF">San Francisco 49ers</option>
+                        <option value="SEA">Seattle Seahawks</option>
+                        <option value="TB">Tampa Bay Buccaneers</option>
+                        <option value="TEN">Tennessee Titans</option>
+                        <option value="WAS">Washington Commanders</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Away Team</label>
+                    <select x-model="moneylineForm.awayTeam" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-white">
+                        <option value="">Select Away Team</option>
+                        <option value="ARI">Arizona Cardinals</option>
+                        <option value="ATL">Atlanta Falcons</option>
+                        <option value="BAL">Baltimore Ravens</option>
+                        <option value="BUF">Buffalo Bills</option>
+                        <option value="CAR">Carolina Panthers</option>
+                        <option value="CHI">Chicago Bears</option>
+                        <option value="CIN">Cincinnati Bengals</option>
+                        <option value="CLE">Cleveland Browns</option>
+                        <option value="DAL">Dallas Cowboys</option>
+                        <option value="DEN">Denver Broncos</option>
+                        <option value="DET">Detroit Lions</option>
+                        <option value="GB">Green Bay Packers</option>
+                        <option value="HOU">Houston Texans</option>
+                        <option value="IND">Indianapolis Colts</option>
+                        <option value="JAX">Jacksonville Jaguars</option>
+                        <option value="KC">Kansas City Chiefs</option>
+                        <option value="LV">Las Vegas Raiders</option>
+                        <option value="LAC">Los Angeles Chargers</option>
+                        <option value="LAR">Los Angeles Rams</option>
+                        <option value="MIA">Miami Dolphins</option>
+                        <option value="MIN">Minnesota Vikings</option>
+                        <option value="NE">New England Patriots</option>
+                        <option value="NO">New Orleans Saints</option>
+                        <option value="NYG">New York Giants</option>
+                        <option value="NYJ">New York Jets</option>
+                        <option value="PHI">Philadelphia Eagles</option>
+                        <option value="PIT">Pittsburgh Steelers</option>
+                        <option value="SF">San Francisco 49ers</option>
+                        <option value="SEA">Seattle Seahawks</option>
+                        <option value="TB">Tampa Bay Buccaneers</option>
+                        <option value="TEN">Tennessee Titans</option>
+                        <option value="WAS">Washington Commanders</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Home Team Odds (e.g., -150)</label>
+                    <input type="number" x-model="moneylineForm.homeOdds" 
+                           class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-white" 
+                           placeholder="-150">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Away Team Odds (e.g., +130)</label>
+                    <input type="number" x-model="moneylineForm.awayOdds" 
+                           class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-white" 
+                           placeholder="+130">
+                </div>
+            </div>
+            
+            <button @click="analyzeMoneyline()" 
+                    class="w-full bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white font-bold py-3 px-6 rounded-lg mb-6">
+                <i class="fas fa-chart-line mr-2"></i>Analyze Moneyline Bet
+            </button>
+            
+            <!-- Moneyline Results -->
+            <div x-show="moneylineResults" class="bg-gray-800 rounded-lg p-6">
+                <h3 class="text-xl font-bold mb-4 text-green-400">
+                    <i class="fas fa-chart-bar mr-2"></i>Moneyline Analysis Results
+                </h3>
+                <div x-show="moneylineResults" x-html="moneylineResults"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NFL Spread Betting Tab -->
+    <div x-show="activeTab === 'spread' && activeSport === 'NFL'" class="space-y-6">
+        <div class="bg-gradient-to-br from-blue-900 to-purple-900 rounded-xl shadow-2xl p-6 border border-blue-500">
+            <h2 class="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent">
+                <i class="fas fa-chart-area mr-2 text-blue-400"></i>
+                NFL Point Spread Analysis
+            </h2>
+            
+            <!-- Spread Form -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Home Team</label>
+                    <select x-model="spreadForm.homeTeam" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white">
+                        <option value="">Select Home Team</option>
+                        <option value="ARI">Arizona Cardinals</option>
+                        <option value="ATL">Atlanta Falcons</option>
+                        <option value="BAL">Baltimore Ravens</option>
+                        <option value="BUF">Buffalo Bills</option>
+                        <option value="CAR">Carolina Panthers</option>
+                        <option value="CHI">Chicago Bears</option>
+                        <option value="CIN">Cincinnati Bengals</option>
+                        <option value="CLE">Cleveland Browns</option>
+                        <option value="DAL">Dallas Cowboys</option>
+                        <option value="DEN">Denver Broncos</option>
+                        <option value="DET">Detroit Lions</option>
+                        <option value="GB">Green Bay Packers</option>
+                        <option value="HOU">Houston Texans</option>
+                        <option value="IND">Indianapolis Colts</option>
+                        <option value="JAX">Jacksonville Jaguars</option>
+                        <option value="KC">Kansas City Chiefs</option>
+                        <option value="LV">Las Vegas Raiders</option>
+                        <option value="LAC">Los Angeles Chargers</option>
+                        <option value="LAR">Los Angeles Rams</option>
+                        <option value="MIA">Miami Dolphins</option>
+                        <option value="MIN">Minnesota Vikings</option>
+                        <option value="NE">New England Patriots</option>
+                        <option value="NO">New Orleans Saints</option>
+                        <option value="NYG">New York Giants</option>
+                        <option value="NYJ">New York Jets</option>
+                        <option value="PHI">Philadelphia Eagles</option>
+                        <option value="PIT">Pittsburgh Steelers</option>
+                        <option value="SF">San Francisco 49ers</option>
+                        <option value="SEA">Seattle Seahawks</option>
+                        <option value="TB">Tampa Bay Buccaneers</option>
+                        <option value="TEN">Tennessee Titans</option>
+                        <option value="WAS">Washington Commanders</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Away Team</label>
+                    <select x-model="spreadForm.awayTeam" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white">
+                        <option value="">Select Away Team</option>
+                        <option value="ARI">Arizona Cardinals</option>
+                        <option value="ATL">Atlanta Falcons</option>
+                        <option value="BAL">Baltimore Ravens</option>
+                        <option value="BUF">Buffalo Bills</option>
+                        <option value="CAR">Carolina Panthers</option>
+                        <option value="CHI">Chicago Bears</option>
+                        <option value="CIN">Cincinnati Bengals</option>
+                        <option value="CLE">Cleveland Browns</option>
+                        <option value="DAL">Dallas Cowboys</option>
+                        <option value="DEN">Denver Broncos</option>
+                        <option value="DET">Detroit Lions</option>
+                        <option value="GB">Green Bay Packers</option>
+                        <option value="HOU">Houston Texans</option>
+                        <option value="IND">Indianapolis Colts</option>
+                        <option value="JAX">Jacksonville Jaguars</option>
+                        <option value="KC">Kansas City Chiefs</option>
+                        <option value="LV">Las Vegas Raiders</option>
+                        <option value="LAC">Los Angeles Chargers</option>
+                        <option value="LAR">Los Angeles Rams</option>
+                        <option value="MIA">Miami Dolphins</option>
+                        <option value="MIN">Minnesota Vikings</option>
+                        <option value="NE">New England Patriots</option>
+                        <option value="NO">New Orleans Saints</option>
+                        <option value="NYG">New York Giants</option>
+                        <option value="NYJ">New York Jets</option>
+                        <option value="PHI">Philadelphia Eagles</option>
+                        <option value="PIT">Pittsburgh Steelers</option>
+                        <option value="SF">San Francisco 49ers</option>
+                        <option value="SEA">Seattle Seahawks</option>
+                        <option value="TB">Tampa Bay Buccaneers</option>
+                        <option value="TEN">Tennessee Titans</option>
+                        <option value="WAS">Washington Commanders</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Point Spread (e.g., -3.5 for home favorite)</label>
+                    <input type="number" x-model="spreadForm.spreadLine" step="0.5"
+                           class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white" 
+                           placeholder="-3.5">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Home Odds</label>
+                        <input type="number" x-model="spreadForm.homeOdds" 
+                               class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white" 
+                               placeholder="-110">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Away Odds</label>
+                        <input type="number" x-model="spreadForm.awayOdds" 
+                               class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white" 
+                               placeholder="-110">
+                    </div>
+                </div>
+            </div>
+            
+            <button @click="analyzeSpread()" 
+                    class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-3 px-6 rounded-lg mb-6">
+                <i class="fas fa-chart-area mr-2"></i>Analyze Spread Bet
+            </button>
+            
+            <!-- Spread Results -->
+            <div x-show="spreadResults" class="bg-gray-800 rounded-lg p-6">
+                <h3 class="text-xl font-bold mb-4 text-blue-400">
+                    <i class="fas fa-chart-line mr-2"></i>Spread Analysis Results
+                </h3>
+                <div x-show="spreadResults" x-html="spreadResults"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NFL Over/Under Totals Tab -->
+    <div x-show="activeTab === 'totals' && activeSport === 'NFL'" class="space-y-6">
+        <div class="bg-gradient-to-br from-purple-900 to-red-900 rounded-xl shadow-2xl p-6 border border-purple-500">
+            <h2 class="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-purple-300 to-red-300 bg-clip-text text-transparent">
+                <i class="fas fa-plus-minus mr-2 text-purple-400"></i>
+                NFL Over/Under Total Analysis
+            </h2>
+            
+            <!-- Over/Under Form -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Home Team</label>
+                    <select x-model="totalsForm.homeTeam" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white">
+                        <option value="">Select Home Team</option>
+                        <option value="ARI">Arizona Cardinals</option>
+                        <option value="ATL">Atlanta Falcons</option>
+                        <option value="BAL">Baltimore Ravens</option>
+                        <option value="BUF">Buffalo Bills</option>
+                        <option value="CAR">Carolina Panthers</option>
+                        <option value="CHI">Chicago Bears</option>
+                        <option value="CIN">Cincinnati Bengals</option>
+                        <option value="CLE">Cleveland Browns</option>
+                        <option value="DAL">Dallas Cowboys</option>
+                        <option value="DEN">Denver Broncos</option>
+                        <option value="DET">Detroit Lions</option>
+                        <option value="GB">Green Bay Packers</option>
+                        <option value="HOU">Houston Texans</option>
+                        <option value="IND">Indianapolis Colts</option>
+                        <option value="JAX">Jacksonville Jaguars</option>
+                        <option value="KC">Kansas City Chiefs</option>
+                        <option value="LV">Las Vegas Raiders</option>
+                        <option value="LAC">Los Angeles Chargers</option>
+                        <option value="LAR">Los Angeles Rams</option>
+                        <option value="MIA">Miami Dolphins</option>
+                        <option value="MIN">Minnesota Vikings</option>
+                        <option value="NE">New England Patriots</option>
+                        <option value="NO">New Orleans Saints</option>
+                        <option value="NYG">New York Giants</option>
+                        <option value="NYJ">New York Jets</option>
+                        <option value="PHI">Philadelphia Eagles</option>
+                        <option value="PIT">Pittsburgh Steelers</option>
+                        <option value="SF">San Francisco 49ers</option>
+                        <option value="SEA">Seattle Seahawks</option>
+                        <option value="TB">Tampa Bay Buccaneers</option>
+                        <option value="TEN">Tennessee Titans</option>
+                        <option value="WAS">Washington Commanders</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Away Team</label>
+                    <select x-model="totalsForm.awayTeam" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white">
+                        <option value="">Select Away Team</option>
+                        <option value="ARI">Arizona Cardinals</option>
+                        <option value="ATL">Atlanta Falcons</option>
+                        <option value="BAL">Baltimore Ravens</option>
+                        <option value="BUF">Buffalo Bills</option>
+                        <option value="CAR">Carolina Panthers</option>
+                        <option value="CHI">Chicago Bears</option>
+                        <option value="CIN">Cincinnati Bengals</option>
+                        <option value="CLE">Cleveland Browns</option>
+                        <option value="DAL">Dallas Cowboys</option>
+                        <option value="DEN">Denver Broncos</option>
+                        <option value="DET">Detroit Lions</option>
+                        <option value="GB">Green Bay Packers</option>
+                        <option value="HOU">Houston Texans</option>
+                        <option value="IND">Indianapolis Colts</option>
+                        <option value="JAX">Jacksonville Jaguars</option>
+                        <option value="KC">Kansas City Chiefs</option>
+                        <option value="LV">Las Vegas Raiders</option>
+                        <option value="LAC">Los Angeles Chargers</option>
+                        <option value="LAR">Los Angeles Rams</option>
+                        <option value="MIA">Miami Dolphins</option>
+                        <option value="MIN">Minnesota Vikings</option>
+                        <option value="NE">New England Patriots</option>
+                        <option value="NO">New Orleans Saints</option>
+                        <option value="NYG">New York Giants</option>
+                        <option value="NYJ">New York Jets</option>
+                        <option value="PHI">Philadelphia Eagles</option>
+                        <option value="PIT">Pittsburgh Steelers</option>
+                        <option value="SF">San Francisco 49ers</option>
+                        <option value="SEA">Seattle Seahawks</option>
+                        <option value="TB">Tampa Bay Buccaneers</option>
+                        <option value="TEN">Tennessee Titans</option>
+                        <option value="WAS">Washington Commanders</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Total Line (e.g., 45.5)</label>
+                    <input type="number" x-model="totalsForm.totalLine" step="0.5"
+                           class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white" 
+                           placeholder="45.5">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Over Odds</label>
+                        <input type="number" x-model="totalsForm.overOdds" 
+                               class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white" 
+                               placeholder="-110">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Under Odds</label>
+                        <input type="number" x-model="totalsForm.underOdds" 
+                               class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white" 
+                               placeholder="-110">
+                    </div>
+                </div>
+            </div>
+            
+            <button @click="analyzeTotals()" 
+                    class="w-full bg-gradient-to-r from-purple-600 to-red-600 hover:from-purple-700 hover:to-red-700 text-white font-bold py-3 px-6 rounded-lg mb-6">
+                <i class="fas fa-plus-minus mr-2"></i>Analyze Over/Under Bet
+            </button>
+            
+            <!-- Totals Results -->
+            <div x-show="totalsResults" class="bg-gray-800 rounded-lg p-6">
+                <h3 class="text-xl font-bold mb-4 text-purple-400">
+                    <i class="fas fa-chart-pie mr-2"></i>Over/Under Analysis Results
+                </h3>
+                <div x-show="totalsResults" x-html="totalsResults"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Loading Modal -->
     <div x-show="isLoading" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-gray-800 p-6 rounded-lg">
@@ -922,6 +1306,31 @@
                 },
                 liveOddsData: null,
                 aiModelStatus: null,
+                
+                // NFL Betting State
+                moneylineForm: {
+                    homeTeam: '',
+                    awayTeam: '',
+                    homeOdds: -110,
+                    awayOdds: -110
+                },
+                spreadForm: {
+                    homeTeam: '',
+                    awayTeam: '',
+                    spreadLine: -3.5,
+                    homeOdds: -110,
+                    awayOdds: -110
+                },
+                totalsForm: {
+                    homeTeam: '',
+                    awayTeam: '',
+                    totalLine: 45.5,
+                    overOdds: -110,
+                    underOdds: -110
+                },
+                moneylineResults: null,
+                spreadResults: null,
+                totalsResults: null,
                 
                 // Global State
                 isLoading: false,
@@ -1365,6 +1774,171 @@
                     }
                     
                     return options;
+                },
+                
+                // NFL Betting Analysis Functions
+                async analyzeMoneyline() {
+                    if (!this.moneylineForm.homeTeam || !this.moneylineForm.awayTeam || 
+                        !this.moneylineForm.homeOdds || !this.moneylineForm.awayOdds) {
+                        alert('Please fill in all moneyline fields');
+                        return;
+                    }
+                    
+                    this.isLoading = true;
+                    try {
+                        const response = await fetch('/nfl/analyze_moneyline', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                home_team: this.moneylineForm.homeTeam,
+                                away_team: this.moneylineForm.awayTeam,
+                                home_odds: parseInt(this.moneylineForm.homeOdds),
+                                away_odds: parseInt(this.moneylineForm.awayOdds)
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            this.moneylineResults = this.formatBettingResults(data.moneyline_analysis, 'Moneyline');
+                        } else {
+                            this.moneylineResults = `<div class="text-red-400">Error: ${data.error}</div>`;
+                        }
+                    } catch (error) {
+                        console.error('Error analyzing moneyline:', error);
+                        this.moneylineResults = `<div class="text-red-400">Error analyzing moneyline bet</div>`;
+                    }
+                    this.isLoading = false;
+                },
+                
+                async analyzeSpread() {
+                    if (!this.spreadForm.homeTeam || !this.spreadForm.awayTeam || 
+                        this.spreadForm.spreadLine === '' || this.spreadForm.spreadLine === null) {
+                        alert('Please fill in all spread fields');
+                        return;
+                    }
+                    
+                    this.isLoading = true;
+                    try {
+                        const response = await fetch('/nfl/analyze_spread', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                home_team: this.spreadForm.homeTeam,
+                                away_team: this.spreadForm.awayTeam,
+                                spread_line: parseFloat(this.spreadForm.spreadLine),
+                                home_odds: parseInt(this.spreadForm.homeOdds),
+                                away_odds: parseInt(this.spreadForm.awayOdds)
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            this.spreadResults = this.formatBettingResults(data.spread_analysis, 'Spread');
+                        } else {
+                            this.spreadResults = `<div class="text-red-400">Error: ${data.error}</div>`;
+                        }
+                    } catch (error) {
+                        console.error('Error analyzing spread:', error);
+                        this.spreadResults = `<div class="text-red-400">Error analyzing spread bet</div>`;
+                    }
+                    this.isLoading = false;
+                },
+                
+                async analyzeTotals() {
+                    if (!this.totalsForm.homeTeam || !this.totalsForm.awayTeam || 
+                        this.totalsForm.totalLine === '' || this.totalsForm.totalLine === null) {
+                        alert('Please fill in all totals fields');
+                        return;
+                    }
+                    
+                    this.isLoading = true;
+                    try {
+                        const response = await fetch('/nfl/analyze_over_under', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                home_team: this.totalsForm.homeTeam,
+                                away_team: this.totalsForm.awayTeam,
+                                total_line: parseFloat(this.totalsForm.totalLine),
+                                over_odds: parseInt(this.totalsForm.overOdds),
+                                under_odds: parseInt(this.totalsForm.underOdds)
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            this.totalsResults = this.formatBettingResults(data.over_under_analysis, 'Over/Under');
+                        } else {
+                            this.totalsResults = `<div class="text-red-400">Error: ${data.error}</div>`;
+                        }
+                    } catch (error) {
+                        console.error('Error analyzing totals:', error);
+                        this.totalsResults = `<div class="text-red-400">Error analyzing over/under bet</div>`;
+                    }
+                    this.isLoading = false;
+                },
+                
+                formatBettingResults(analysis, betType) {
+                    if (!analysis || !analysis.recommendation) {
+                        return `<div class="text-red-400">No analysis data available</div>`;
+                    }
+                    
+                    const rec = analysis.recommendation;
+                    let html = `
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="bg-gray-700 p-4 rounded-lg">
+                                    <h4 class="font-bold text-lg mb-2 text-blue-400">${betType} Analysis</h4>
+                    `;
+                    
+                    // Format based on bet type
+                    if (betType === 'Moneyline') {
+                        html += `
+                            <p><strong>Home Win Probability:</strong> ${(rec.home_win_probability * 100).toFixed(1)}%</p>
+                            <p><strong>Away Win Probability:</strong> ${(rec.away_win_probability * 100).toFixed(1)}%</p>
+                            <p><strong>Home Edge:</strong> ${(rec.home_edge * 100).toFixed(2)}%</p>
+                            <p><strong>Away Edge:</strong> ${(rec.away_edge * 100).toFixed(2)}%</p>
+                        `;
+                    } else if (betType === 'Spread') {
+                        html += `
+                            <p><strong>Home Cover Probability:</strong> ${(rec.home_cover_probability * 100).toFixed(1)}%</p>
+                            <p><strong>Away Cover Probability:</strong> ${(rec.away_cover_probability * 100).toFixed(1)}%</p>
+                            <p><strong>Predicted Margin:</strong> ${rec.predicted_margin}</p>
+                            <p><strong>Spread Value:</strong> ${rec.spread_value}</p>
+                        `;
+                    } else if (betType === 'Over/Under') {
+                        html += `
+                            <p><strong>Over Probability:</strong> ${(rec.over_probability * 100).toFixed(1)}%</p>
+                            <p><strong>Under Probability:</strong> ${(rec.under_probability * 100).toFixed(1)}%</p>
+                            <p><strong>Predicted Total:</strong> ${rec.predicted_total}</p>
+                            <p><strong>Total Value:</strong> ${rec.total_value}</p>
+                        `;
+                    }
+                    
+                    html += `
+                                </div>
+                                <div class="bg-gray-700 p-4 rounded-lg">
+                                    <h4 class="font-bold text-lg mb-2 text-green-400">Recommendation</h4>
+                                    <p><strong>Recommended Bet:</strong> ${rec.recommended_bet || 'No recommendation'}</p>
+                                    <p><strong>Confidence:</strong> ${(rec.confidence * 100).toFixed(1)}%</p>
+                                </div>
+                            </div>
+                            <div class="bg-gray-700 p-4 rounded-lg mt-4">
+                                <h4 class="font-bold text-lg mb-2 text-yellow-400">Analysis Factors</h4>
+                                <div class="text-sm">
+                                    <pre class="whitespace-pre-wrap">${JSON.stringify(rec.analysis_factors, null, 2)}</pre>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    return html;
                 }
             }
         }
