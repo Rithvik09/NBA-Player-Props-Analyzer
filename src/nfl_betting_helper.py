@@ -6000,7 +6000,7 @@ class NFLBettingHelper:
     
     # NEW BETTING FEATURES - MONEYLINE, SPREAD, OVER/UNDER TOTAL SCORE
     
-    async def analyze_moneyline_bet(self, home_team, away_team, home_odds, away_odds):
+    def analyze_moneyline_bet(self, home_team, away_team, home_odds, away_odds):
         """🏈 MONEYLINE BETTING ANALYSIS
         
         Analyzes which team is likely to win straight up
@@ -6053,7 +6053,7 @@ class NFLBettingHelper:
         except Exception as e:
             return {'success': False, 'error': str(e)}
     
-    async def analyze_spread_bet(self, home_team, away_team, spread_line, home_odds=-110, away_odds=-110):
+    def analyze_spread_bet(self, home_team, away_team, spread_line, home_odds=-110, away_odds=-110):
         """🏈 POINT SPREAD BETTING ANALYSIS
         
         Analyzes whether teams will cover the point spread
@@ -6115,7 +6115,7 @@ class NFLBettingHelper:
         except Exception as e:
             return {'success': False, 'error': str(e)}
     
-    async def analyze_over_under_total(self, home_team, away_team, total_line, over_odds=-110, under_odds=-110):
+    def analyze_over_under_total(self, home_team, away_team, total_line, over_odds=-110, under_odds=-110):
         """🏈 OVER/UNDER TOTAL SCORE BETTING ANALYSIS
         
         Analyzes whether the total points will go over or under the line

@@ -675,6 +675,92 @@ def nfl_divisional_analysis():
         app.logger.error(f'Error analyzing NFL divisional matchup: {e}')
         return jsonify({'error': str(e), 'success': False}), 500
 
+@app.route('/nfl/analyze_moneyline', methods=['POST'])
+def nfl_analyze_moneyline():
+    """Analyze NFL moneyline bet"""
+    if not nfl_helper:
+        return jsonify({'error': 'NFL system not available'}), 501
+    
+    try:
+        data = request.get_json()
+        home_team = data.get('home_team')
+        away_team = data.get('away_team')
+        home_odds = data.get('home_odds')
+        away_odds = data.get('away_odds')
+        
+        if not all([home_team, away_team, home_odds, away_odds]):
+            return jsonify({'error': 'home_team, away_team, home_odds, and away_odds required'}), 400
+        
+        analysis = nfl_helper.analyze_moneyline_bet(home_team, away_team, home_odds, away_odds)
+        
+        return jsonify({
+            'success': True,
+            'moneyline_analysis': analysis,
+            'sport': 'NFL'
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error analyzing NFL moneyline: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
+@app.route('/nfl/analyze_spread', methods=['POST'])
+def nfl_analyze_spread():
+    """Analyze NFL spread bet"""
+    if not nfl_helper:
+        return jsonify({'error': 'NFL system not available'}), 501
+    
+    try:
+        data = request.get_json()
+        home_team = data.get('home_team')
+        away_team = data.get('away_team')
+        spread_line = data.get('spread_line')
+        home_odds = data.get('home_odds', -110)
+        away_odds = data.get('away_odds', -110)
+        
+        if not all([home_team, away_team, spread_line]):
+            return jsonify({'error': 'home_team, away_team, and spread_line required'}), 400
+        
+        analysis = nfl_helper.analyze_spread_bet(home_team, away_team, spread_line, home_odds, away_odds)
+        
+        return jsonify({
+            'success': True,
+            'spread_analysis': analysis,
+            'sport': 'NFL'
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error analyzing NFL spread: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
+@app.route('/nfl/analyze_over_under', methods=['POST'])
+def nfl_analyze_over_under():
+    """Analyze NFL over/under total bet"""
+    if not nfl_helper:
+        return jsonify({'error': 'NFL system not available'}), 501
+    
+    try:
+        data = request.get_json()
+        home_team = data.get('home_team')
+        away_team = data.get('away_team')
+        total_line = data.get('total_line')
+        over_odds = data.get('over_odds', -110)
+        under_odds = data.get('under_odds', -110)
+        
+        if not all([home_team, away_team, total_line]):
+            return jsonify({'error': 'home_team, away_team, and total_line required'}), 400
+        
+        analysis = nfl_helper.analyze_over_under_total(home_team, away_team, total_line, over_odds, under_odds)
+        
+        return jsonify({
+            'success': True,
+            'over_under_analysis': analysis,
+            'sport': 'NFL'
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error analyzing NFL over/under: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
 # Multi-Sport Endpoints
 @app.route('/sports/supported')
 def supported_sports():
@@ -687,7 +773,7 @@ def supported_sports():
             },
             'NFL': {
                 'available': nfl_helper is not None,
-                'features': ['prop_analysis', 'weather_analysis', 'divisional_analysis', 'enterprise_ai'] if nfl_helper else []
+                'features': ['prop_analysis', 'weather_analysis', 'divisional_analysis', 'moneyline_betting', 'spread_betting', 'over_under_betting', 'enterprise_ai'] if nfl_helper else []
             }
         }
         
