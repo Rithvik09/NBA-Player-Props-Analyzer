@@ -695,3 +695,7 @@
 2025-09-16 15:57:36,461 INFO stopped: nba_props_analyzer (exit status 0)
 2025-09-16 15:57:36,467 INFO spawned: 'nba_props_analyzer' with pid 342258
 2025-09-16 15:57:37,469 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-09-16 21:45:55,954 INFO waiting for nba_props_analyzer to stop
+2025-09-16 21:45:57,719 INFO stopped: nba_props_analyzer (exit status 0)
+2025-09-16 21:45:57,726 INFO spawned: 'nba_props_analyzer' with pid 363340
+2025-09-16 21:45:58,729 INFO success: nba_props_analyzer entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)

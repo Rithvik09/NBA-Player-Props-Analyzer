@@ -3917,3 +3917,18 @@ SyntaxError: invalid syntax
  * Debugger is active!
  * Debugger PIN: 961-301-114
 127.0.0.1 - - [16/Sep/2025 15:57:43] "GET / HTTP/1.1" 200 -
+10.12.112.240 - - [16/Sep/2025 20:27:28] "GET / HTTP/1.1" 200 -
+10.12.112.240 - - [16/Sep/2025 20:27:29] "GET /css/enhanced_style.css HTTP/1.1" 200 -
+10.12.112.240 - - [16/Sep/2025 20:27:30] "GET /analytics/performance HTTP/1.1" 200 -
+10.12.112.240 - - [16/Sep/2025 20:27:30] "GET /bankroll/dashboard HTTP/1.1" 200 -
+10.12.112.240 - - [16/Sep/2025 20:27:37] "POST /sports/switch HTTP/1.1" 200 -
+[2025-09-16 21:46:02,894] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-16 21:46:05,823] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
