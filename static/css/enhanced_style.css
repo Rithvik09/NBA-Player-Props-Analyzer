@@ -1,4 +1,57 @@
-/* Enhanced NBA Props Analyzer Styles */
+/* Enhanced Multi-Sport Betting Platform Styles */
+
+/* Enhanced Betting Header Animations */
+@keyframes headerGlow {
+    0%, 100% { 
+        box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+    }
+    50% { 
+        box-shadow: 0 0 30px rgba(59, 130, 246, 0.6), 0 0 40px rgba(59, 130, 246, 0.3);
+    }
+}
+
+@keyframes iconSpin {
+    0% { transform: rotate(0deg) scale(1); }
+    25% { transform: rotate(90deg) scale(1.1); }
+    50% { transform: rotate(180deg) scale(1); }
+    75% { transform: rotate(270deg) scale(1.1); }
+    100% { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes textShimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+}
+
+@keyframes borderPulse {
+    0%, 100% { border-color: rgba(59, 130, 246, 0.3); }
+    50% { border-color: rgba(59, 130, 246, 0.8); }
+}
+
+/* Betting Header Styles */
+.betting-header-icon {
+    animation: iconSpin 3s ease-in-out infinite;
+}
+
+.betting-header-icon:hover {
+    animation: headerGlow 2s ease-in-out infinite;
+}
+
+.betting-title {
+    background: linear-gradient(90deg, #60a5fa, #34d399, #f472b6, #60a5fa);
+    background-size: 400% 100%;
+    animation: textShimmer 3s ease-in-out infinite;
+}
+
+.betting-card {
+    animation: borderPulse 4s ease-in-out infinite;
+    transition: all 0.3s ease;
+}
+
+.betting-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
 
 /* Custom animations */
 @keyframes fadeIn {

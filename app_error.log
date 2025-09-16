@@ -3891,3 +3891,29 @@ SyntaxError: invalid syntax
 127.0.0.1 - - [16/Sep/2025 15:33:01] "GET / HTTP/1.1" 200 -
 127.0.0.1 - - [16/Sep/2025 15:33:01] "GET / HTTP/1.1" 200 -
 127.0.0.1 - - [16/Sep/2025 15:33:01] "GET / HTTP/1.1" 200 -
+10.12.137.138 - - [16/Sep/2025 15:52:18] "GET / HTTP/1.1" 200 -
+10.12.137.138 - - [16/Sep/2025 15:52:18] "[36mGET /css/enhanced_style.css HTTP/1.1[0m" 304 -
+10.12.137.138 - - [16/Sep/2025 15:52:19] "GET /analytics/performance HTTP/1.1" 200 -
+10.12.137.138 - - [16/Sep/2025 15:52:19] "GET /bankroll/dashboard HTTP/1.1" 200 -
+[2025-09-16 15:56:40,830] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-16 15:56:43,788] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+127.0.0.1 - - [16/Sep/2025 15:56:45] "GET / HTTP/1.1" 200 -
+[2025-09-16 15:57:39,547] INFO in app: Basketball Betting Helper startup
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://169.254.0.21:5000
+[33mPress CTRL+C to quit[0m
+ * Restarting with watchdog (inotify)
+[2025-09-16 15:57:42,040] INFO in app: Basketball Betting Helper startup
+ * Debugger is active!
+ * Debugger PIN: 961-301-114
+127.0.0.1 - - [16/Sep/2025 15:57:43] "GET / HTTP/1.1" 200 -
