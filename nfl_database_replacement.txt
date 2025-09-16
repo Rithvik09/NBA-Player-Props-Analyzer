@@ -1,0 +1,138 @@
+        return [
+            {'id': 'nfl_1', 'full_name': 'Josh Allen', 'position': 'QB', 'team': 'BUF', 'is_active': True},
+            {'id': 'nfl_2', 'full_name': 'Stefon Diggs', 'position': 'WR', 'team': 'HOU', 'is_active': True},
+            {'id': 'nfl_3', 'full_name': 'Amari Cooper', 'position': 'WR', 'team': 'BUF', 'is_active': True},
+            {'id': 'nfl_4', 'full_name': 'Khalil Shakir', 'position': 'WR', 'team': 'BUF', 'is_active': True},
+            {'id': 'nfl_5', 'full_name': 'James Cook', 'position': 'RB', 'team': 'BUF', 'is_active': True},
+            {'id': 'nfl_6', 'full_name': 'Dawson Knox', 'position': 'TE', 'team': 'BUF', 'is_active': True},
+            {'id': 'nfl_7', 'full_name': 'Tua Tagovailoa', 'position': 'QB', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_8', 'full_name': 'Tyreek Hill', 'position': 'WR', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_9', 'full_name': 'Jaylen Waddle', 'position': 'WR', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_10', 'full_name': 'De'Von Achane', 'position': 'RB', 'team': 'MIA', 'is_active': True},
+            {'id': 'nfl_11', 'full_name': 'Aaron Rodgers', 'position': 'QB', 'team': 'NYJ', 'is_active': True},
+            {'id': 'nfl_12', 'full_name': 'Garrett Wilson', 'position': 'WR', 'team': 'NYJ', 'is_active': True},
+            {'id': 'nfl_13', 'full_name': 'Davante Adams', 'position': 'WR', 'team': 'NYJ', 'is_active': True},
+            {'id': 'nfl_14', 'full_name': 'Breece Hall', 'position': 'RB', 'team': 'NYJ', 'is_active': True},
+            {'id': 'nfl_15', 'full_name': 'Drake Maye', 'position': 'QB', 'team': 'NE', 'is_active': True},
+            {'id': 'nfl_16', 'full_name': 'DeMario Douglas', 'position': 'WR', 'team': 'NE', 'is_active': True},
+            {'id': 'nfl_17', 'full_name': 'Rhamondre Stevenson', 'position': 'RB', 'team': 'NE', 'is_active': True},
+            {'id': 'nfl_18', 'full_name': 'Lamar Jackson', 'position': 'QB', 'team': 'BAL', 'is_active': True},
+            {'id': 'nfl_19', 'full_name': 'Mark Andrews', 'position': 'TE', 'team': 'BAL', 'is_active': True},
+            {'id': 'nfl_20', 'full_name': 'Derrick Henry', 'position': 'RB', 'team': 'BAL', 'is_active': True},
+            {'id': 'nfl_21', 'full_name': 'Joe Burrow', 'position': 'QB', 'team': 'CIN', 'is_active': True},
+            {'id': 'nfl_22', 'full_name': 'Ja'Marr Chase', 'position': 'WR', 'team': 'CIN', 'is_active': True},
+            {'id': 'nfl_23', 'full_name': 'Tee Higgins', 'position': 'WR', 'team': 'CIN', 'is_active': True},
+            {'id': 'nfl_24', 'full_name': 'Deshaun Watson', 'position': 'QB', 'team': 'CLE', 'is_active': True},
+            {'id': 'nfl_25', 'full_name': 'Nick Chubb', 'position': 'RB', 'team': 'CLE', 'is_active': True},
+            {'id': 'nfl_26', 'full_name': 'Myles Garrett', 'position': 'DE', 'team': 'CLE', 'is_active': True},
+            {'id': 'nfl_27', 'full_name': 'Russell Wilson', 'position': 'QB', 'team': 'PIT', 'is_active': True},
+            {'id': 'nfl_28', 'full_name': 'George Pickens', 'position': 'WR', 'team': 'PIT', 'is_active': True},
+            {'id': 'nfl_29', 'full_name': 'T.J. Watt', 'position': 'LB', 'team': 'PIT', 'is_active': True},
+            {'id': 'nfl_30', 'full_name': 'C.J. Stroud', 'position': 'QB', 'team': 'HOU', 'is_active': True},
+            {'id': 'nfl_31', 'full_name': 'Nico Collins', 'position': 'WR', 'team': 'HOU', 'is_active': True},
+            {'id': 'nfl_32', 'full_name': 'Tank Dell', 'position': 'WR', 'team': 'HOU', 'is_active': True},
+            {'id': 'nfl_33', 'full_name': 'Anthony Richardson', 'position': 'QB', 'team': 'IND', 'is_active': True},
+            {'id': 'nfl_34', 'full_name': 'Michael Pittman Jr.', 'position': 'WR', 'team': 'IND', 'is_active': True},
+            {'id': 'nfl_35', 'full_name': 'Jonathan Taylor', 'position': 'RB', 'team': 'IND', 'is_active': True},
+            {'id': 'nfl_36', 'full_name': 'Trevor Lawrence', 'position': 'QB', 'team': 'JAX', 'is_active': True},
+            {'id': 'nfl_37', 'full_name': 'Calvin Ridley', 'position': 'WR', 'team': 'JAX', 'is_active': True},
+            {'id': 'nfl_38', 'full_name': 'Evan Engram', 'position': 'TE', 'team': 'JAX', 'is_active': True},
+            {'id': 'nfl_39', 'full_name': 'Will Levis', 'position': 'QB', 'team': 'TEN', 'is_active': True},
+            {'id': 'nfl_40', 'full_name': 'DeAndre Hopkins', 'position': 'WR', 'team': 'TEN', 'is_active': True},
+            {'id': 'nfl_41', 'full_name': 'Tony Pollard', 'position': 'RB', 'team': 'TEN', 'is_active': True},
+            {'id': 'nfl_42', 'full_name': 'Bo Nix', 'position': 'QB', 'team': 'DEN', 'is_active': True},
+            {'id': 'nfl_43', 'full_name': 'Courtland Sutton', 'position': 'WR', 'team': 'DEN', 'is_active': True},
+            {'id': 'nfl_44', 'full_name': 'Jerry Jeudy', 'position': 'WR', 'team': 'CLE', 'is_active': True},
+            {'id': 'nfl_45', 'full_name': 'Patrick Mahomes', 'position': 'QB', 'team': 'KC', 'is_active': True},
+            {'id': 'nfl_46', 'full_name': 'Travis Kelce', 'position': 'TE', 'team': 'KC', 'is_active': True},
+            {'id': 'nfl_47', 'full_name': 'DeAndre Washington', 'position': 'RB', 'team': 'KC', 'is_active': True},
+            {'id': 'nfl_48', 'full_name': 'Gardner Minshew', 'position': 'QB', 'team': 'LV', 'is_active': True},
+            {'id': 'nfl_49', 'full_name': 'Davante Adams', 'position': 'WR', 'team': 'NYJ', 'is_active': True},
+            {'id': 'nfl_50', 'full_name': 'Maxx Crosby', 'position': 'DE', 'team': 'LV', 'is_active': True},
+            {'id': 'nfl_51', 'full_name': 'Justin Herbert', 'position': 'QB', 'team': 'LAC', 'is_active': True},
+            {'id': 'nfl_52', 'full_name': 'Keenan Allen', 'position': 'WR', 'team': 'CHI', 'is_active': True},
+            {'id': 'nfl_53', 'full_name': 'Ladd McConkey', 'position': 'WR', 'team': 'LAC', 'is_active': True},
+            {'id': 'nfl_54', 'full_name': 'Dak Prescott', 'position': 'QB', 'team': 'DAL', 'is_active': True},
+            {'id': 'nfl_55', 'full_name': 'CeeDee Lamb', 'position': 'WR', 'team': 'DAL', 'is_active': True},
+            {'id': 'nfl_56', 'full_name': 'Ezekiel Elliott', 'position': 'RB', 'team': 'DAL', 'is_active': True},
+            {'id': 'nfl_57', 'full_name': 'Daniel Jones', 'position': 'QB', 'team': 'NYG', 'is_active': True},
+            {'id': 'nfl_58', 'full_name': 'Malik Nabers', 'position': 'WR', 'team': 'NYG', 'is_active': True},
+            {'id': 'nfl_59', 'full_name': 'Saquon Barkley', 'position': 'RB', 'team': 'PHI', 'is_active': True},
+            {'id': 'nfl_60', 'full_name': 'Jalen Hurts', 'position': 'QB', 'team': 'PHI', 'is_active': True},
+            {'id': 'nfl_61', 'full_name': 'A.J. Brown', 'position': 'WR', 'team': 'PHI', 'is_active': True},
+            {'id': 'nfl_62', 'full_name': 'DeVonta Smith', 'position': 'WR', 'team': 'PHI', 'is_active': True},
+            {'id': 'nfl_63', 'full_name': 'Jayden Daniels', 'position': 'QB', 'team': 'WAS', 'is_active': True},
+            {'id': 'nfl_64', 'full_name': 'Terry McLaurin', 'position': 'WR', 'team': 'WAS', 'is_active': True},
+            {'id': 'nfl_65', 'full_name': 'Brian Robinson Jr.', 'position': 'RB', 'team': 'WAS', 'is_active': True},
+            {'id': 'nfl_66', 'full_name': 'Caleb Williams', 'position': 'QB', 'team': 'CHI', 'is_active': True},
+            {'id': 'nfl_67', 'full_name': 'DJ Moore', 'position': 'WR', 'team': 'CHI', 'is_active': True},
+            {'id': 'nfl_68', 'full_name': 'Rome Odunze', 'position': 'WR', 'team': 'CHI', 'is_active': True},
+            {'id': 'nfl_69', 'full_name': 'Jared Goff', 'position': 'QB', 'team': 'DET', 'is_active': True},
+            {'id': 'nfl_70', 'full_name': 'Amon-Ra St. Brown', 'position': 'WR', 'team': 'DET', 'is_active': True},
+            {'id': 'nfl_71', 'full_name': 'Jahmyr Gibbs', 'position': 'RB', 'team': 'DET', 'is_active': True},
+            {'id': 'nfl_72', 'full_name': 'Jordan Love', 'position': 'QB', 'team': 'GB', 'is_active': True},
+            {'id': 'nfl_73', 'full_name': 'Jayden Reed', 'position': 'WR', 'team': 'GB', 'is_active': True},
+            {'id': 'nfl_74', 'full_name': 'Josh Jacobs', 'position': 'RB', 'team': 'GB', 'is_active': True},
+            {'id': 'nfl_75', 'full_name': 'Sam Darnold', 'position': 'QB', 'team': 'MIN', 'is_active': True},
+            {'id': 'nfl_76', 'full_name': 'Justin Jefferson', 'position': 'WR', 'team': 'MIN', 'is_active': True},
+            {'id': 'nfl_77', 'full_name': 'Jordan Addison', 'position': 'WR', 'team': 'MIN', 'is_active': True},
+            {'id': 'nfl_78', 'full_name': 'Kirk Cousins', 'position': 'QB', 'team': 'ATL', 'is_active': True},
+            {'id': 'nfl_79', 'full_name': 'Drake London', 'position': 'WR', 'team': 'ATL', 'is_active': True},
+            {'id': 'nfl_80', 'full_name': 'Kyle Pitts', 'position': 'TE', 'team': 'ATL', 'is_active': True},
+            {'id': 'nfl_81', 'full_name': 'Bryce Young', 'position': 'QB', 'team': 'CAR', 'is_active': True},
+            {'id': 'nfl_82', 'full_name': 'DJ Chark', 'position': 'WR', 'team': 'CAR', 'is_active': True},
+            {'id': 'nfl_83', 'full_name': 'Chuba Hubbard', 'position': 'RB', 'team': 'CAR', 'is_active': True},
+            {'id': 'nfl_84', 'full_name': 'Derek Carr', 'position': 'QB', 'team': 'NO', 'is_active': True},
+            {'id': 'nfl_85', 'full_name': 'Chris Olave', 'position': 'WR', 'team': 'NO', 'is_active': True},
+            {'id': 'nfl_86', 'full_name': 'Alvin Kamara', 'position': 'RB', 'team': 'NO', 'is_active': True},
+            {'id': 'nfl_87', 'full_name': 'Baker Mayfield', 'position': 'QB', 'team': 'TB', 'is_active': True},
+            {'id': 'nfl_88', 'full_name': 'Mike Evans', 'position': 'WR', 'team': 'TB', 'is_active': True},
+            {'id': 'nfl_89', 'full_name': 'Chris Godwin', 'position': 'WR', 'team': 'TB', 'is_active': True},
+            {'id': 'nfl_90', 'full_name': 'Kyler Murray', 'position': 'QB', 'team': 'ARI', 'is_active': True},
+            {'id': 'nfl_91', 'full_name': 'Marvin Harrison Jr.', 'position': 'WR', 'team': 'ARI', 'is_active': True},
+            {'id': 'nfl_92', 'full_name': 'James Conner', 'position': 'RB', 'team': 'ARI', 'is_active': True},
+            {'id': 'nfl_93', 'full_name': 'Matthew Stafford', 'position': 'QB', 'team': 'LAR', 'is_active': True},
+            {'id': 'nfl_94', 'full_name': 'Cooper Kupp', 'position': 'WR', 'team': 'LAR', 'is_active': True},
+            {'id': 'nfl_95', 'full_name': 'Puka Nacua', 'position': 'WR', 'team': 'LAR', 'is_active': True},
+            {'id': 'nfl_96', 'full_name': 'Brock Purdy', 'position': 'QB', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_97', 'full_name': 'Deebo Samuel', 'position': 'WR', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_98', 'full_name': 'Christian McCaffrey', 'position': 'RB', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_99', 'full_name': 'George Kittle', 'position': 'TE', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_100', 'full_name': 'Fred Warner', 'position': 'LB', 'team': 'SF', 'is_active': True},
+            {'id': 'nfl_101', 'full_name': 'Geno Smith', 'position': 'QB', 'team': 'SEA', 'is_active': True},
+            {'id': 'nfl_102', 'full_name': 'DK Metcalf', 'position': 'WR', 'team': 'SEA', 'is_active': True},
+            {'id': 'nfl_103', 'full_name': 'Tyler Lockett', 'position': 'WR', 'team': 'SEA', 'is_active': True},
+            {'id': 'nfl_401', 'full_name': 'Cam Ward', 'position': 'QB', 'team': 'TEN', 'is_active': True},  # 2025 Draft Pick #1
+            {'id': 'nfl_402', 'full_name': 'Travis Hunter', 'position': 'WR', 'team': 'JAX', 'is_active': True},  # 2025 Draft Pick #2
+            {'id': 'nfl_403', 'full_name': 'Abdul Carter', 'position': 'EDGE', 'team': 'NYG', 'is_active': True},  # 2025 Draft Pick #3
+            {'id': 'nfl_404', 'full_name': 'Will Campbell', 'position': 'OT', 'team': 'NE', 'is_active': True},  # 2025 Draft Pick #4
+            {'id': 'nfl_405', 'full_name': 'Mason Graham', 'position': 'DT', 'team': 'CLE', 'is_active': True},  # 2025 Draft Pick #5
+            {'id': 'nfl_406', 'full_name': 'Ashton Jeanty', 'position': 'RB', 'team': 'LV', 'is_active': True},  # 2025 Draft Pick #6
+            {'id': 'nfl_407', 'full_name': 'Armand Membou', 'position': 'OT', 'team': 'NYJ', 'is_active': True},  # 2025 Draft Pick #7
+            {'id': 'nfl_408', 'full_name': 'Tetairoa McMillan', 'position': 'WR', 'team': 'CAR', 'is_active': True},  # 2025 Draft Pick #8
+            {'id': 'nfl_409', 'full_name': 'Kelvin Banks Jr.', 'position': 'OT', 'team': 'MIA', 'is_active': True},  # 2025 Draft Pick #9
+            {'id': 'nfl_410', 'full_name': 'Colston Loveland', 'position': 'TE', 'team': 'CHI', 'is_active': True},  # 2025 Draft Pick #10
+            {'id': 'nfl_411', 'full_name': 'Mykel Williams', 'position': 'EDGE', 'team': 'SF', 'is_active': True},  # 2025 Draft Pick #11
+            {'id': 'nfl_412', 'full_name': 'Tyler Booker', 'position': 'OG', 'team': 'IND', 'is_active': True},  # 2025 Draft Pick #12
+            {'id': 'nfl_413', 'full_name': 'Kenneth Grant', 'position': 'DT', 'team': 'DET', 'is_active': True},  # 2025 Draft Pick #13
+            {'id': 'nfl_414', 'full_name': 'Tyler Warren', 'position': 'TE', 'team': 'PHI', 'is_active': True},  # 2025 Draft Pick #14
+            {'id': 'nfl_415', 'full_name': 'Jalon Walker', 'position': 'LB', 'team': 'ATL', 'is_active': True},  # 2025 Draft Pick #15
+            {'id': 'nfl_416', 'full_name': 'Walter Nolen', 'position': 'DT', 'team': 'ARI', 'is_active': True},  # 2025 Draft Pick #16
+            {'id': 'nfl_417', 'full_name': 'Shemar Stewart', 'position': 'DT', 'team': 'CIN', 'is_active': True},  # 2025 Draft Pick #17
+            {'id': 'nfl_418', 'full_name': 'Grey Zabel', 'position': 'C', 'team': 'HOU', 'is_active': True},  # 2025 Draft Pick #18
+            {'id': 'nfl_419', 'full_name': 'Emeka Egbuka', 'position': 'WR', 'team': 'MIA', 'is_active': True},  # 2025 Draft Pick #19
+            {'id': 'nfl_420', 'full_name': 'Jahdae Barron', 'position': 'CB', 'team': 'LAC', 'is_active': True},  # 2025 Draft Pick #20
+            {'id': 'nfl_421', 'full_name': 'Derrick Harmon', 'position': 'DT', 'team': 'WAS', 'is_active': True},  # 2025 Draft Pick #21
+            {'id': 'nfl_422', 'full_name': 'Omarion Hampton', 'position': 'RB', 'team': 'PIT', 'is_active': True},  # 2025 Draft Pick #22
+            {'id': 'nfl_423', 'full_name': 'Matthew Golden', 'position': 'WR', 'team': 'MIN', 'is_active': True},  # 2025 Draft Pick #23
+            {'id': 'nfl_424', 'full_name': 'Donovan Jackson', 'position': 'OG', 'team': 'GB', 'is_active': True},  # 2025 Draft Pick #24
+            {'id': 'nfl_425', 'full_name': 'Jaxson Dart', 'position': 'QB', 'team': 'DEN', 'is_active': True},  # 2025 Draft Pick #25
+            {'id': 'nfl_426', 'full_name': 'James Pearce Jr.', 'position': 'EDGE', 'team': 'ATL', 'is_active': True},  # 2025 Draft Pick #26
+            {'id': 'nfl_427', 'full_name': 'Malaki Starks', 'position': 'S', 'team': 'TB', 'is_active': True},  # 2025 Draft Pick #27
+            {'id': 'nfl_428', 'full_name': 'Tyleik Williams', 'position': 'DT', 'team': 'NO', 'is_active': True},  # 2025 Draft Pick #28
+            {'id': 'nfl_429', 'full_name': 'Josh Conerly Jr.', 'position': 'OT', 'team': 'SEA', 'is_active': True},  # 2025 Draft Pick #29
+            {'id': 'nfl_430', 'full_name': 'Maxwell Hairston', 'position': 'CB', 'team': 'BUF', 'is_active': True},  # 2025 Draft Pick #30
+            {'id': 'nfl_431', 'full_name': 'Jihaad Campbell', 'position': 'LB', 'team': 'LAR', 'is_active': True},  # 2025 Draft Pick #31
+            {'id': 'nfl_432', 'full_name': 'Josh Simmons', 'position': 'OT', 'team': 'KC', 'is_active': True},  # 2025 Draft Pick #32
+            {'id': 'nfl_433', 'full_name': 'Shedeur Sanders', 'position': 'QB', 'team': 'CLE', 'is_active': True},  # 2025 Round 5, Pick #144
+        ]

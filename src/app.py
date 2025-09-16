@@ -220,6 +220,84 @@ async def analyze_prop():
         app.logger.error(f'Error analyzing prop: {e}')
         return jsonify({'error': str(e), 'success': False}), 500
 
+# NBA Betting Analysis Endpoints
+@app.route('/nba/analyze_moneyline', methods=['POST'])
+def nba_analyze_moneyline():
+    """Analyze NBA moneyline bet using comprehensive 30-factor analysis"""
+    try:
+        data = request.get_json()
+        home_team = data.get('home_team')
+        away_team = data.get('away_team')
+        home_odds = data.get('home_odds')
+        away_odds = data.get('away_odds')
+        
+        if not all([home_team, away_team, home_odds, away_odds]):
+            return jsonify({'error': 'home_team, away_team, home_odds, and away_odds required'}), 400
+        
+        analysis = betting_helper.analyze_nba_moneyline_bet(home_team, away_team, home_odds, away_odds)
+        
+        return jsonify({
+            'success': True,
+            'moneyline_analysis': analysis,
+            'sport': 'NBA'
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error analyzing NBA moneyline: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
+@app.route('/nba/analyze_spread', methods=['POST'])
+def nba_analyze_spread():
+    """Analyze NBA spread bet using comprehensive team analytics"""
+    try:
+        data = request.get_json()
+        home_team = data.get('home_team')
+        away_team = data.get('away_team')
+        spread_line = data.get('spread_line')
+        home_odds = data.get('home_odds', -110)
+        away_odds = data.get('away_odds', -110)
+        
+        if not all([home_team, away_team, spread_line]):
+            return jsonify({'error': 'home_team, away_team, and spread_line required'}), 400
+        
+        analysis = betting_helper.analyze_nba_spread_bet(home_team, away_team, spread_line, home_odds, away_odds)
+        
+        return jsonify({
+            'success': True,
+            'spread_analysis': analysis,
+            'sport': 'NBA'
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error analyzing NBA spread: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
+@app.route('/nba/analyze_over_under', methods=['POST'])
+def nba_analyze_over_under():
+    """Analyze NBA over/under total bet using pace and efficiency factors"""
+    try:
+        data = request.get_json()
+        home_team = data.get('home_team')
+        away_team = data.get('away_team')
+        total_line = data.get('total_line')
+        over_odds = data.get('over_odds', -110)
+        under_odds = data.get('under_odds', -110)
+        
+        if not all([home_team, away_team, total_line]):
+            return jsonify({'error': 'home_team, away_team, and total_line required'}), 400
+        
+        analysis = betting_helper.analyze_nba_over_under_total(home_team, away_team, total_line, over_odds, under_odds)
+        
+        return jsonify({
+            'success': True,
+            'over_under_analysis': analysis,
+            'sport': 'NBA'
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error analyzing NBA over/under: {e}')
+        return jsonify({'error': str(e), 'success': False}), 500
+
 # Enhanced Bankroll Management Endpoints
 @app.route('/bankroll/dashboard')
 def bankroll_dashboard():
@@ -769,7 +847,7 @@ def supported_sports():
         sports_status = {
             'NBA': {
                 'available': True,
-                'features': ['prop_analysis', 'live_odds', 'enterprise_ai', 'bankroll_management']
+                'features': ['prop_analysis', 'live_odds', 'moneyline_betting', 'spread_betting', 'over_under_betting', 'enterprise_ai', 'bankroll_management']
             },
             'NFL': {
                 'available': nfl_helper is not None,

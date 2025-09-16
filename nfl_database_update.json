@@ -1,0 +1,1053 @@
+[
+  {
+    "id": "nfl_1",
+    "full_name": "Josh Allen",
+    "position": "QB",
+    "team": "BUF",
+    "is_active": true
+  },
+  {
+    "id": "nfl_2",
+    "full_name": "Stefon Diggs",
+    "position": "WR",
+    "team": "HOU",
+    "is_active": true
+  },
+  {
+    "id": "nfl_3",
+    "full_name": "Amari Cooper",
+    "position": "WR",
+    "team": "BUF",
+    "is_active": true
+  },
+  {
+    "id": "nfl_4",
+    "full_name": "Khalil Shakir",
+    "position": "WR",
+    "team": "BUF",
+    "is_active": true
+  },
+  {
+    "id": "nfl_5",
+    "full_name": "James Cook",
+    "position": "RB",
+    "team": "BUF",
+    "is_active": true
+  },
+  {
+    "id": "nfl_6",
+    "full_name": "Dawson Knox",
+    "position": "TE",
+    "team": "BUF",
+    "is_active": true
+  },
+  {
+    "id": "nfl_7",
+    "full_name": "Tua Tagovailoa",
+    "position": "QB",
+    "team": "MIA",
+    "is_active": true
+  },
+  {
+    "id": "nfl_8",
+    "full_name": "Tyreek Hill",
+    "position": "WR",
+    "team": "MIA",
+    "is_active": true
+  },
+  {
+    "id": "nfl_9",
+    "full_name": "Jaylen Waddle",
+    "position": "WR",
+    "team": "MIA",
+    "is_active": true
+  },
+  {
+    "id": "nfl_10",
+    "full_name": "De'Von Achane",
+    "position": "RB",
+    "team": "MIA",
+    "is_active": true
+  },
+  {
+    "id": "nfl_11",
+    "full_name": "Aaron Rodgers",
+    "position": "QB",
+    "team": "NYJ",
+    "is_active": true
+  },
+  {
+    "id": "nfl_12",
+    "full_name": "Garrett Wilson",
+    "position": "WR",
+    "team": "NYJ",
+    "is_active": true
+  },
+  {
+    "id": "nfl_13",
+    "full_name": "Davante Adams",
+    "position": "WR",
+    "team": "NYJ",
+    "is_active": true
+  },
+  {
+    "id": "nfl_14",
+    "full_name": "Breece Hall",
+    "position": "RB",
+    "team": "NYJ",
+    "is_active": true
+  },
+  {
+    "id": "nfl_15",
+    "full_name": "Drake Maye",
+    "position": "QB",
+    "team": "NE",
+    "is_active": true
+  },
+  {
+    "id": "nfl_16",
+    "full_name": "DeMario Douglas",
+    "position": "WR",
+    "team": "NE",
+    "is_active": true
+  },
+  {
+    "id": "nfl_17",
+    "full_name": "Rhamondre Stevenson",
+    "position": "RB",
+    "team": "NE",
+    "is_active": true
+  },
+  {
+    "id": "nfl_18",
+    "full_name": "Lamar Jackson",
+    "position": "QB",
+    "team": "BAL",
+    "is_active": true
+  },
+  {
+    "id": "nfl_19",
+    "full_name": "Mark Andrews",
+    "position": "TE",
+    "team": "BAL",
+    "is_active": true
+  },
+  {
+    "id": "nfl_20",
+    "full_name": "Derrick Henry",
+    "position": "RB",
+    "team": "BAL",
+    "is_active": true
+  },
+  {
+    "id": "nfl_21",
+    "full_name": "Joe Burrow",
+    "position": "QB",
+    "team": "CIN",
+    "is_active": true
+  },
+  {
+    "id": "nfl_22",
+    "full_name": "Ja'Marr Chase",
+    "position": "WR",
+    "team": "CIN",
+    "is_active": true
+  },
+  {
+    "id": "nfl_23",
+    "full_name": "Tee Higgins",
+    "position": "WR",
+    "team": "CIN",
+    "is_active": true
+  },
+  {
+    "id": "nfl_24",
+    "full_name": "Deshaun Watson",
+    "position": "QB",
+    "team": "CLE",
+    "is_active": true
+  },
+  {
+    "id": "nfl_25",
+    "full_name": "Nick Chubb",
+    "position": "RB",
+    "team": "CLE",
+    "is_active": true
+  },
+  {
+    "id": "nfl_26",
+    "full_name": "Myles Garrett",
+    "position": "DE",
+    "team": "CLE",
+    "is_active": true
+  },
+  {
+    "id": "nfl_27",
+    "full_name": "Russell Wilson",
+    "position": "QB",
+    "team": "PIT",
+    "is_active": true
+  },
+  {
+    "id": "nfl_28",
+    "full_name": "George Pickens",
+    "position": "WR",
+    "team": "PIT",
+    "is_active": true
+  },
+  {
+    "id": "nfl_29",
+    "full_name": "T.J. Watt",
+    "position": "LB",
+    "team": "PIT",
+    "is_active": true
+  },
+  {
+    "id": "nfl_30",
+    "full_name": "C.J. Stroud",
+    "position": "QB",
+    "team": "HOU",
+    "is_active": true
+  },
+  {
+    "id": "nfl_31",
+    "full_name": "Nico Collins",
+    "position": "WR",
+    "team": "HOU",
+    "is_active": true
+  },
+  {
+    "id": "nfl_32",
+    "full_name": "Tank Dell",
+    "position": "WR",
+    "team": "HOU",
+    "is_active": true
+  },
+  {
+    "id": "nfl_33",
+    "full_name": "Anthony Richardson",
+    "position": "QB",
+    "team": "IND",
+    "is_active": true
+  },
+  {
+    "id": "nfl_34",
+    "full_name": "Michael Pittman Jr.",
+    "position": "WR",
+    "team": "IND",
+    "is_active": true
+  },
+  {
+    "id": "nfl_35",
+    "full_name": "Jonathan Taylor",
+    "position": "RB",
+    "team": "IND",
+    "is_active": true
+  },
+  {
+    "id": "nfl_36",
+    "full_name": "Trevor Lawrence",
+    "position": "QB",
+    "team": "JAX",
+    "is_active": true
+  },
+  {
+    "id": "nfl_37",
+    "full_name": "Calvin Ridley",
+    "position": "WR",
+    "team": "JAX",
+    "is_active": true
+  },
+  {
+    "id": "nfl_38",
+    "full_name": "Evan Engram",
+    "position": "TE",
+    "team": "JAX",
+    "is_active": true
+  },
+  {
+    "id": "nfl_39",
+    "full_name": "Will Levis",
+    "position": "QB",
+    "team": "TEN",
+    "is_active": true
+  },
+  {
+    "id": "nfl_40",
+    "full_name": "DeAndre Hopkins",
+    "position": "WR",
+    "team": "TEN",
+    "is_active": true
+  },
+  {
+    "id": "nfl_41",
+    "full_name": "Tony Pollard",
+    "position": "RB",
+    "team": "TEN",
+    "is_active": true
+  },
+  {
+    "id": "nfl_42",
+    "full_name": "Bo Nix",
+    "position": "QB",
+    "team": "DEN",
+    "is_active": true
+  },
+  {
+    "id": "nfl_43",
+    "full_name": "Courtland Sutton",
+    "position": "WR",
+    "team": "DEN",
+    "is_active": true
+  },
+  {
+    "id": "nfl_44",
+    "full_name": "Jerry Jeudy",
+    "position": "WR",
+    "team": "CLE",
+    "is_active": true
+  },
+  {
+    "id": "nfl_45",
+    "full_name": "Patrick Mahomes",
+    "position": "QB",
+    "team": "KC",
+    "is_active": true
+  },
+  {
+    "id": "nfl_46",
+    "full_name": "Travis Kelce",
+    "position": "TE",
+    "team": "KC",
+    "is_active": true
+  },
+  {
+    "id": "nfl_47",
+    "full_name": "DeAndre Washington",
+    "position": "RB",
+    "team": "KC",
+    "is_active": true
+  },
+  {
+    "id": "nfl_48",
+    "full_name": "Gardner Minshew",
+    "position": "QB",
+    "team": "LV",
+    "is_active": true
+  },
+  {
+    "id": "nfl_49",
+    "full_name": "Davante Adams",
+    "position": "WR",
+    "team": "NYJ",
+    "is_active": true
+  },
+  {
+    "id": "nfl_50",
+    "full_name": "Maxx Crosby",
+    "position": "DE",
+    "team": "LV",
+    "is_active": true
+  },
+  {
+    "id": "nfl_51",
+    "full_name": "Justin Herbert",
+    "position": "QB",
+    "team": "LAC",
+    "is_active": true
+  },
+  {
+    "id": "nfl_52",
+    "full_name": "Keenan Allen",
+    "position": "WR",
+    "team": "CHI",
+    "is_active": true
+  },
+  {
+    "id": "nfl_53",
+    "full_name": "Ladd McConkey",
+    "position": "WR",
+    "team": "LAC",
+    "is_active": true
+  },
+  {
+    "id": "nfl_54",
+    "full_name": "Dak Prescott",
+    "position": "QB",
+    "team": "DAL",
+    "is_active": true
+  },
+  {
+    "id": "nfl_55",
+    "full_name": "CeeDee Lamb",
+    "position": "WR",
+    "team": "DAL",
+    "is_active": true
+  },
+  {
+    "id": "nfl_56",
+    "full_name": "Ezekiel Elliott",
+    "position": "RB",
+    "team": "DAL",
+    "is_active": true
+  },
+  {
+    "id": "nfl_57",
+    "full_name": "Daniel Jones",
+    "position": "QB",
+    "team": "NYG",
+    "is_active": true
+  },
+  {
+    "id": "nfl_58",
+    "full_name": "Malik Nabers",
+    "position": "WR",
+    "team": "NYG",
+    "is_active": true
+  },
+  {
+    "id": "nfl_59",
+    "full_name": "Saquon Barkley",
+    "position": "RB",
+    "team": "PHI",
+    "is_active": true
+  },
+  {
+    "id": "nfl_60",
+    "full_name": "Jalen Hurts",
+    "position": "QB",
+    "team": "PHI",
+    "is_active": true
+  },
+  {
+    "id": "nfl_61",
+    "full_name": "A.J. Brown",
+    "position": "WR",
+    "team": "PHI",
+    "is_active": true
+  },
+  {
+    "id": "nfl_62",
+    "full_name": "DeVonta Smith",
+    "position": "WR",
+    "team": "PHI",
+    "is_active": true
+  },
+  {
+    "id": "nfl_63",
+    "full_name": "Jayden Daniels",
+    "position": "QB",
+    "team": "WAS",
+    "is_active": true
+  },
+  {
+    "id": "nfl_64",
+    "full_name": "Terry McLaurin",
+    "position": "WR",
+    "team": "WAS",
+    "is_active": true
+  },
+  {
+    "id": "nfl_65",
+    "full_name": "Brian Robinson Jr.",
+    "position": "RB",
+    "team": "WAS",
+    "is_active": true
+  },
+  {
+    "id": "nfl_66",
+    "full_name": "Caleb Williams",
+    "position": "QB",
+    "team": "CHI",
+    "is_active": true
+  },
+  {
+    "id": "nfl_67",
+    "full_name": "DJ Moore",
+    "position": "WR",
+    "team": "CHI",
+    "is_active": true
+  },
+  {
+    "id": "nfl_68",
+    "full_name": "Rome Odunze",
+    "position": "WR",
+    "team": "CHI",
+    "is_active": true
+  },
+  {
+    "id": "nfl_69",
+    "full_name": "Jared Goff",
+    "position": "QB",
+    "team": "DET",
+    "is_active": true
+  },
+  {
+    "id": "nfl_70",
+    "full_name": "Amon-Ra St. Brown",
+    "position": "WR",
+    "team": "DET",
+    "is_active": true
+  },
+  {
+    "id": "nfl_71",
+    "full_name": "Jahmyr Gibbs",
+    "position": "RB",
+    "team": "DET",
+    "is_active": true
+  },
+  {
+    "id": "nfl_72",
+    "full_name": "Jordan Love",
+    "position": "QB",
+    "team": "GB",
+    "is_active": true
+  },
+  {
+    "id": "nfl_73",
+    "full_name": "Jayden Reed",
+    "position": "WR",
+    "team": "GB",
+    "is_active": true
+  },
+  {
+    "id": "nfl_74",
+    "full_name": "Josh Jacobs",
+    "position": "RB",
+    "team": "GB",
+    "is_active": true
+  },
+  {
+    "id": "nfl_75",
+    "full_name": "Sam Darnold",
+    "position": "QB",
+    "team": "MIN",
+    "is_active": true
+  },
+  {
+    "id": "nfl_76",
+    "full_name": "Justin Jefferson",
+    "position": "WR",
+    "team": "MIN",
+    "is_active": true
+  },
+  {
+    "id": "nfl_77",
+    "full_name": "Jordan Addison",
+    "position": "WR",
+    "team": "MIN",
+    "is_active": true
+  },
+  {
+    "id": "nfl_78",
+    "full_name": "Kirk Cousins",
+    "position": "QB",
+    "team": "ATL",
+    "is_active": true
+  },
+  {
+    "id": "nfl_79",
+    "full_name": "Drake London",
+    "position": "WR",
+    "team": "ATL",
+    "is_active": true
+  },
+  {
+    "id": "nfl_80",
+    "full_name": "Kyle Pitts",
+    "position": "TE",
+    "team": "ATL",
+    "is_active": true
+  },
+  {
+    "id": "nfl_81",
+    "full_name": "Bryce Young",
+    "position": "QB",
+    "team": "CAR",
+    "is_active": true
+  },
+  {
+    "id": "nfl_82",
+    "full_name": "DJ Chark",
+    "position": "WR",
+    "team": "CAR",
+    "is_active": true
+  },
+  {
+    "id": "nfl_83",
+    "full_name": "Chuba Hubbard",
+    "position": "RB",
+    "team": "CAR",
+    "is_active": true
+  },
+  {
+    "id": "nfl_84",
+    "full_name": "Derek Carr",
+    "position": "QB",
+    "team": "NO",
+    "is_active": true
+  },
+  {
+    "id": "nfl_85",
+    "full_name": "Chris Olave",
+    "position": "WR",
+    "team": "NO",
+    "is_active": true
+  },
+  {
+    "id": "nfl_86",
+    "full_name": "Alvin Kamara",
+    "position": "RB",
+    "team": "NO",
+    "is_active": true
+  },
+  {
+    "id": "nfl_87",
+    "full_name": "Baker Mayfield",
+    "position": "QB",
+    "team": "TB",
+    "is_active": true
+  },
+  {
+    "id": "nfl_88",
+    "full_name": "Mike Evans",
+    "position": "WR",
+    "team": "TB",
+    "is_active": true
+  },
+  {
+    "id": "nfl_89",
+    "full_name": "Chris Godwin",
+    "position": "WR",
+    "team": "TB",
+    "is_active": true
+  },
+  {
+    "id": "nfl_90",
+    "full_name": "Kyler Murray",
+    "position": "QB",
+    "team": "ARI",
+    "is_active": true
+  },
+  {
+    "id": "nfl_91",
+    "full_name": "Marvin Harrison Jr.",
+    "position": "WR",
+    "team": "ARI",
+    "is_active": true
+  },
+  {
+    "id": "nfl_92",
+    "full_name": "James Conner",
+    "position": "RB",
+    "team": "ARI",
+    "is_active": true
+  },
+  {
+    "id": "nfl_93",
+    "full_name": "Matthew Stafford",
+    "position": "QB",
+    "team": "LAR",
+    "is_active": true
+  },
+  {
+    "id": "nfl_94",
+    "full_name": "Cooper Kupp",
+    "position": "WR",
+    "team": "LAR",
+    "is_active": true
+  },
+  {
+    "id": "nfl_95",
+    "full_name": "Puka Nacua",
+    "position": "WR",
+    "team": "LAR",
+    "is_active": true
+  },
+  {
+    "id": "nfl_96",
+    "full_name": "Brock Purdy",
+    "position": "QB",
+    "team": "SF",
+    "is_active": true
+  },
+  {
+    "id": "nfl_97",
+    "full_name": "Deebo Samuel",
+    "position": "WR",
+    "team": "SF",
+    "is_active": true
+  },
+  {
+    "id": "nfl_98",
+    "full_name": "Christian McCaffrey",
+    "position": "RB",
+    "team": "SF",
+    "is_active": true
+  },
+  {
+    "id": "nfl_99",
+    "full_name": "George Kittle",
+    "position": "TE",
+    "team": "SF",
+    "is_active": true
+  },
+  {
+    "id": "nfl_100",
+    "full_name": "Fred Warner",
+    "position": "LB",
+    "team": "SF",
+    "is_active": true
+  },
+  {
+    "id": "nfl_101",
+    "full_name": "Geno Smith",
+    "position": "QB",
+    "team": "SEA",
+    "is_active": true
+  },
+  {
+    "id": "nfl_102",
+    "full_name": "DK Metcalf",
+    "position": "WR",
+    "team": "SEA",
+    "is_active": true
+  },
+  {
+    "id": "nfl_103",
+    "full_name": "Tyler Lockett",
+    "position": "WR",
+    "team": "SEA",
+    "is_active": true
+  },
+  {
+    "id": "nfl_401",
+    "full_name": "Cam Ward",
+    "position": "QB",
+    "team": "TEN",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 1,
+    "college": "Miami"
+  },
+  {
+    "id": "nfl_402",
+    "full_name": "Travis Hunter",
+    "position": "WR",
+    "team": "JAX",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 2,
+    "college": "Colorado"
+  },
+  {
+    "id": "nfl_403",
+    "full_name": "Abdul Carter",
+    "position": "EDGE",
+    "team": "NYG",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 3,
+    "college": "Penn State"
+  },
+  {
+    "id": "nfl_404",
+    "full_name": "Will Campbell",
+    "position": "OT",
+    "team": "NE",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 4,
+    "college": "LSU"
+  },
+  {
+    "id": "nfl_405",
+    "full_name": "Mason Graham",
+    "position": "DT",
+    "team": "CLE",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 5,
+    "college": "Michigan"
+  },
+  {
+    "id": "nfl_406",
+    "full_name": "Ashton Jeanty",
+    "position": "RB",
+    "team": "LV",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 6,
+    "college": "Boise State"
+  },
+  {
+    "id": "nfl_407",
+    "full_name": "Armand Membou",
+    "position": "OT",
+    "team": "NYJ",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 7,
+    "college": "Missouri"
+  },
+  {
+    "id": "nfl_408",
+    "full_name": "Tetairoa McMillan",
+    "position": "WR",
+    "team": "CAR",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 8,
+    "college": "Arizona"
+  },
+  {
+    "id": "nfl_409",
+    "full_name": "Kelvin Banks Jr.",
+    "position": "OT",
+    "team": "MIA",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 9,
+    "college": "Texas"
+  },
+  {
+    "id": "nfl_410",
+    "full_name": "Colston Loveland",
+    "position": "TE",
+    "team": "CHI",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 10,
+    "college": "Michigan"
+  },
+  {
+    "id": "nfl_411",
+    "full_name": "Mykel Williams",
+    "position": "EDGE",
+    "team": "SF",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 11,
+    "college": "Georgia"
+  },
+  {
+    "id": "nfl_412",
+    "full_name": "Tyler Booker",
+    "position": "OG",
+    "team": "IND",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 12,
+    "college": "Alabama"
+  },
+  {
+    "id": "nfl_413",
+    "full_name": "Kenneth Grant",
+    "position": "DT",
+    "team": "DET",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 13,
+    "college": "Michigan"
+  },
+  {
+    "id": "nfl_414",
+    "full_name": "Tyler Warren",
+    "position": "TE",
+    "team": "PHI",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 14,
+    "college": "Penn State"
+  },
+  {
+    "id": "nfl_415",
+    "full_name": "Jalon Walker",
+    "position": "LB",
+    "team": "ATL",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 15,
+    "college": "Georgia"
+  },
+  {
+    "id": "nfl_416",
+    "full_name": "Walter Nolen",
+    "position": "DT",
+    "team": "ARI",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 16,
+    "college": "Ole Miss"
+  },
+  {
+    "id": "nfl_417",
+    "full_name": "Shemar Stewart",
+    "position": "DT",
+    "team": "CIN",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 17,
+    "college": "Texas A&M"
+  },
+  {
+    "id": "nfl_418",
+    "full_name": "Grey Zabel",
+    "position": "C",
+    "team": "HOU",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 18,
+    "college": "North Dakota State"
+  },
+  {
+    "id": "nfl_419",
+    "full_name": "Emeka Egbuka",
+    "position": "WR",
+    "team": "MIA",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 19,
+    "college": "Ohio State"
+  },
+  {
+    "id": "nfl_420",
+    "full_name": "Jahdae Barron",
+    "position": "CB",
+    "team": "LAC",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 20,
+    "college": "Texas"
+  },
+  {
+    "id": "nfl_421",
+    "full_name": "Derrick Harmon",
+    "position": "DT",
+    "team": "WAS",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 21,
+    "college": "Oregon"
+  },
+  {
+    "id": "nfl_422",
+    "full_name": "Omarion Hampton",
+    "position": "RB",
+    "team": "PIT",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 22,
+    "college": "North Carolina"
+  },
+  {
+    "id": "nfl_423",
+    "full_name": "Matthew Golden",
+    "position": "WR",
+    "team": "MIN",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 23,
+    "college": "Texas"
+  },
+  {
+    "id": "nfl_424",
+    "full_name": "Donovan Jackson",
+    "position": "OG",
+    "team": "GB",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 24,
+    "college": "Ohio State"
+  },
+  {
+    "id": "nfl_425",
+    "full_name": "Jaxson Dart",
+    "position": "QB",
+    "team": "DEN",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 25,
+    "college": "Ole Miss"
+  },
+  {
+    "id": "nfl_426",
+    "full_name": "James Pearce Jr.",
+    "position": "EDGE",
+    "team": "ATL",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 26,
+    "college": "Tennessee"
+  },
+  {
+    "id": "nfl_427",
+    "full_name": "Malaki Starks",
+    "position": "S",
+    "team": "TB",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 27,
+    "college": "Georgia"
+  },
+  {
+    "id": "nfl_428",
+    "full_name": "Tyleik Williams",
+    "position": "DT",
+    "team": "NO",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 28,
+    "college": "Ohio State"
+  },
+  {
+    "id": "nfl_429",
+    "full_name": "Josh Conerly Jr.",
+    "position": "OT",
+    "team": "SEA",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 29,
+    "college": "Oregon"
+  },
+  {
+    "id": "nfl_430",
+    "full_name": "Maxwell Hairston",
+    "position": "CB",
+    "team": "BUF",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 30,
+    "college": "Kentucky"
+  },
+  {
+    "id": "nfl_431",
+    "full_name": "Jihaad Campbell",
+    "position": "LB",
+    "team": "LAR",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 31,
+    "college": "Alabama"
+  },
+  {
+    "id": "nfl_432",
+    "full_name": "Josh Simmons",
+    "position": "OT",
+    "team": "KC",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 32,
+    "college": "Ohio State"
+  },
+  {
+    "id": "nfl_433",
+    "full_name": "Shedeur Sanders",
+    "position": "QB",
+    "team": "CLE",
+    "is_active": true,
+    "draft_year": 2025,
+    "draft_pick": 144,
+    "college": "Colorado"
+  }
+]

@@ -64,6 +64,29 @@
                         <i class="fas fa-robot mr-2 text-purple-300"></i>Enterprise AI
                         <span class="ml-1 px-2 py-0.5 text-xs bg-purple-500 rounded-full">NEW</span>
                     </button>
+                    <!-- NBA Betting Tabs -->
+                    <template x-if="activeSport === 'NBA'">
+                        <div class="flex space-x-2">
+                            <button @click="activeTab = 'nba_moneyline'" 
+                                    :class="{'bg-orange-600': activeTab === 'nba_moneyline', 'bg-gray-700': activeTab !== 'nba_moneyline'}"
+                                    class="px-3 py-2 rounded-lg transition-all hover:bg-orange-600 text-sm">
+                                <i class="fas fa-dollar-sign mr-1"></i>Moneyline
+                                <span class="ml-1 px-2 py-0.5 text-xs bg-orange-500 rounded-full">NEW</span>
+                            </button>
+                            <button @click="activeTab = 'nba_spread'" 
+                                    :class="{'bg-orange-600': activeTab === 'nba_spread', 'bg-gray-700': activeTab !== 'nba_spread'}"
+                                    class="px-3 py-2 rounded-lg transition-all hover:bg-orange-600 text-sm">
+                                <i class="fas fa-chart-area mr-1"></i>Spread
+                                <span class="ml-1 px-2 py-0.5 text-xs bg-orange-500 rounded-full">NEW</span>
+                            </button>
+                            <button @click="activeTab = 'nba_totals'" 
+                                    :class="{'bg-orange-600': activeTab === 'nba_totals', 'bg-gray-700': activeTab !== 'nba_totals'}"
+                                    class="px-3 py-2 rounded-lg transition-all hover:bg-orange-600 text-sm">
+                                <i class="fas fa-plus-minus mr-1"></i>Over/Under
+                                <span class="ml-1 px-2 py-0.5 text-xs bg-orange-500 rounded-full">NEW</span>
+                            </button>
+                        </div>
+                    </template>
                     <!-- NFL Betting Tabs -->
                     <template x-if="activeSport === 'NFL'">
                         <div class="flex space-x-2">
@@ -898,6 +921,355 @@
         </div>
     </div>
 
+    <!-- NBA Moneyline Betting Tab -->
+    <div x-show="activeTab === 'nba_moneyline' && activeSport === 'NBA'" class="space-y-6">
+        <div class="bg-gradient-to-br from-orange-900 to-red-900 rounded-xl shadow-2xl p-6 border border-orange-500">
+            <h2 class="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-orange-300 to-red-300 bg-clip-text text-transparent">
+                <i class="fas fa-dollar-sign mr-2 text-orange-400"></i>
+                NBA Moneyline Betting Analysis
+            </h2>
+            
+            <!-- NBA Moneyline Form -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Home Team</label>
+                    <select x-model="nbaMoneylineForm.homeTeam" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-white">
+                        <option value="">Select Home Team</option>
+                        <option value="ATL">Atlanta Hawks</option>
+                        <option value="BOS">Boston Celtics</option>
+                        <option value="BKN">Brooklyn Nets</option>
+                        <option value="CHA">Charlotte Hornets</option>
+                        <option value="CHI">Chicago Bulls</option>
+                        <option value="CLE">Cleveland Cavaliers</option>
+                        <option value="DAL">Dallas Mavericks</option>
+                        <option value="DEN">Denver Nuggets</option>
+                        <option value="DET">Detroit Pistons</option>
+                        <option value="GSW">Golden State Warriors</option>
+                        <option value="HOU">Houston Rockets</option>
+                        <option value="IND">Indiana Pacers</option>
+                        <option value="LAC">Los Angeles Clippers</option>
+                        <option value="LAL">Los Angeles Lakers</option>
+                        <option value="MEM">Memphis Grizzlies</option>
+                        <option value="MIA">Miami Heat</option>
+                        <option value="MIL">Milwaukee Bucks</option>
+                        <option value="MIN">Minnesota Timberwolves</option>
+                        <option value="NOP">New Orleans Pelicans</option>
+                        <option value="NYK">New York Knicks</option>
+                        <option value="OKC">Oklahoma City Thunder</option>
+                        <option value="ORL">Orlando Magic</option>
+                        <option value="PHI">Philadelphia 76ers</option>
+                        <option value="PHX">Phoenix Suns</option>
+                        <option value="POR">Portland Trail Blazers</option>
+                        <option value="SAC">Sacramento Kings</option>
+                        <option value="SAS">San Antonio Spurs</option>
+                        <option value="TOR">Toronto Raptors</option>
+                        <option value="UTA">Utah Jazz</option>
+                        <option value="WAS">Washington Wizards</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Away Team</label>
+                    <select x-model="nbaMoneylineForm.awayTeam" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-white">
+                        <option value="">Select Away Team</option>
+                        <option value="ATL">Atlanta Hawks</option>
+                        <option value="BOS">Boston Celtics</option>
+                        <option value="BKN">Brooklyn Nets</option>
+                        <option value="CHA">Charlotte Hornets</option>
+                        <option value="CHI">Chicago Bulls</option>
+                        <option value="CLE">Cleveland Cavaliers</option>
+                        <option value="DAL">Dallas Mavericks</option>
+                        <option value="DEN">Denver Nuggets</option>
+                        <option value="DET">Detroit Pistons</option>
+                        <option value="GSW">Golden State Warriors</option>
+                        <option value="HOU">Houston Rockets</option>
+                        <option value="IND">Indiana Pacers</option>
+                        <option value="LAC">Los Angeles Clippers</option>
+                        <option value="LAL">Los Angeles Lakers</option>
+                        <option value="MEM">Memphis Grizzlies</option>
+                        <option value="MIA">Miami Heat</option>
+                        <option value="MIL">Milwaukee Bucks</option>
+                        <option value="MIN">Minnesota Timberwolves</option>
+                        <option value="NOP">New Orleans Pelicans</option>
+                        <option value="NYK">New York Knicks</option>
+                        <option value="OKC">Oklahoma City Thunder</option>
+                        <option value="ORL">Orlando Magic</option>
+                        <option value="PHI">Philadelphia 76ers</option>
+                        <option value="PHX">Phoenix Suns</option>
+                        <option value="POR">Portland Trail Blazers</option>
+                        <option value="SAC">Sacramento Kings</option>
+                        <option value="SAS">San Antonio Spurs</option>
+                        <option value="TOR">Toronto Raptors</option>
+                        <option value="UTA">Utah Jazz</option>
+                        <option value="WAS">Washington Wizards</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Home Team Odds (e.g., -150)</label>
+                    <input type="number" x-model="nbaMoneylineForm.homeOdds" 
+                           class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-white" 
+                           placeholder="-150">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Away Team Odds (e.g., +130)</label>
+                    <input type="number" x-model="nbaMoneylineForm.awayOdds" 
+                           class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-white" 
+                           placeholder="+130">
+                </div>
+            </div>
+            
+            <button @click="analyzeNBAMoneyline()" 
+                    class="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-bold py-3 px-6 rounded-lg mb-6">
+                <i class="fas fa-chart-line mr-2"></i>Analyze NBA Moneyline Bet
+            </button>
+            
+            <!-- NBA Moneyline Results -->
+            <div x-show="nbaMoneylineResults" class="bg-gray-800 rounded-lg p-6">
+                <h3 class="text-xl font-bold mb-4 text-orange-400">
+                    <i class="fas fa-chart-bar mr-2"></i>NBA Moneyline Analysis Results
+                </h3>
+                <div x-show="nbaMoneylineResults" x-html="nbaMoneylineResults"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NBA Spread Betting Tab -->
+    <div x-show="activeTab === 'nba_spread' && activeSport === 'NBA'" class="space-y-6">
+        <div class="bg-gradient-to-br from-blue-900 to-indigo-900 rounded-xl shadow-2xl p-6 border border-blue-500">
+            <h2 class="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-blue-300 to-indigo-300 bg-clip-text text-transparent">
+                <i class="fas fa-chart-area mr-2 text-blue-400"></i>
+                NBA Point Spread Analysis
+            </h2>
+            
+            <!-- NBA Spread Form -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Home Team</label>
+                    <select x-model="nbaSpreadForm.homeTeam" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white">
+                        <option value="">Select Home Team</option>
+                        <option value="ATL">Atlanta Hawks</option>
+                        <option value="BOS">Boston Celtics</option>
+                        <option value="BKN">Brooklyn Nets</option>
+                        <option value="CHA">Charlotte Hornets</option>
+                        <option value="CHI">Chicago Bulls</option>
+                        <option value="CLE">Cleveland Cavaliers</option>
+                        <option value="DAL">Dallas Mavericks</option>
+                        <option value="DEN">Denver Nuggets</option>
+                        <option value="DET">Detroit Pistons</option>
+                        <option value="GSW">Golden State Warriors</option>
+                        <option value="HOU">Houston Rockets</option>
+                        <option value="IND">Indiana Pacers</option>
+                        <option value="LAC">Los Angeles Clippers</option>
+                        <option value="LAL">Los Angeles Lakers</option>
+                        <option value="MEM">Memphis Grizzlies</option>
+                        <option value="MIA">Miami Heat</option>
+                        <option value="MIL">Milwaukee Bucks</option>
+                        <option value="MIN">Minnesota Timberwolves</option>
+                        <option value="NOP">New Orleans Pelicans</option>
+                        <option value="NYK">New York Knicks</option>
+                        <option value="OKC">Oklahoma City Thunder</option>
+                        <option value="ORL">Orlando Magic</option>
+                        <option value="PHI">Philadelphia 76ers</option>
+                        <option value="PHX">Phoenix Suns</option>
+                        <option value="POR">Portland Trail Blazers</option>
+                        <option value="SAC">Sacramento Kings</option>
+                        <option value="SAS">San Antonio Spurs</option>
+                        <option value="TOR">Toronto Raptors</option>
+                        <option value="UTA">Utah Jazz</option>
+                        <option value="WAS">Washington Wizards</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Away Team</label>
+                    <select x-model="nbaSpreadForm.awayTeam" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white">
+                        <option value="">Select Away Team</option>
+                        <option value="ATL">Atlanta Hawks</option>
+                        <option value="BOS">Boston Celtics</option>
+                        <option value="BKN">Brooklyn Nets</option>
+                        <option value="CHA">Charlotte Hornets</option>
+                        <option value="CHI">Chicago Bulls</option>
+                        <option value="CLE">Cleveland Cavaliers</option>
+                        <option value="DAL">Dallas Mavericks</option>
+                        <option value="DEN">Denver Nuggets</option>
+                        <option value="DET">Detroit Pistons</option>
+                        <option value="GSW">Golden State Warriors</option>
+                        <option value="HOU">Houston Rockets</option>
+                        <option value="IND">Indiana Pacers</option>
+                        <option value="LAC">Los Angeles Clippers</option>
+                        <option value="LAL">Los Angeles Lakers</option>
+                        <option value="MEM">Memphis Grizzlies</option>
+                        <option value="MIA">Miami Heat</option>
+                        <option value="MIL">Milwaukee Bucks</option>
+                        <option value="MIN">Minnesota Timberwolves</option>
+                        <option value="NOP">New Orleans Pelicans</option>
+                        <option value="NYK">New York Knicks</option>
+                        <option value="OKC">Oklahoma City Thunder</option>
+                        <option value="ORL">Orlando Magic</option>
+                        <option value="PHI">Philadelphia 76ers</option>
+                        <option value="PHX">Phoenix Suns</option>
+                        <option value="POR">Portland Trail Blazers</option>
+                        <option value="SAC">Sacramento Kings</option>
+                        <option value="SAS">San Antonio Spurs</option>
+                        <option value="TOR">Toronto Raptors</option>
+                        <option value="UTA">Utah Jazz</option>
+                        <option value="WAS">Washington Wizards</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Point Spread (e.g., -5.5 for home favorite)</label>
+                    <input type="number" x-model="nbaSpreadForm.spreadLine" step="0.5"
+                           class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white" 
+                           placeholder="-5.5">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Home Odds</label>
+                        <input type="number" x-model="nbaSpreadForm.homeOdds" 
+                               class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white" 
+                               placeholder="-110">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Away Odds</label>
+                        <input type="number" x-model="nbaSpreadForm.awayOdds" 
+                               class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white" 
+                               placeholder="-110">
+                    </div>
+                </div>
+            </div>
+            
+            <button @click="analyzeNBASpread()" 
+                    class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3 px-6 rounded-lg mb-6">
+                <i class="fas fa-chart-area mr-2"></i>Analyze NBA Spread Bet
+            </button>
+            
+            <!-- NBA Spread Results -->
+            <div x-show="nbaSpreadResults" class="bg-gray-800 rounded-lg p-6">
+                <h3 class="text-xl font-bold mb-4 text-blue-400">
+                    <i class="fas fa-chart-line mr-2"></i>NBA Spread Analysis Results
+                </h3>
+                <div x-show="nbaSpreadResults" x-html="nbaSpreadResults"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NBA Over/Under Totals Tab -->
+    <div x-show="activeTab === 'nba_totals' && activeSport === 'NBA'" class="space-y-6">
+        <div class="bg-gradient-to-br from-purple-900 to-pink-900 rounded-xl shadow-2xl p-6 border border-purple-500">
+            <h2 class="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-purple-300 to-pink-300 bg-clip-text text-transparent">
+                <i class="fas fa-plus-minus mr-2 text-purple-400"></i>
+                NBA Over/Under Total Analysis
+            </h2>
+            
+            <!-- NBA Over/Under Form -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Home Team</label>
+                    <select x-model="nbaTotalsForm.homeTeam" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white">
+                        <option value="">Select Home Team</option>
+                        <option value="ATL">Atlanta Hawks</option>
+                        <option value="BOS">Boston Celtics</option>
+                        <option value="BKN">Brooklyn Nets</option>
+                        <option value="CHA">Charlotte Hornets</option>
+                        <option value="CHI">Chicago Bulls</option>
+                        <option value="CLE">Cleveland Cavaliers</option>
+                        <option value="DAL">Dallas Mavericks</option>
+                        <option value="DEN">Denver Nuggets</option>
+                        <option value="DET">Detroit Pistons</option>
+                        <option value="GSW">Golden State Warriors</option>
+                        <option value="HOU">Houston Rockets</option>
+                        <option value="IND">Indiana Pacers</option>
+                        <option value="LAC">Los Angeles Clippers</option>
+                        <option value="LAL">Los Angeles Lakers</option>
+                        <option value="MEM">Memphis Grizzlies</option>
+                        <option value="MIA">Miami Heat</option>
+                        <option value="MIL">Milwaukee Bucks</option>
+                        <option value="MIN">Minnesota Timberwolves</option>
+                        <option value="NOP">New Orleans Pelicans</option>
+                        <option value="NYK">New York Knicks</option>
+                        <option value="OKC">Oklahoma City Thunder</option>
+                        <option value="ORL">Orlando Magic</option>
+                        <option value="PHI">Philadelphia 76ers</option>
+                        <option value="PHX">Phoenix Suns</option>
+                        <option value="POR">Portland Trail Blazers</option>
+                        <option value="SAC">Sacramento Kings</option>
+                        <option value="SAS">San Antonio Spurs</option>
+                        <option value="TOR">Toronto Raptors</option>
+                        <option value="UTA">Utah Jazz</option>
+                        <option value="WAS">Washington Wizards</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Away Team</label>
+                    <select x-model="nbaTotalsForm.awayTeam" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white">
+                        <option value="">Select Away Team</option>
+                        <option value="ATL">Atlanta Hawks</option>
+                        <option value="BOS">Boston Celtics</option>
+                        <option value="BKN">Brooklyn Nets</option>
+                        <option value="CHA">Charlotte Hornets</option>
+                        <option value="CHI">Chicago Bulls</option>
+                        <option value="CLE">Cleveland Cavaliers</option>
+                        <option value="DAL">Dallas Mavericks</option>
+                        <option value="DEN">Denver Nuggets</option>
+                        <option value="DET">Detroit Pistons</option>
+                        <option value="GSW">Golden State Warriors</option>
+                        <option value="HOU">Houston Rockets</option>
+                        <option value="IND">Indiana Pacers</option>
+                        <option value="LAC">Los Angeles Clippers</option>
+                        <option value="LAL">Los Angeles Lakers</option>
+                        <option value="MEM">Memphis Grizzlies</option>
+                        <option value="MIA">Miami Heat</option>
+                        <option value="MIL">Milwaukee Bucks</option>
+                        <option value="MIN">Minnesota Timberwolves</option>
+                        <option value="NOP">New Orleans Pelicans</option>
+                        <option value="NYK">New York Knicks</option>
+                        <option value="OKC">Oklahoma City Thunder</option>
+                        <option value="ORL">Orlando Magic</option>
+                        <option value="PHI">Philadelphia 76ers</option>
+                        <option value="PHX">Phoenix Suns</option>
+                        <option value="POR">Portland Trail Blazers</option>
+                        <option value="SAC">Sacramento Kings</option>
+                        <option value="SAS">San Antonio Spurs</option>
+                        <option value="TOR">Toronto Raptors</option>
+                        <option value="UTA">Utah Jazz</option>
+                        <option value="WAS">Washington Wizards</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Total Line (e.g., 225.5)</label>
+                    <input type="number" x-model="nbaTotalsForm.totalLine" step="0.5"
+                           class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white" 
+                           placeholder="225.5">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Over Odds</label>
+                        <input type="number" x-model="nbaTotalsForm.overOdds" 
+                               class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white" 
+                               placeholder="-110">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Under Odds</label>
+                        <input type="number" x-model="nbaTotalsForm.underOdds" 
+                               class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white" 
+                               placeholder="-110">
+                    </div>
+                </div>
+            </div>
+            
+            <button @click="analyzeNBATotals()" 
+                    class="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-6 rounded-lg mb-6">
+                <i class="fas fa-plus-minus mr-2"></i>Analyze NBA Over/Under Bet
+            </button>
+            
+            <!-- NBA Totals Results -->
+            <div x-show="nbaTotalsResults" class="bg-gray-800 rounded-lg p-6">
+                <h3 class="text-xl font-bold mb-4 text-purple-400">
+                    <i class="fas fa-chart-pie mr-2"></i>NBA Over/Under Analysis Results
+                </h3>
+                <div x-show="nbaTotalsResults" x-html="nbaTotalsResults"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- NFL Moneyline Betting Tab -->
     <div x-show="activeTab === 'moneyline' && activeSport === 'NFL'" class="space-y-6">
         <div class="bg-gradient-to-br from-green-900 to-blue-900 rounded-xl shadow-2xl p-6 border border-green-500">
@@ -1306,6 +1678,31 @@
                 },
                 liveOddsData: null,
                 aiModelStatus: null,
+                
+                // NBA Betting State
+                nbaMoneylineForm: {
+                    homeTeam: '',
+                    awayTeam: '',
+                    homeOdds: -110,
+                    awayOdds: -110
+                },
+                nbaSpreadForm: {
+                    homeTeam: '',
+                    awayTeam: '',
+                    spreadLine: -5.5,
+                    homeOdds: -110,
+                    awayOdds: -110
+                },
+                nbaTotalsForm: {
+                    homeTeam: '',
+                    awayTeam: '',
+                    totalLine: 225.5,
+                    overOdds: -110,
+                    underOdds: -110
+                },
+                nbaMoneylineResults: null,
+                nbaSpreadResults: null,
+                nbaTotalsResults: null,
                 
                 // NFL Betting State
                 moneylineForm: {
@@ -1776,6 +2173,114 @@
                     return options;
                 },
                 
+                // NBA Betting Analysis Functions
+                async analyzeNBAMoneyline() {
+                    if (!this.nbaMoneylineForm.homeTeam || !this.nbaMoneylineForm.awayTeam || 
+                        !this.nbaMoneylineForm.homeOdds || !this.nbaMoneylineForm.awayOdds) {
+                        alert('Please fill in all NBA moneyline fields');
+                        return;
+                    }
+                    
+                    this.isLoading = true;
+                    try {
+                        const response = await fetch('/nba/analyze_moneyline', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                home_team: this.nbaMoneylineForm.homeTeam,
+                                away_team: this.nbaMoneylineForm.awayTeam,
+                                home_odds: parseInt(this.nbaMoneylineForm.homeOdds),
+                                away_odds: parseInt(this.nbaMoneylineForm.awayOdds)
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            this.nbaMoneylineResults = this.formatBettingResults(data.moneyline_analysis, 'NBA Moneyline');
+                        } else {
+                            this.nbaMoneylineResults = `<div class="text-red-400">Error: ${data.error}</div>`;
+                        }
+                    } catch (error) {
+                        console.error('Error analyzing NBA moneyline:', error);
+                        this.nbaMoneylineResults = `<div class="text-red-400">Error analyzing NBA moneyline bet</div>`;
+                    }
+                    this.isLoading = false;
+                },
+                
+                async analyzeNBASpread() {
+                    if (!this.nbaSpreadForm.homeTeam || !this.nbaSpreadForm.awayTeam || 
+                        this.nbaSpreadForm.spreadLine === '' || this.nbaSpreadForm.spreadLine === null) {
+                        alert('Please fill in all NBA spread fields');
+                        return;
+                    }
+                    
+                    this.isLoading = true;
+                    try {
+                        const response = await fetch('/nba/analyze_spread', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                home_team: this.nbaSpreadForm.homeTeam,
+                                away_team: this.nbaSpreadForm.awayTeam,
+                                spread_line: parseFloat(this.nbaSpreadForm.spreadLine),
+                                home_odds: parseInt(this.nbaSpreadForm.homeOdds),
+                                away_odds: parseInt(this.nbaSpreadForm.awayOdds)
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            this.nbaSpreadResults = this.formatBettingResults(data.spread_analysis, 'NBA Spread');
+                        } else {
+                            this.nbaSpreadResults = `<div class="text-red-400">Error: ${data.error}</div>`;
+                        }
+                    } catch (error) {
+                        console.error('Error analyzing NBA spread:', error);
+                        this.nbaSpreadResults = `<div class="text-red-400">Error analyzing NBA spread bet</div>`;
+                    }
+                    this.isLoading = false;
+                },
+                
+                async analyzeNBATotals() {
+                    if (!this.nbaTotalsForm.homeTeam || !this.nbaTotalsForm.awayTeam || 
+                        this.nbaTotalsForm.totalLine === '' || this.nbaTotalsForm.totalLine === null) {
+                        alert('Please fill in all NBA totals fields');
+                        return;
+                    }
+                    
+                    this.isLoading = true;
+                    try {
+                        const response = await fetch('/nba/analyze_over_under', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                home_team: this.nbaTotalsForm.homeTeam,
+                                away_team: this.nbaTotalsForm.awayTeam,
+                                total_line: parseFloat(this.nbaTotalsForm.totalLine),
+                                over_odds: parseInt(this.nbaTotalsForm.overOdds),
+                                under_odds: parseInt(this.nbaTotalsForm.underOdds)
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            this.nbaTotalsResults = this.formatBettingResults(data.over_under_analysis, 'NBA Over/Under');
+                        } else {
+                            this.nbaTotalsResults = `<div class="text-red-400">Error: ${data.error}</div>`;
+                        }
+                    } catch (error) {
+                        console.error('Error analyzing NBA totals:', error);
+                        this.nbaTotalsResults = `<div class="text-red-400">Error analyzing NBA over/under bet</div>`;
+                    }
+                    this.isLoading = false;
+                },
+                
                 // NFL Betting Analysis Functions
                 async analyzeMoneyline() {
                     if (!this.moneylineForm.homeTeam || !this.moneylineForm.awayTeam || 
@@ -1890,29 +2395,33 @@
                     }
                     
                     const rec = analysis.recommendation;
+                    const isNBA = betType.includes('NBA');
+                    const sport = isNBA ? 'NBA' : 'NFL';
+                    const colorClass = isNBA ? 'text-orange-400' : 'text-blue-400';
+                    
                     let html = `
                         <div class="space-y-4">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div class="bg-gray-700 p-4 rounded-lg">
-                                    <h4 class="font-bold text-lg mb-2 text-blue-400">${betType} Analysis</h4>
+                                    <h4 class="font-bold text-lg mb-2 ${colorClass}">${betType} Analysis</h4>
                     `;
                     
                     // Format based on bet type
-                    if (betType === 'Moneyline') {
+                    if (betType.includes('Moneyline')) {
                         html += `
                             <p><strong>Home Win Probability:</strong> ${(rec.home_win_probability * 100).toFixed(1)}%</p>
                             <p><strong>Away Win Probability:</strong> ${(rec.away_win_probability * 100).toFixed(1)}%</p>
                             <p><strong>Home Edge:</strong> ${(rec.home_edge * 100).toFixed(2)}%</p>
                             <p><strong>Away Edge:</strong> ${(rec.away_edge * 100).toFixed(2)}%</p>
                         `;
-                    } else if (betType === 'Spread') {
+                    } else if (betType.includes('Spread')) {
                         html += `
                             <p><strong>Home Cover Probability:</strong> ${(rec.home_cover_probability * 100).toFixed(1)}%</p>
                             <p><strong>Away Cover Probability:</strong> ${(rec.away_cover_probability * 100).toFixed(1)}%</p>
                             <p><strong>Predicted Margin:</strong> ${rec.predicted_margin}</p>
                             <p><strong>Spread Value:</strong> ${rec.spread_value}</p>
                         `;
-                    } else if (betType === 'Over/Under') {
+                    } else if (betType.includes('Over/Under')) {
                         html += `
                             <p><strong>Over Probability:</strong> ${(rec.over_probability * 100).toFixed(1)}%</p>
                             <p><strong>Under Probability:</strong> ${(rec.under_probability * 100).toFixed(1)}%</p>
@@ -1921,18 +2430,56 @@
                         `;
                     }
                     
+                    // Add sport-specific insights
+                    if (isNBA) {
+                        html += `<div class="mt-2 p-2 bg-orange-900 rounded text-xs">
+                            <strong>NBA Factors:</strong> 30+ factor analysis including pace, efficiency ratings, shooting metrics, bench depth, and clutch performance.
+                        </div>`;
+                    } else {
+                        html += `<div class="mt-2 p-2 bg-green-900 rounded text-xs">
+                            <strong>NFL Factors:</strong> Weather, injuries, divisional matchups, and 40+ game situation factors.
+                        </div>`;
+                    }
+                    
                     html += `
                                 </div>
                                 <div class="bg-gray-700 p-4 rounded-lg">
                                     <h4 class="font-bold text-lg mb-2 text-green-400">Recommendation</h4>
                                     <p><strong>Recommended Bet:</strong> ${rec.recommended_bet || 'No recommendation'}</p>
                                     <p><strong>Confidence:</strong> ${(rec.confidence * 100).toFixed(1)}%</p>
+                                    <div class="mt-2 text-xs text-gray-400">
+                                        <strong>${sport} Analysis:</strong> Using comprehensive ${isNBA ? '30' : '40'}+ factor model
+                                    </div>
                                 </div>
                             </div>
                             <div class="bg-gray-700 p-4 rounded-lg mt-4">
-                                <h4 class="font-bold text-lg mb-2 text-yellow-400">Analysis Factors</h4>
+                                <h4 class="font-bold text-lg mb-2 text-yellow-400">Key Analysis Factors</h4>
                                 <div class="text-sm">
-                                    <pre class="whitespace-pre-wrap">${JSON.stringify(rec.analysis_factors, null, 2)}</pre>
+                    `;
+                    
+                    // Display key factors in a more readable format
+                    if (rec.analysis_factors) {
+                        const factors = rec.analysis_factors;
+                        html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
+                        
+                        // Show most relevant factors based on bet type
+                        Object.keys(factors).slice(0, 8).forEach(key => {
+                            const value = factors[key];
+                            if (typeof value === 'object') {
+                                html += `<div><strong>${key.replace(/_/g, ' ').toUpperCase()}:</strong><br>`;
+                                Object.keys(value).forEach(subKey => {
+                                    html += `&nbsp;&nbsp;${subKey}: ${typeof value[subKey] === 'number' ? value[subKey].toFixed(2) : value[subKey]}<br>`;
+                                });
+                                html += '</div>';
+                            } else {
+                                html += `<div><strong>${key.replace(/_/g, ' ').toUpperCase()}:</strong> ${typeof value === 'number' ? value.toFixed(2) : value}</div>`;
+                            }
+                        });
+                        
+                        html += '</div>';
+                    }
+                    
+                    html += `
                                 </div>
                             </div>
                         </div>
