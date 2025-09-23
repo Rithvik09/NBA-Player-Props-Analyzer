@@ -1,0 +1,37 @@
+{
+  "nba_status": {
+    "tables": [
+      "games",
+      "players",
+      "game_logs",
+      "sqlite_sequence",
+      "player_context",
+      "matchup_data",
+      "team_news",
+      "model_predictions",
+      "bankroll_settings",
+      "bet_history",
+      "performance_metrics",
+      "nba_teams"
+    ],
+    "teams_count": 30,
+    "players_count": 572
+  },
+  "nfl_status": {
+    "tables": [
+      "bankroll_settings",
+      "bet_history",
+      "sqlite_sequence",
+      "performance_metrics",
+      "nfl_players",
+      "nfl_game_logs",
+      "nfl_teams",
+      "nfl_weather",
+      "nfl_players_enhanced"
+    ],
+    "teams_count": 32,
+    "players_count": 63,
+    "enhanced_players_count": 3
+  },
+  "timestamp": "2025-09-23T05:44:50.278462"
+}
