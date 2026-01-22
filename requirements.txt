@@ -5,3 +5,8 @@ scikit-learn
 nba_api
 joblib
 scipy
+requests
+beautifulsoup4
+xgboost>=2.0.0
+lightgbm>=4.0.0
+optuna>=3.0.0

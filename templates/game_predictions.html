@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Predictions - NBA Props Analyzer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        
+        .team-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .team-card.away {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .prediction-card {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .prediction-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        
+        .prediction-value {
+            font-size: 3rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .confidence-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+        
+        .confidence-HIGH {
+            background: #10b981;
+            color: white;
+        }
+        
+        .confidence-MEDIUM {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .confidence-LOW {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .player-chip {
+            display: inline-block;
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: 12px;
+            padding: 0.5rem 1rem;
+            margin: 0.25rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .player-chip:hover {
+            background: rgba(102, 126, 234, 0.2);
+            transform: scale(1.05);
+        }
+        
+        .player-chip.selected {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1.125rem;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            transition: background 0.3s ease;
+        }
+        
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .fade-in-up {
+            animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        
+        .vs-badge {
+            background: white;
+            color: #667eea;
+            font-weight: 900;
+            font-size: 1.5rem;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            margin: -30px auto;
+            z-index: 10;
+            position: relative;
+        }
+    </style>
+</head>
+<body class="p-6">
+    <!-- Navigation -->
+    <div class="max-w-7xl mx-auto mb-8">
+        <div class="flex justify-between items-center">
+            <h1 class="text-4xl font-black text-white">🏀 Game Predictions</h1>
+            <a href="/" class="nav-link">← Back to Player Props</a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto">
+        <div class="glass-card p-8">
+            <!-- Team Selection -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <!-- Home Team -->
+                <div>
+                    <div class="team-card">
+                        <h2 class="text-2xl font-bold mb-4">🏠 Home Team</h2>
+                        <select id="homeTeam" class="w-full p-3 rounded-lg border-2 border-white/30 bg-white/20 text-white font-semibold">
+                            <option value="">Select Home Team...</option>
+                            <option value="1610612744">Golden State Warriors</option>
+                            <option value="1610612747">Los Angeles Lakers</option>
+                            <option value="1610612751">Brooklyn Nets</option>
+                            <option value="1610612738">Boston Celtics</option>
+                            <option value="1610612752">New York Knicks</option>
+                            <option value="1610612756">Phoenix Suns</option>
+                            <option value="1610612741">Chicago Bulls</option>
+                            <option value="1610612739">Cleveland Cavaliers</option>
+                        </select>
+                    </div>
+                    
+                    <div id="homeRosterSection" class="hidden">
+                        <h3 class="text-lg font-bold mb-3">Select Rotation Players (8-10):</h3>
+                        <div id="homeRoster" class="bg-gray-50 p-4 rounded-lg min-h-32">
+                            <!-- Player chips will be added here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Away Team -->
+                <div>
+                    <div class="team-card away">
+                        <h2 class="text-2xl font-bold mb-4">✈️ Away Team</h2>
+                        <select id="awayTeam" class="w-full p-3 rounded-lg border-2 border-white/30 bg-white/20 text-white font-semibold">
+                            <option value="">Select Away Team...</option>
+                            <option value="1610612744">Golden State Warriors</option>
+                            <option value="1610612747">Los Angeles Lakers</option>
+                            <option value="1610612751">Brooklyn Nets</option>
+                            <option value="1610612738">Boston Celtics</option>
+                            <option value="1610612752">New York Knicks</option>
+                            <option value="1610612756">Phoenix Suns</option>
+                            <option value="1610612741">Chicago Bulls</option>
+                            <option value="1610612739">Cleveland Cavaliers</option>
+                        </select>
+                    </div>
+                    
+                    <div id="awayRosterSection" class="hidden">
+                        <h3 class="text-lg font-bold mb-3">Select Rotation Players (8-10):</h3>
+                        <div id="awayRoster" class="bg-gray-50 p-4 rounded-lg min-h-32">
+                            <!-- Player chips will be added here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Predict Button -->
+            <div class="text-center mb-8">
+                <button id="predictBtn" class="btn-primary" disabled>
+                    <span id="btnText">Select Teams & Rosters to Predict</span>
+                    <span id="btnLoading" class="loading hidden ml-2"></span>
+                </button>
+            </div>
+
+            <!-- Results Section -->
+            <div id="results" class="hidden fade-in-up">
+                <div class="vs-badge">VS</div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-12">
+                    <!-- Moneyline -->
+                    <div class="prediction-card">
+                        <div class="text-center">
+                            <div class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Moneyline</div>
+                            <div class="text-6xl mb-4">🎯</div>
+                            <div class="prediction-value" id="moneylineWinner">-</div>
+                            <div class="text-gray-600 font-semibold mb-3">Winner</div>
+                            <div class="mb-3">
+                                <div class="text-2xl font-bold text-gray-800" id="moneylineProb">-</div>
+                                <div class="text-sm text-gray-500">Win Probability</div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="text-xl font-semibold text-gray-700" id="moneylineMargin">-</div>
+                                <div class="text-sm text-gray-500">Expected Margin</div>
+                            </div>
+                            <span id="moneylineConfidence" class="confidence-badge">-</span>
+                        </div>
+                    </div>
+
+                    <!-- Spread -->
+                    <div class="prediction-card">
+                        <div class="text-center">
+                            <div class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Spread</div>
+                            <div class="text-6xl mb-4">📊</div>
+                            <div class="prediction-value" id="spreadValue">-</div>
+                            <div class="text-gray-600 font-semibold mb-3">Point Spread</div>
+                            <div class="mb-3">
+                                <div class="text-lg font-semibold text-gray-700" id="spreadFavorite">-</div>
+                                <div class="text-sm text-gray-500">Favorite</div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="text-sm text-gray-600" id="spreadScores">-</div>
+                                <div class="text-xs text-gray-500">Implied Scores</div>
+                            </div>
+                            <span id="spreadConfidence" class="confidence-badge">-</span>
+                        </div>
+                    </div>
+
+                    <!-- Total -->
+                    <div class="prediction-card">
+                        <div class="text-center">
+                            <div class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Total O/U</div>
+                            <div class="text-6xl mb-4">📈</div>
+                            <div class="prediction-value" id="totalValue">-</div>
+                            <div class="text-gray-600 font-semibold mb-3">Combined Points</div>
+                            <div class="mb-3">
+                                <div class="text-lg font-semibold text-gray-700" id="totalPace">-</div>
+                                <div class="text-sm text-gray-500" id="totalPaceNote">Pace</div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="text-sm text-gray-600" id="totalBreakdown">-</div>
+                                <div class="text-xs text-gray-500">Score Breakdown</div>
+                            </div>
+                            <span id="totalConfidence" class="confidence-badge">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Team Projections -->
+                <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-gradient-to-br from-purple-50 to-blue-50 p-6 rounded-lg">
+                        <h3 class="text-xl font-bold mb-4 text-purple-900">🏠 Home Team Projection</h3>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="font-semibold">Projected Points:</span>
+                                <span id="homePoints" class="font-bold text-purple-700">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-semibold">Pace:</span>
+                                <span id="homePace">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-semibold">Offensive Rating:</span>
+                                <span id="homeOffRating">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-semibold">Defensive Rating:</span>
+                                <span id="homeDefRating">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gradient-to-br from-pink-50 to-red-50 p-6 rounded-lg">
+                        <h3 class="text-xl font-bold mb-4 text-pink-900">✈️ Away Team Projection</h3>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="font-semibold">Projected Points:</span>
+                                <span id="awayPoints" class="font-bold text-pink-700">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-semibold">Pace:</span>
+                                <span id="awayPace">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-semibold">Offensive Rating:</span>
+                                <span id="awayOffRating">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-semibold">Defensive Rating:</span>
+                                <span id="awayDefRating">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sample roster data (top players per team)
+        const teamRosters = {
+            '1610612744': [ // Warriors
+                {id: 201939, name: 'Stephen Curry'},
+                {id: 202691, name: 'Klay Thompson'},
+                {id: 203110, name: 'Andrew Wiggins'},
+                {id: 203546, name: 'Draymond Green'},
+                {id: 203458, name: 'Kevon Looney'},
+                {id: 1629983, name: 'Jonathan Kuminga'},
+                {id: 1630178, name: 'Moses Moody'},
+                {id: 203909, name: 'Gary Payton II'}
+            ],
+            '1610612747': [ // Lakers
+                {id: 2544, name: 'LeBron James'},
+                {id: 203076, name: 'Anthony Davis'},
+                {id: 203097, name: 'D\'Angelo Russell'},
+                {id: 1630559, name: 'Austin Reaves'},
+                {id: 1629617, name: 'Rui Hachimura'},
+                {id: 203141, name: 'Taurean Prince'},
+                {id: 203476, name: 'Jarred Vanderbilt'},
+                {id: 1628981, name: 'Jaxson Hayes'}
+            ],
+            // Add more team rosters as needed
+        };
+
+        let selectedHome = {teamId: null, roster: []};
+        let selectedAway = {teamId: null, roster: []};
+
+        // Team selection handlers
+        document.getElementById('homeTeam').addEventListener('change', function(e) {
+            selectedHome.teamId = e.target.value;
+            selectedHome.roster = [];
+            if (e.target.value) {
+                loadRoster('home', e.target.value);
+                document.getElementById('homeRosterSection').classList.remove('hidden');
+            } else {
+                document.getElementById('homeRosterSection').classList.add('hidden');
+            }
+            updatePredictButton();
+        });
+
+        document.getElementById('awayTeam').addEventListener('change', function(e) {
+            selectedAway.teamId = e.target.value;
+            selectedAway.roster = [];
+            if (e.target.value) {
+                loadRoster('away', e.target.value);
+                document.getElementById('awayRosterSection').classList.remove('hidden');
+            } else {
+                document.getElementById('awayRosterSection').classList.add('hidden');
+            }
+            updatePredictButton();
+        });
+
+        function loadRoster(team, teamId) {
+            const roster = teamRosters[teamId] || [];
+            const containerId = team === 'home' ? 'homeRoster' : 'awayRoster';
+            const container = document.getElementById(containerId);
+            
+            container.innerHTML = roster.map(player => 
+                `<div class="player-chip" data-player-id="${player.id}" data-team="${team}">
+                    ${player.name}
+                </div>`
+            ).join('');
+
+            // Add click handlers
+            container.querySelectorAll('.player-chip').forEach(chip => {
+                chip.addEventListener('click', function() {
+                    this.classList.toggle('selected');
+                    updateSelectedRoster(team);
+                    updatePredictButton();
+                });
+            });
+        }
+
+        function updateSelectedRoster(team) {
+            const container = document.getElementById(team === 'home' ? 'homeRoster' : 'awayRoster');
+            const selected = Array.from(container.querySelectorAll('.player-chip.selected'))
+                .map(chip => parseInt(chip.dataset.playerId));
+            
+            if (team === 'home') {
+                selectedHome.roster = selected;
+            } else {
+                selectedAway.roster = selected;
+            }
+        }
+
+        function updatePredictButton() {
+            const btn = document.getElementById('predictBtn');
+            const text = document.getElementById('btnText');
+            
+            if (selectedHome.teamId && selectedAway.teamId && 
+                selectedHome.roster.length >= 5 && selectedAway.roster.length >= 5) {
+                btn.disabled = false;
+                text.textContent = 'Predict Game Outcome';
+            } else {
+                btn.disabled = true;
+                if (!selectedHome.teamId || !selectedAway.teamId) {
+                    text.textContent = 'Select Teams & Rosters to Predict';
+                } else {
+                    text.textContent = `Select at least 5 players per team (Home: ${selectedHome.roster.length}, Away: ${selectedAway.roster.length})`;
+                }
+            }
+        }
+
+        // Predict button handler
+        document.getElementById('predictBtn').addEventListener('click', async function() {
+            const btn = this;
+            const btnText = document.getElementById('btnText');
+            const btnLoading = document.getElementById('btnLoading');
+            
+            btn.disabled = true;
+            btnText.textContent = 'Analyzing...';
+            btnLoading.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/predict_game', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        home_team_id: parseInt(selectedHome.teamId),
+                        away_team_id: parseInt(selectedAway.teamId),
+                        home_roster: selectedHome.roster,
+                        away_roster: selectedAway.roster,
+                        game_location: 'home'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayResults(data);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error predicting game: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btnText.textContent = 'Predict Game Outcome';
+                btnLoading.classList.add('hidden');
+            }
+        });
+
+        function displayResults(data) {
+            // Moneyline
+            document.getElementById('moneylineWinner').textContent = data.moneyline.winner_team.toUpperCase();
+            document.getElementById('moneylineProb').textContent = (data.moneyline.win_probability * 100).toFixed(1) + '%';
+            document.getElementById('moneylineMargin').textContent = data.moneyline.expected_margin.toFixed(1) + ' pts';
+            document.getElementById('moneylineConfidence').textContent = data.moneyline.confidence;
+            document.getElementById('moneylineConfidence').className = 'confidence-badge confidence-' + data.moneyline.confidence;
+
+            // Spread
+            const spread = data.spread.spread;
+            document.getElementById('spreadValue').textContent = (spread >= 0 ? '+' : '') + spread.toFixed(1);
+            document.getElementById('spreadFavorite').textContent = data.spread.favorite_team.toUpperCase();
+            document.getElementById('spreadScores').textContent = 
+                `Home ${data.spread.home_implied_score.toFixed(1)} - Away ${data.spread.away_implied_score.toFixed(1)}`;
+            document.getElementById('spreadConfidence').textContent = data.spread.confidence;
+            document.getElementById('spreadConfidence').className = 'confidence-badge confidence-' + data.spread.confidence;
+
+            // Total
+            document.getElementById('totalValue').textContent = data.total.total.toFixed(1);
+            document.getElementById('totalPace').textContent = data.total.avg_pace.toFixed(1);
+            document.getElementById('totalPaceNote').textContent = data.total.pace_note;
+            document.getElementById('totalBreakdown').textContent = 
+                `Home: ${data.total.home_implied_score?.toFixed(1) || '0.0'} Away: ${data.total.away_implied_score?.toFixed(1) || '0.0'}`;
+            document.getElementById('totalConfidence').textContent = data.total.confidence;
+            document.getElementById('totalConfidence').className = 'confidence-badge confidence-' + data.total.confidence;
+
+            // Team Projections
+            const home = data.team_projections.home;
+            const away = data.team_projections.away;
+            
+            document.getElementById('homePoints').textContent = home.projected_points.toFixed(1);
+            document.getElementById('homePace').textContent = home.pace.toFixed(1);
+            document.getElementById('homeOffRating').textContent = home.offensive_rating.toFixed(1);
+            document.getElementById('homeDefRating').textContent = home.defensive_rating.toFixed(1);
+
+            document.getElementById('awayPoints').textContent = away.projected_points.toFixed(1);
+            document.getElementById('awayPace').textContent = away.pace.toFixed(1);
+            document.getElementById('awayOffRating').textContent = away.offensive_rating.toFixed(1);
+            document.getElementById('awayDefRating').textContent = away.defensive_rating.toFixed(1);
+
+            // Show results
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    </script>
+</body>
+</html>
+

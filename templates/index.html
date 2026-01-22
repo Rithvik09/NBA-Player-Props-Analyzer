@@ -3,213 +3,391 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NBA Player Props Analyzer</title>
+    <title>NBA Props Analyzer - AI-Powered Betting Intelligence</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <style>
+        /* Additional inline styles for enhanced animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .fade-in-up {
+            animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        
+        .stagger-1 { animation-delay: 0.1s; opacity: 0; }
+        .stagger-2 { animation-delay: 0.2s; opacity: 0; }
+        .stagger-3 { animation-delay: 0.3s; opacity: 0; }
+        .stagger-4 { animation-delay: 0.4s; opacity: 0; }
+    </style>
 </head>
-<body class="bg-gray-100">
-    <div class="container mx-auto px-4 py-8">
-        <div class="max-w-4xl mx-auto">
-            <h1 class="text-3xl font-bold text-center mb-8">NBA Player Props Analyzer</h1>
-            
-            <!-- Analysis Form -->
-            <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- Player Search -->
-                    <div class="relative">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Player</label>
-                        <div class="relative">
-                            <input type="text" 
-                                   id="playerSearch" 
-                                   class="w-full p-2 pl-3 pr-10 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                                   placeholder="Type player name..."
-                                   autocomplete="off">
-                            <div class="absolute inset-y-0 right-0 flex items-center pr-3">
-                                <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
-                                </svg>
-                            </div>
-                        </div>
-                        <div id="playerSuggestions" 
-                             class="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg hidden">
-                        </div>
-                    </div>
+<body>
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">
+        <div id="toastTitle" class="toast-title"></div>
+        <div id="toastMessage" class="toast-message"></div>
+    </div>
 
-                    <!-- Opponent Team -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Opponent Team</label>
-                        <select id="opponentTeam" class="w-full p-2 border rounded-md">
-                            <option value="">Select Opponent</option>
-                            <option value="1610612737">Atlanta Hawks</option>
-                            <option value="1610612738">Boston Celtics</option>
-                            <option value="1610612751">Brooklyn Nets</option>
-                            <option value="1610612766">Charlotte Hornets</option>
-                            <option value="1610612741">Chicago Bulls</option>
-                            <option value="1610612739">Cleveland Cavaliers</option>
-                            <option value="1610612742">Dallas Mavericks</option>
-                            <option value="1610612743">Denver Nuggets</option>
-                            <option value="1610612765">Detroit Pistons</option>
-                            <option value="1610612744">Golden State Warriors</option>
-                            <option value="1610612745">Houston Rockets</option>
-                            <option value="1610612754">Indiana Pacers</option>
-                            <option value="1610612746">LA Clippers</option>
-                            <option value="1610612747">Los Angeles Lakers</option>
-                            <option value="1610612763">Memphis Grizzlies</option>
-                            <option value="1610612748">Miami Heat</option>
-                            <option value="1610612749">Milwaukee Bucks</option>
-                            <option value="1610612750">Minnesota Timberwolves</option>
-                            <option value="1610612740">New Orleans Pelicans</option>
-                            <option value="1610612752">New York Knicks</option>
-                            <option value="1610612760">Oklahoma City Thunder</option>
-                            <option value="1610612753">Orlando Magic</option>
-                            <option value="1610612755">Philadelphia 76ers</option>
-                            <option value="1610612756">Phoenix Suns</option>
-                            <option value="1610612757">Portland Trail Blazers</option>
-                            <option value="1610612758">Sacramento Kings</option>
-                            <option value="1610612759">San Antonio Spurs</option>
-                            <option value="1610612761">Toronto Raptors</option>
-                            <option value="1610612762">Utah Jazz</option>
-                            <option value="1610612764">Washington Wizards</option>
-                        </select>
-                    </div>
-                    
-                    <!-- Prop Type Selection -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Prop Type</label>
-                        <select id="propType" class="w-full p-2 border rounded-md">
-                            <optgroup label="Basic Props">
-                                <option value="points">Points</option>
-                                <option value="assists">Assists</option>
-                                <option value="rebounds">Rebounds</option>
-                                <option value="steals">Steals</option>
-                                <option value="blocks">Blocks</option>
-                                <option value="turnovers">Turnovers</option>
-                                <option value="three_pointers">Three Pointers Made</option>
-                            </optgroup>
-                            <optgroup label="Combined Props">
-                                <option value="pts_reb">Points + Rebounds</option>
-                                <option value="pts_ast">Points + Assists</option>
-                                <option value="ast_reb">Assists + Rebounds</option>
-                                <option value="pts_ast_reb">Points + Assists + Rebounds</option>
-                                <option value="stl_blk">Steals + Blocks</option>
-                            </optgroup>
-                            <optgroup label="Special Props">
-                                <option value="double_double">Double Double</option>
-                                <option value="triple_double">Triple Double</option>
-                            </optgroup>
-                        </select>
-                    </div>
-
-                    <!-- Line Input -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Line</label>
-                        <input type="number" id="lineInput" 
-                               class="w-full p-2 border rounded-md" 
-                               step="0.5" min="0">
-                    </div>
-                </div>
-
-                <button id="analyzeProp" 
-                        class="w-full mt-4 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md transition-colors">
-                    Analyze Prop
-                </button>
-            </div>
-
-            <!-- Results Section -->
-            <div id="results" class="bg-white rounded-lg shadow-lg p-6 hidden">
-                <!-- Top Metrics Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div class="bg-white rounded-lg shadow p-4 text-center">
-                        <div class="text-gray-600 mb-2">Predicted Value</div>
-                        <div id="predictedValue" class="text-3xl font-bold"></div>
-                        <div id="edgeValue" class="text-sm"></div>
-                    </div>
-                    
-                    <div class="bg-white rounded-lg shadow p-4 text-center">
-                        <div class="text-gray-600 mb-2">Historical Hit Rate</div>
-                        <div id="hitRate" class="text-3xl font-bold"></div>
-                        <div id="hitRateDetails" class="text-sm"></div>
-                    </div>
-                    
-                    <div class="bg-white rounded-lg shadow p-4 text-center">
-                        <div class="text-gray-600 mb-2">Model Confidence</div>
-                        <div id="modelConfidence" class="text-3xl font-bold"></div>
-                    </div>
-                </div>
-
-                <div class="text-center mb-8">
-                    <h2 id="mainConclusion" class="text-4xl font-bold"></h2>
-                </div>
-                
-                <!-- ML Analysis -->
-                <div class="bg-gray-50 rounded-lg p-6 mb-6">
-                    <h3 class="text-xl font-semibold mb-3">ML Model Analysis</h3>
-                    <div id="mlAnalysis" class="prose">
-                        <div id="mainAnalysisText" class="text-gray-700 leading-relaxed mb-4"></div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div class="bg-white p-4 rounded-lg shadow">
-                                <h4 class="font-semibold mb-2">Prediction Model</h4>
-                                <div id="classificationConfidence" class="text-sm"></div>
-                            </div>
-                            <div class="bg-white p-4 rounded-lg shadow">
-                                <h4 class="font-semibold mb-2">Value Analysis</h4>
-                                <div id="regressionPrediction" class="text-sm"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Context Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <!-- Player Context -->
-                    <div class="bg-white rounded-lg shadow-lg p-6">
-                        <h3 class="text-lg font-semibold mb-4">Player Context</h3>
-                        <div id="playerContext"></div>
-                    </div>
-
-                    <!-- Team Context -->
-                    <div class="bg-white rounded-lg shadow-lg p-6">
-                        <h3 class="text-lg font-semibold mb-4">Team Context</h3>
-                        <div id="teamContext"></div>
-                    </div>
-
-                    <!-- Matchup Analysis -->
-                    <div class="bg-white rounded-lg shadow-lg p-6">
-                        <h3 class="text-lg font-semibold mb-4">Matchup Analysis</h3>
-                        <div id="matchupAnalysis"></div>
-                    </div>
-                </div>
-
-                <!-- Performance Chart -->
-                <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
-                    <h3 class="text-lg font-semibold mb-4">Performance History</h3>
-                    <div class="h-96">
-                        <canvas id="performanceChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Recent Games -->
-                <div class="bg-white rounded-lg shadow-lg p-6">
-                    <h3 class="text-lg font-semibold mb-4">Recent Games</h3>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Opponent</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Result</th>
-                                </tr>
-                            </thead>
-                            <tbody id="recentGamesBody" class="divide-y divide-gray-200"></tbody>
-                        </table>
-                    </div>
-                </div>
+    <!-- Hero Section -->
+    <div class="hero">
+        <div class="hero-content">
+            <div class="hero-badge">🏀 AI-Powered Analysis</div>
+            <h1>NBA Props Analyzer</h1>
+            <p class="hero-subtitle">
+                Advanced machine learning meets real-time NBA data.<br>
+                Make smarter betting decisions with 186 statistical features analyzed in seconds.
+            </p>
+            <div style="margin-top: 2rem;">
+                <a href="/game-predictions" style="background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px); color: white; padding: 1rem 2rem; border-radius: 12px; text-decoration: none; font-weight: 600; display: inline-block; transition: all 0.3s ease; border: 2px solid rgba(255, 255, 255, 0.3);" 
+                   onmouseover="this.style.background='rgba(255, 255, 255, 0.3)'; this.style.transform='translateY(-2px)';"
+                   onmouseout="this.style.background='rgba(255, 255, 255, 0.2)'; this.style.transform='translateY(0)';">
+                    🎯 Try Game Predictions (Moneyline, Spread, Total) →
+                </a>
             </div>
         </div>
     </div>
 
+    <div class="container">
+        <!-- Analysis Form -->
+        <div class="card fade-in-up stagger-1">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <svg class="card-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    Analyze a Prop
+                </h2>
+                <span class="badge badge-primary">Live Analysis</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Player Search -->
+                <div class="form-group" style="position: relative;">
+                    <label class="form-label">Player</label>
+                    <div class="relative">
+                        <input type="text" 
+                               id="playerSearch" 
+                               class="form-input" 
+                               placeholder="Search for any NBA player..."
+                               autocomplete="off">
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+                            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div id="playerSuggestions" style="position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; margin-top: 0.5rem; background: white; border-radius: 0.75rem; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); border: 1px solid #e5e7eb; max-height: 300px; overflow-y: auto; display: none;"></div>
+                    <div class="form-hint">Start typing to search active NBA players</div>
+                </div>
+
+                <!-- Opponent Team -->
+                <div class="form-group">
+                    <label class="form-label">Opponent Team</label>
+                    <select id="opponentTeam" class="form-select">
+                        <option value="">Select opponent...</option>
+                        <option value="1610612737">Atlanta Hawks</option>
+                        <option value="1610612738">Boston Celtics</option>
+                        <option value="1610612751">Brooklyn Nets</option>
+                        <option value="1610612766">Charlotte Hornets</option>
+                        <option value="1610612741">Chicago Bulls</option>
+                        <option value="1610612739">Cleveland Cavaliers</option>
+                        <option value="1610612742">Dallas Mavericks</option>
+                        <option value="1610612743">Denver Nuggets</option>
+                        <option value="1610612765">Detroit Pistons</option>
+                        <option value="1610612744">Golden State Warriors</option>
+                        <option value="1610612745">Houston Rockets</option>
+                        <option value="1610612754">Indiana Pacers</option>
+                        <option value="1610612746">LA Clippers</option>
+                        <option value="1610612747">Los Angeles Lakers</option>
+                        <option value="1610612763">Memphis Grizzlies</option>
+                        <option value="1610612748">Miami Heat</option>
+                        <option value="1610612749">Milwaukee Bucks</option>
+                        <option value="1610612750">Minnesota Timberwolves</option>
+                        <option value="1610612740">New Orleans Pelicans</option>
+                        <option value="1610612752">New York Knicks</option>
+                        <option value="1610612760">Oklahoma City Thunder</option>
+                        <option value="1610612753">Orlando Magic</option>
+                        <option value="1610612755">Philadelphia 76ers</option>
+                        <option value="1610612756">Phoenix Suns</option>
+                        <option value="1610612757">Portland Trail Blazers</option>
+                        <option value="1610612758">Sacramento Kings</option>
+                        <option value="1610612759">San Antonio Spurs</option>
+                        <option value="1610612761">Toronto Raptors</option>
+                        <option value="1610612762">Utah Jazz</option>
+                        <option value="1610612764">Washington Wizards</option>
+                    </select>
+                    <div class="form-hint">Matchup and defensive context</div>
+                </div>
+
+                <!-- Prop Type -->
+                <div class="form-group">
+                    <label class="form-label">Prop Type</label>
+                    <select id="propType" class="form-select">
+                        <optgroup label="Basic Props">
+                            <option value="points">Points</option>
+                            <option value="assists">Assists</option>
+                            <option value="rebounds">Rebounds</option>
+                            <option value="steals">Steals</option>
+                            <option value="blocks">Blocks</option>
+                            <option value="turnovers">Turnovers</option>
+                            <option value="three_pointers">Three Pointers Made</option>
+                        </optgroup>
+                        <optgroup label="Combined Props">
+                            <option value="pts_reb">Points + Rebounds</option>
+                            <option value="pts_ast">Points + Assists</option>
+                            <option value="ast_reb">Assists + Rebounds</option>
+                            <option value="pts_ast_reb">Points + Assists + Rebounds</option>
+                            <option value="stl_blk">Steals + Blocks</option>
+                        </optgroup>
+                        <optgroup label="Special Props">
+                            <option value="double_double">Double Double</option>
+                            <option value="triple_double">Triple Double</option>
+                        </optgroup>
+                    </select>
+                    <div class="form-hint">Select the prop market</div>
+                </div>
+
+                <!-- Line -->
+                <div class="form-group">
+                    <label class="form-label">Line Value</label>
+                    <input type="number" 
+                           id="lineInput" 
+                           class="form-input" 
+                           step="0.5" 
+                           min="0"
+                           placeholder="e.g., 25.5">
+                    <div class="form-hint">The sportsbook line to analyze</div>
+                </div>
+
+                <!-- Game Location -->
+                <div class="form-group col-span-full">
+                    <label class="form-label">Game Location (Optional)</label>
+                    <div class="grid grid-cols-3 gap-3">
+                        <button type="button" class="location-btn active" data-location="auto">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Auto Detect
+                        </button>
+                        <button type="button" class="location-btn" data-location="home">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                            </svg>
+                            Home Game
+                        </button>
+                        <button type="button" class="location-btn" data-location="away">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
+                            Away Game
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <button id="analyzeProp" class="btn btn-primary w-full mt-6">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+                <span>Analyze Prop Bet</span>
+            </button>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results" class="hidden">
+            <!-- Main Recommendation -->
+            <div class="result-header fade-in-up stagger-2">
+                <div class="flex items-center justify-center gap-3 mb-4">
+                    <span id="modelBadge" class="badge badge-primary"></span>
+                    <span id="confidenceBadge" class="badge"></span>
+                </div>
+                <h2 id="mainRecommendation" class="result-recommendation"></h2>
+                <div id="modelInfo" class="result-confidence"></div>
+            </div>
+
+            <!-- Key Metrics -->
+            <div class="metrics-grid fade-in-up stagger-3">
+                <div class="metric-card">
+                    <div class="metric-label">Predicted Value</div>
+                    <div id="predictedValue" class="metric-value"></div>
+                    <div id="edgeValue" class="metric-change"></div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-label">Win Probability</div>
+                    <div id="overProbability" class="metric-value"></div>
+                    <div class="text-sm text-gray-600">Chance to go over</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-label">Historical Hit Rate</div>
+                    <div id="hitRate" class="metric-value"></div>
+                    <div id="hitRateDetails" class="text-sm text-gray-600"></div>
+                </div>
+            </div>
+
+            <!-- Explanation -->
+            <div class="card fade-in-up stagger-4">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <svg class="card-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        Analysis Summary
+                    </h3>
+                </div>
+                <div id="resultExplanation" class="text-lg leading-relaxed text-gray-700"></div>
+            </div>
+
+            <!-- Context Panels -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <!-- Player Context -->
+                <div class="card fade-in-up stagger-1">
+                    <h3 class="text-lg font-bold mb-4 text-gray-900">👤 Player Context</h3>
+                    <div id="playerContext" class="space-y-3"></div>
+                </div>
+
+                <!-- Team Context -->
+                <div class="card fade-in-up stagger-2">
+                    <h3 class="text-lg font-bold mb-4 text-gray-900">🏀 Team Context</h3>
+                    <div id="teamContext" class="space-y-3"></div>
+                </div>
+
+                <!-- Matchup -->
+                <div class="card fade-in-up stagger-3">
+                    <h3 class="text-lg font-bold mb-4 text-gray-900">⚔️ Matchup Analysis</h3>
+                    <div id="matchupAnalysis" class="space-y-3"></div>
+                </div>
+            </div>
+
+            <!-- Performance Chart -->
+            <div class="card fade-in-up stagger-4">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <svg class="card-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
+                        </svg>
+                        Performance History
+                    </h3>
+                </div>
+                <div class="h-96">
+                    <canvas id="performanceChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Recent Games Table -->
+            <div class="card fade-in-up">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <svg class="card-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                        Recent Games
+                    </h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="border-b border-gray-200">
+                                <th class="text-left py-3 px-4 font-semibold text-gray-700 text-sm uppercase tracking-wide">Date</th>
+                                <th class="text-left py-3 px-4 font-semibold text-gray-700 text-sm uppercase tracking-wide">Opponent</th>
+                                <th class="text-left py-3 px-4 font-semibold text-gray-700 text-sm uppercase tracking-wide">Value</th>
+                                <th class="text-left py-3 px-4 font-semibold text-gray-700 text-sm uppercase tracking-wide">Result</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentGamesBody" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="text-center py-8 text-sm text-gray-500">
+            <p>Data powered by NBA.com API & ESPN | For entertainment purposes only</p>
+            <p class="mt-2">Always verify lines and news before placing any bets</p>
+        </footer>
+    </div>
+
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+    <style>
+        /* Location Button Styles */
+        .location-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.875rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.75rem;
+            background: white;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .location-btn:hover {
+            border-color: #3b82f6;
+            color: #3b82f6;
+            background: #eff6ff;
+        }
+        
+        .location-btn.active {
+            border-color: #3b82f6;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        
+        /* Player Suggestions */
+        #playerSuggestions > div {
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.15s;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        #playerSuggestions > div:hover {
+            background: linear-gradient(90deg, #eff6ff 0%, #dbeafe 100%);
+            padding-left: 1.5rem;
+        }
+        
+        #playerSuggestions > div:last-child {
+            border-bottom: none;
+        }
+        
+        /* Context Item */
+        .context-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+        }
+        
+        .context-label {
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+        
+        .context-value {
+            font-weight: 600;
+            color: #0f172a;
+        }
+    </style>
 </body>
 </html>
