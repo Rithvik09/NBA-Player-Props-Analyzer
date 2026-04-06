@@ -1,8 +1,7 @@
 import pandas as pd
 import numpy as np
-from nba_api.stats.endpoints import playergamelog, CommonPlayerInfo, PlayerVsPlayer, TeamDashboardByGeneralSplits
+from nba_api.stats.endpoints import playergamelog, CommonPlayerInfo
 from nba_api.stats.static import players
-from nba_api.stats.endpoints import TeamGameLog, CommonTeamRoster, LeagueGameFinder
 import sqlite3
 import time
 from datetime import datetime, timedelta
@@ -68,8 +67,479 @@ class BasketballBettingHelper:
             )
         ''')
         
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS retrain_meta (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                last_retrain_at TEXT,
+                samples_at_last_retrain INTEGER DEFAULT 0,
+                last_auc REAL,
+                last_rmse REAL
+            )
+        ''')
+        cursor.execute('''
+            INSERT OR IGNORE INTO retrain_meta (id, samples_at_last_retrain)
+            VALUES (1, 0)
+        ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS prediction_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                player_id INTEGER NOT NULL,
+                player_name TEXT,
+                prop_type TEXT NOT NULL,
+                line REAL NOT NULL,
+                is_home INTEGER,
+                location_detected INTEGER DEFAULT 0,
+                predicted_value REAL,
+                over_probability REAL,
+                recommendation TEXT,
+                confidence TEXT,
+                edge REAL,
+                season_avg REAL,
+                last5_avg REAL,
+                location_avg REAL,
+                actual_result REAL,
+                actual_outcome TEXT,
+                correct INTEGER,
+                notes TEXT
+            )
+        ''')
+
         conn.commit()
         conn.close()
+
+    def log_prediction(self, player_id, player_name, prop_type, line, is_home,
+                       location_detected, predicted_value, over_probability,
+                       recommendation, confidence, edge, season_avg, last5_avg, location_avg):
+        """Save a prediction to the database. Returns the log id."""
+        try:
+            conn = self.get_db()
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO prediction_logs
+                (timestamp, player_id, player_name, prop_type, line, is_home,
+                 location_detected, predicted_value, over_probability,
+                 recommendation, confidence, edge, season_avg, last5_avg, location_avg)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                datetime.now().isoformat(),
+                player_id, player_name, prop_type, line,
+                (1 if is_home else 0) if is_home is not None else None,
+                1 if location_detected else 0,
+                predicted_value, over_probability,
+                recommendation, confidence, edge,
+                season_avg, last5_avg, location_avg
+            ))
+            log_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            return log_id
+        except Exception as e:
+            print(f"Error logging prediction: {e}")
+            return None
+
+    def update_actual_result(self, log_id, actual_result, notes=None):
+        """Record the actual stat value after the game and compute correctness."""
+        try:
+            conn = self.get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT line, recommendation FROM prediction_logs WHERE id = ?', (log_id,))
+            row = cursor.fetchone()
+            if not row:
+                conn.close()
+                return False, 'Log entry not found'
+
+            line, recommendation = row
+            actual_outcome = 'OVER' if actual_result > line else 'UNDER'
+
+            # A prediction is correct if rec was OVER/LEAN OVER and it went over,
+            # or rec was UNDER/LEAN UNDER and it went under.
+            # PASS predictions are logged but not counted as correct/incorrect.
+            if 'OVER' in recommendation:
+                correct = 1 if actual_outcome == 'OVER' else 0
+            elif 'UNDER' in recommendation:
+                correct = 1 if actual_outcome == 'UNDER' else 0
+            else:
+                correct = None  # PASS — not graded
+
+            cursor.execute('''
+                UPDATE prediction_logs
+                SET actual_result = ?, actual_outcome = ?, correct = ?, notes = ?
+                WHERE id = ?
+            ''', (actual_result, actual_outcome, correct, notes, log_id))
+            conn.commit()
+            conn.close()
+            return True, actual_outcome
+        except Exception as e:
+            print(f"Error updating actual result: {e}")
+            return False, str(e)
+
+    def auto_grade_pending(self):
+        """
+        Find all ungraded predictions from previous days, fetch the actual
+        stat from the player's game log, and auto-grade them.
+        Returns a dict with counts: {graded, skipped, errors}
+        """
+        PROP_COL_MAP = {
+            'points': 'PTS', 'assists': 'AST', 'rebounds': 'REB',
+            'steals': 'STL', 'blocks': 'BLK', 'turnovers': 'TOV',
+            'three_pointers': 'FG3M',
+            # Combined props — summed
+            'pts_reb': ['PTS', 'REB'], 'pts_ast': ['PTS', 'AST'],
+            'ast_reb': ['AST', 'REB'], 'pts_ast_reb': ['PTS', 'AST', 'REB'],
+            'stl_blk': ['STL', 'BLK'],
+            # Special — computed
+            'double_double': 'DD', 'triple_double': 'TD',
+        }
+
+        today = datetime.now().date()
+
+        try:
+            conn = self.get_db()
+            cursor = conn.cursor()
+            # Fetch ungraded predictions from before today.
+            # Include PASS rows (correct IS NULL) that haven't had actual_result filled in yet.
+            # Exclude already-graded PASS rows (actual_result IS NOT NULL) to avoid re-processing.
+            cursor.execute('''
+                SELECT id, player_id, prop_type, line, timestamp
+                FROM prediction_logs
+                WHERE actual_result IS NULL
+                AND date(timestamp) < ?
+            ''', (today.isoformat(),))
+            pending = cursor.fetchall()
+            conn.close()
+        except Exception as e:
+            print(f"auto_grade_pending: DB error: {e}")
+            return {'graded': 0, 'skipped': 0, 'errors': 1}
+
+        graded = skipped = errors = 0
+        # Cache game logs per player to avoid redundant API calls
+        gamelog_cache = {}
+
+        for log_id, player_id, prop_type, line, timestamp in pending:
+            try:
+                pred_date = datetime.fromisoformat(timestamp).date()
+
+                # Determine season string for that date
+                year = pred_date.year
+                month = pred_date.month
+                if 1 <= month <= 7:
+                    season = f"{year-1}-{str(year)[2:]}"
+                else:
+                    season = f"{year}-{str(year+1)[2:]}"
+
+                cache_key = (player_id, season)
+                if cache_key not in gamelog_cache:
+                    games = playergamelog.PlayerGameLog(
+                        player_id=player_id, season=season
+                    ).get_data_frames()[0]
+                    time.sleep(0.6)
+                    games['_date'] = pd.to_datetime(games['GAME_DATE']).dt.date
+                    gamelog_cache[cache_key] = games
+
+                games = gamelog_cache[cache_key]
+
+                # Match the game on the prediction date (allow +1 day for late-night games)
+                row = games[games['_date'] == pred_date]
+                if row.empty:
+                    row = games[games['_date'] == pred_date + timedelta(days=1)]
+                if row.empty:
+                    skipped += 1
+                    continue
+
+                row = row.iloc[0]
+                col = PROP_COL_MAP.get(prop_type)
+
+                if col is None:
+                    skipped += 1
+                    continue
+                elif isinstance(col, list):
+                    actual = float(sum(row[c] for c in col))
+                elif col == 'DD':
+                    stats = [row['PTS'], row['REB'], row['AST'], row['STL'], row['BLK']]
+                    actual = 1.0 if sum(s >= 10 for s in stats) >= 2 else 0.0
+                elif col == 'TD':
+                    stats = [row['PTS'], row['REB'], row['AST'], row['STL'], row['BLK']]
+                    actual = 1.0 if sum(s >= 10 for s in stats) >= 3 else 0.0
+                else:
+                    actual = float(row[col])
+
+                success, _ = self.update_actual_result(log_id, actual, notes='auto-graded')
+                if success:
+                    graded += 1
+                else:
+                    errors += 1
+
+            except Exception as e:
+                print(f"auto_grade_pending: error on log {log_id}: {e}")
+                errors += 1
+
+        print(f"auto_grade_pending: graded={graded}, skipped={skipped}, errors={errors}")
+        return {'graded': graded, 'skipped': skipped, 'errors': errors}
+
+    def get_log_training_samples(self):
+        """
+        Convert all graded prediction_logs rows into training samples compatible
+        with EnhancedMLPredictor.train(). These use real sportsbook lines and real
+        outcomes — higher quality signal than simulated rolling-average lines.
+        """
+        try:
+            conn = self.get_db()
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT season_avg, last5_avg, location_avg, predicted_value,
+                       over_probability, edge, is_home, line, actual_result
+                FROM prediction_logs
+                WHERE correct IN (0, 1) AND actual_result IS NOT NULL
+            ''')
+            rows = cursor.fetchall()
+            conn.close()
+        except Exception as e:
+            print(f"get_log_training_samples error: {e}")
+            return []
+
+        samples = []
+        for row in rows:
+            (season_avg, last5_avg, location_avg, predicted_value,
+             over_prob, edge, is_home, line, actual_result) = row
+
+            season_avg  = season_avg  or 0.0
+            last5_avg   = last5_avg   or 0.0
+            location_avg = location_avg or season_avg
+            edge         = edge        or 0.0
+
+            # Reconstruct a feature dict matching what prepare_features produces
+            features = {
+                'recent_avg':   float(last5_avg),
+                'season_avg':   float(season_avg),
+                'stddev':       abs(float(season_avg) - float(last5_avg)),
+                'max_recent':   float(max(season_avg, last5_avg)),
+                'min_recent':   float(min(season_avg, last5_avg)),
+                'games_played': 20,
+                # Use 0.5 (neutral) — we don't store historical hit rate in the log.
+                # Using the actual outcome here would be data leakage (label → feature).
+                'hit_rate':     0.5,
+                'edge':         float(edge),
+                'is_home':      float(is_home) if is_home is not None else 0.5,
+                'location_avg': float(location_avg),
+            }
+            samples.append({
+                'features': features,
+                'result':   float(actual_result),
+                'line':     float(line),
+            })
+        return samples
+
+    def retrain(self, min_new_samples=50, num_players=100, num_seasons=3):
+        """
+        Full retraining pipeline:
+          1. Check how many new graded log samples exist since last retrain
+          2. If >= min_new_samples, proceed
+          3. Collect fresh historical data via DataCollector
+          4. Merge with graded prediction_logs samples (weighted 2× for real lines)
+          5. Retrain both models and save
+          6. Update retrain_meta
+        Returns dict with status and metrics.
+        """
+        from .data_collector import TrainingDataCollector
+
+        try:
+            conn = self.get_db()
+            cursor = conn.cursor()
+            cursor.execute('SELECT samples_at_last_retrain FROM retrain_meta WHERE id = 1')
+            row = cursor.fetchone()
+            prev_count = row[0] if row else 0
+
+            cursor.execute('SELECT COUNT(*) FROM prediction_logs WHERE correct IN (0, 1)')
+            current_count = cursor.fetchone()[0]
+            conn.close()
+
+            new_samples = current_count - prev_count
+            print(f"retrain: {new_samples} new graded samples since last retrain (need {min_new_samples})")
+
+            if new_samples < min_new_samples:
+                return {
+                    'status': 'skipped',
+                    'reason': f'Only {new_samples} new graded samples, need {min_new_samples}',
+                    'new_samples': new_samples
+                }
+
+            # Collect fresh historical data
+            print("retrain: collecting historical training data...")
+            collector = TrainingDataCollector()
+            player_ids = collector.get_active_player_ids(n=num_players)
+            seasons = collector._get_seasons(num_seasons=num_seasons)
+            historical = collector.collect_bulk(player_ids, seasons=seasons)
+            print(f"retrain: {len(historical)} historical samples collected")
+
+            # Get graded log samples — duplicate them for higher weight
+            # (real sportsbook lines are more accurate signal than simulated lines)
+            log_samples = self.get_log_training_samples()
+            print(f"retrain: {len(log_samples)} graded log samples (weighted 2×)")
+            weighted_log = log_samples * 2
+
+            all_samples = historical + weighted_log
+            print(f"retrain: total training samples = {len(all_samples)}")
+
+            if len(all_samples) < 500:
+                return {
+                    'status': 'skipped',
+                    'reason': f'Only {len(all_samples)} total samples, need 500',
+                }
+
+            # Train — returns {'auc': float, 'rmse': float}
+            metrics = self.ml_predictor.train(all_samples)
+
+            # Update metadata
+            conn = self.get_db()
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE retrain_meta
+                SET last_retrain_at = ?, samples_at_last_retrain = ?,
+                    last_auc = ?, last_rmse = ?
+                WHERE id = 1
+            ''', (datetime.now().isoformat(), current_count,
+                  metrics.get('auc'), metrics.get('rmse')))
+            conn.commit()
+            conn.close()
+
+            return {
+                'status': 'retrained',
+                'historical_samples': len(historical),
+                'log_samples': len(log_samples),
+                'total_samples': len(all_samples),
+                'new_graded_since_last': new_samples,
+                'auc': metrics.get('auc'),
+                'rmse': metrics.get('rmse'),
+            }
+
+        except Exception as e:
+            print(f"retrain error: {e}")
+            import traceback; traceback.print_exc()
+            return {'status': 'error', 'error': str(e)}
+
+    def get_retrain_meta(self):
+        """Return metadata about the last retraining run."""
+        try:
+            conn = self.get_db()
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM retrain_meta WHERE id = 1')
+            cols = [d[0] for d in cursor.description]
+            row = cursor.fetchone()
+            conn.close()
+            return dict(zip(cols, row)) if row else {}
+        except Exception as e:
+            return {}
+
+    def get_prediction_logs(self, limit=50, prop_type=None, player_id=None, graded_only=False):
+        """Fetch prediction logs with optional filters."""
+        try:
+            conn = self.get_db()
+            cursor = conn.cursor()
+
+            conditions = []
+            params = []
+            if prop_type:
+                conditions.append('prop_type = ?')
+                params.append(prop_type)
+            if player_id:
+                conditions.append('player_id = ?')
+                params.append(player_id)
+            if graded_only:
+                conditions.append('correct IN (0, 1)')
+
+            where = f"WHERE {' AND '.join(conditions)}" if conditions else ''
+            cursor.execute(f'''
+                SELECT * FROM prediction_logs {where}
+                ORDER BY timestamp DESC LIMIT ?
+            ''', params + [limit])
+
+            cols = [d[0] for d in cursor.description]
+            rows = [dict(zip(cols, row)) for row in cursor.fetchall()]
+            conn.close()
+            return rows
+        except Exception as e:
+            print(f"Error fetching logs: {e}")
+            return []
+
+    def get_accuracy_stats(self):
+        """Compute overall and per-prop accuracy stats."""
+        try:
+            conn = self.get_db()
+            cursor = conn.cursor()
+
+            # Overall stats — only count predictions with a directional rec (OVER/UNDER),
+            # not PASS. correct=NULL means PASS (ungraded by design), correct=0/1 means graded.
+            cursor.execute('''
+                SELECT
+                    COUNT(*) as total_graded,
+                    SUM(correct) as total_correct,
+                    ROUND(100.0 * SUM(correct) / NULLIF(COUNT(*), 0), 1) as accuracy_pct,
+                    COUNT(CASE WHEN confidence = 'HIGH' THEN 1 END) as high_conf_count,
+                    SUM(CASE WHEN confidence = 'HIGH' THEN correct ELSE 0 END) as high_conf_correct,
+                    COUNT(CASE WHEN confidence = 'MEDIUM' THEN 1 END) as med_conf_count,
+                    SUM(CASE WHEN confidence = 'MEDIUM' THEN correct ELSE 0 END) as med_conf_correct
+                FROM prediction_logs
+                WHERE correct IN (0, 1)
+            ''')
+            overall = dict(zip([d[0] for d in cursor.description], cursor.fetchone()))
+
+            # Per prop type
+            cursor.execute('''
+                SELECT prop_type,
+                    COUNT(*) as total,
+                    SUM(correct) as correct,
+                    ROUND(100.0 * SUM(correct) / NULLIF(COUNT(*), 0), 1) as accuracy_pct,
+                    ROUND(AVG(edge) * 100, 1) as avg_edge_pct
+                FROM prediction_logs
+                WHERE correct IN (0, 1)
+                GROUP BY prop_type
+                ORDER BY accuracy_pct DESC
+            ''')
+            cols = [d[0] for d in cursor.description]
+            by_prop = [dict(zip(cols, row)) for row in cursor.fetchall()]
+
+            # Per player
+            cursor.execute('''
+                SELECT player_name, player_id,
+                    COUNT(*) as total,
+                    SUM(correct) as correct,
+                    ROUND(100.0 * SUM(correct) / NULLIF(COUNT(*), 0), 1) as accuracy_pct
+                FROM prediction_logs
+                WHERE correct IN (0, 1)
+                GROUP BY player_id
+                ORDER BY total DESC
+                LIMIT 10
+            ''')
+            cols = [d[0] for d in cursor.description]
+            by_player = [dict(zip(cols, row)) for row in cursor.fetchall()]
+
+            # Recent form: last 20 graded directional picks (not PASS)
+            cursor.execute('''
+                SELECT correct FROM prediction_logs
+                WHERE correct IN (0, 1)
+                ORDER BY timestamp DESC LIMIT 20
+            ''')
+            recent = [r[0] for r in cursor.fetchall()]
+            recent_accuracy = round(100.0 * sum(recent) / len(recent), 1) if recent else None
+
+            # Total predictions (including ungraded)
+            cursor.execute('SELECT COUNT(*) FROM prediction_logs')
+            total_predictions = cursor.fetchone()[0]
+
+            conn.close()
+            return {
+                'overall': overall,
+                'by_prop': by_prop,
+                'by_player': by_player,
+                'recent_accuracy': recent_accuracy,
+                'total_predictions': total_predictions,
+            }
+        except Exception as e:
+            print(f"Error computing accuracy stats: {e}")
+            return {}
 
     def get_player_suggestions(self, partial_name):
         if len(partial_name) < 2:
@@ -136,15 +606,20 @@ class BasketballBettingHelper:
                     time.sleep(0.5)
                     games = gamelog.get_data_frames()[0]
                     print(f"Found {len(games)} games for {season}")
-                    all_games.append(games)
+                    if not games.empty:
+                        all_games.append(games)
                 except Exception as e:
                     print(f"Error fetching {season} data: {e}")
                     continue
-            
+
             if not all_games:
                 raise Exception("Could not fetch any game data")
-                
+
             games_df = pd.concat(all_games, ignore_index=True)
+            # Ensure numeric columns have correct dtype (empty-season concat can leave them as object)
+            for col in ['PTS', 'AST', 'REB', 'STL', 'BLK', 'TOV', 'FG3M', 'FGA', 'FGM', 'FTA', 'FTM', 'OREB', 'DREB', 'PLUS_MINUS']:
+                if col in games_df.columns:
+                    games_df[col] = pd.to_numeric(games_df[col], errors='coerce').fillna(0)
             games_df['GAME_DATE'] = pd.to_datetime(games_df['GAME_DATE'])
             games_df = games_df.sort_values('GAME_DATE', ascending=False)
             
@@ -178,7 +653,16 @@ class BasketballBettingHelper:
             stats['last_game_date'] = games_df['GAME_DATE'].max().strftime('%Y-%m-%d')
             
             stats['trends'] = self._calculate_trends(games_df)
-            
+
+            # Merge trend direction into individual stat dicts so the frontend can access it
+            trend_key_map = {
+                'points': 'pts', 'assists': 'ast', 'rebounds': 'reb',
+                'steals': 'stl', 'blocks': 'blk', 'turnovers': 'tov', 'three_pointers': 'fg3m'
+            }
+            for stat_name, trend_key in trend_key_map.items():
+                if trend_key in stats['trends'] and stat_name in stats:
+                    stats[stat_name]['direction'] = stats['trends'][trend_key]['direction']
+
             return stats
             
         except Exception as e:
@@ -189,21 +673,34 @@ class BasketballBettingHelper:
 
     def _get_stat_dict(self, df, column):
         values = df[column].tolist()
+        home_df = df[~df['MATCHUP'].str.contains('@')]
+        away_df = df[df['MATCHUP'].str.contains('@')]
         return {
             'values': values,
             'avg': float(df[column].mean()),
-            'last5_avg': float(df[column].head().mean()),
+            'last5_avg': float(df[column].head(5).mean()),
             'max': float(df[column].max()),
-            'min': float(df[column].min())
+            'min': float(df[column].min()),
+            'home_avg': float(home_df[column].mean()) if not home_df.empty else float(df[column].mean()),
+            'away_avg': float(away_df[column].mean()) if not away_df.empty else float(df[column].mean()),
+            'home_games': len(home_df),
+            'away_games': len(away_df),
         }
 
     def _get_combined_stat_dict(self, df, columns):
-        #Helper method
         combined = df[columns].sum(axis=1)
+        home_df = df[~df['MATCHUP'].str.contains('@')]
+        away_df = df[df['MATCHUP'].str.contains('@')]
+        home_combined = home_df[columns].sum(axis=1)
+        away_combined = away_df[columns].sum(axis=1)
         return {
-            'values': combined.tolist(),
-            'avg': float(combined.mean()),
-            'last5_avg': float(combined.head().mean())
+            'values':      combined.tolist(),
+            'avg':         float(combined.mean()),
+            'last5_avg':   float(combined.head(5).mean()),
+            'home_avg':    float(home_combined.mean()) if not home_combined.empty else float(combined.mean()),
+            'away_avg':    float(away_combined.mean()) if not away_combined.empty else float(combined.mean()),
+            'home_games':  len(home_df),
+            'away_games':  len(away_df),
         }
 
     def _get_double_double_stats(self, df):
@@ -213,7 +710,7 @@ class BasketballBettingHelper:
         return {
             'values': double_doubles.astype(int).tolist(),
             'avg': float(double_doubles.mean()),
-            'last5_avg': float(double_doubles.head().mean())
+            'last5_avg': float(double_doubles.head(5).mean())
         }
 
     def _get_triple_double_stats(self, df):
@@ -223,7 +720,7 @@ class BasketballBettingHelper:
         return {
             'values': triple_doubles.astype(int).tolist(),
             'avg': float(triple_doubles.mean()),
-            'last5_avg': float(triple_doubles.head().mean())
+            'last5_avg': float(triple_doubles.head(5).mean())
         }
 
     def _calculate_trends(self, df):
@@ -234,7 +731,8 @@ class BasketballBettingHelper:
         for stat in stats:
             values = df[stat].values
             if len(values) >= 5:
-                recent_values = values[:5]
+                # Reverse so index 0 = oldest, index 4 = most recent (data is sorted desc)
+                recent_values = values[:5][::-1]
                 z = np.polyfit(range(len(recent_values)), recent_values, 1)
                 slope = z[0]
                 
@@ -246,7 +744,30 @@ class BasketballBettingHelper:
         
         return trends
 
-    def analyze_prop_bet(self, player_id, prop_type, line, opponent_team_id):
+    def _detect_home_away(self, team_id, opponent_team_id):
+        """
+        Auto-detect home/away by checking today's NBA schedule.
+        Returns True if team_id is the home team, False if away.
+        Returns None if no game found between these two teams today.
+        """
+        try:
+            from nba_api.stats.endpoints import ScoreboardV2
+            today = datetime.now().strftime('%Y-%m-%d')
+            games = ScoreboardV2(game_date=today).get_data_frames()[0]
+            time.sleep(0.6)
+            for _, game in games.iterrows():
+                home = int(game['HOME_TEAM_ID'])
+                visitor = int(game['VISITOR_TEAM_ID'])
+                if home == int(team_id) and visitor == int(opponent_team_id):
+                    return True
+                if visitor == int(team_id) and home == int(opponent_team_id):
+                    return False
+            return None  # No game found today between these teams
+        except Exception as e:
+            print(f"Could not detect home/away from schedule: {e}")
+            return None
+
+    def analyze_prop_bet(self, player_id, prop_type, line, opponent_team_id, is_home=None):
         """Analyze prop bet for given player and line"""
         try:
             stats = self.get_player_stats(player_id)
@@ -258,19 +779,34 @@ class BasketballBettingHelper:
 
             # Get more context
             player_context = self.ml_predictor.get_player_context(player_id, opponent_team_id)
-            team_id = self._get_player_team_id(player_id)
+            team_id = (player_context.get('team_id') if player_context else None) or self._get_player_team_id(player_id)
+
+            # Auto-detect home/away from today's schedule if not explicitly provided
+            # location_known = True only when we're confident (auto-detected OR user-set)
+            user_set_location = is_home is not None   # user explicitly chose Home/Away
+            location_detected = False
+            if is_home is None and team_id:
+                detected = self._detect_home_away(team_id, opponent_team_id)
+                if detected is not None:
+                    is_home = detected
+                    location_detected = True
+                # else: is_home stays None — no game today, location unknown
+            # is_home=None means unknown; don't guess True/False
+            location_known = location_detected or user_set_location
             team_context = self.ml_predictor.get_team_context(team_id) if team_id else None
             opponent_context = self.ml_predictor.get_team_context(opponent_team_id)
 
-            if prop_type == 'three_pointers':
-                stat_data = stats.get('three_pointers', {})
-                trend = stats.get('trends', {}).get('fg3m', {})
-            elif prop_type in ['double_double', 'triple_double']:
+            prop_trend_key_map = {
+                'points': 'pts', 'assists': 'ast', 'rebounds': 'reb',
+                'steals': 'stl', 'blocks': 'blk', 'turnovers': 'tov', 'three_pointers': 'fg3m'
+            }
+
+            if prop_type in ['double_double', 'triple_double']:
                 stat_data = stats.get(prop_type, {})
                 trend = {}
-            elif prop_type in ['points', 'assists', 'rebounds', 'steals', 'blocks', 'turnovers']:
+            elif prop_type in prop_trend_key_map:
                 stat_data = stats.get(prop_type, {})
-                trend = stats.get('trends', {}).get(prop_type, {})
+                trend = stats.get('trends', {}).get(prop_trend_key_map[prop_type], {})
             else:
                 stat_data = stats.get('combined_stats', {}).get(prop_type, {})
                 trend = {}
@@ -286,16 +822,25 @@ class BasketballBettingHelper:
             hit_rate = hits / len(values) if values else 0
             edge = ((stat_data.get('avg', 0) - line) / line) if line > 0 else 0
 
-            features = {
-                'recent_avg': float(stat_data.get('last5_avg', 0)),
-                'season_avg': float(stat_data.get('avg', 0)), 
-                'max_recent': float(max(values) if values else 0),
-                'min_recent': float(min(values) if values else 0),
-                'stddev': float(np.std(values) if values else 0),
-                'games_played': len(values),
-                'hit_rate': hit_rate,
-                'edge': edge
-            }
+            features = self.ml_predictor.prepare_features(
+                stat_data, player_context, team_context, opponent_context
+            )
+            features['hit_rate'] = hit_rate
+            features['edge'] = edge
+            # 0.5 = unknown location; 1.0 = home; 0.0 = away
+            features['is_home'] = 0.5 if not location_known else (1.0 if is_home else 0.0)
+
+            # Compute location_avg before predict() so it can be used as a feature
+            if location_known and is_home is not None:
+                location_key = 'home_avg' if is_home else 'away_avg'
+                location_avg_val = float(stat_data.get(location_key, stat_data.get('avg', 0)) or stat_data.get('avg', 0))
+                # Override recent/season averages with location-specific values
+                if stat_data.get(location_key) is not None:
+                    features['recent_avg'] = location_avg_val
+                    features['season_avg'] = location_avg_val
+            else:
+                location_avg_val = float(stat_data.get('avg', 0))
+            features['location_avg'] = location_avg_val
 
             # ML prediction
             ml_prediction = self.ml_predictor.predict(features, line)
@@ -308,14 +853,53 @@ class BasketballBettingHelper:
                     'edge': edge
                 }
 
+            location_avg = location_avg_val  # already computed above
+            if location_known and is_home is not None:
+                location_games = int(stat_data.get('home_games' if is_home else 'away_games', len(values)))
+            else:
+                location_games = len(values)
+
+            # Get player name for logging
+            player_name = None
+            if player_context and player_context.get('position'):
+                try:
+                    from nba_api.stats.static import players as nba_players_static
+                    player_info = next((p for p in nba_players_static.get_players() if p['id'] == player_id), None)
+                    player_name = player_info['full_name'] if player_info else str(player_id)
+                except Exception as e:
+                    print(f"Warning: could not resolve player name for id {player_id}: {e}")
+                    player_name = str(player_id)
+
+            log_id = self.log_prediction(
+                player_id=player_id,
+                player_name=player_name,
+                prop_type=prop_type,
+                line=line,
+                is_home=is_home,
+                location_detected=location_detected,
+                predicted_value=ml_prediction.get('predicted_value', stat_data.get('avg', 0)),
+                over_probability=ml_prediction.get('over_probability', hit_rate),
+                recommendation=ml_prediction.get('recommendation', 'PASS'),
+                confidence=ml_prediction.get('confidence', 'LOW'),
+                edge=ml_prediction.get('edge', edge),
+                season_avg=stat_data.get('avg', 0),
+                last5_avg=stat_data.get('last5_avg', 0),
+                location_avg=location_avg,
+            )
+
             return {
                 'success': True,
+                'log_id': log_id,
                 'hit_rate': hit_rate,
                 'average': stat_data.get('avg', 0),
                 'last5_average': stat_data.get('last5_avg', 0),
+                'location_avg': location_avg,
+                'location_games': location_games,
+                'is_home': is_home,
+                'location_detected': location_detected,
                 'times_hit': hits,
                 'total_games': len(values),
-                'edge': edge,
+                'edge': ml_prediction.get('edge', edge),
                 'trend': trend,
                 'values': values,
                 'predicted_value': ml_prediction.get('predicted_value', stat_data.get('avg', 0)),

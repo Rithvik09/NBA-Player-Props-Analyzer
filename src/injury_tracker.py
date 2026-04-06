@@ -7,8 +7,8 @@ import time
 class InjuryTracker:
     def __init__(self):
         self.injury_cache = {}
+        self.cache_timestamps = {}
         self.cache_timeout = 3600  # 1 hour cache timeout
-        self.last_cache_update = 0
     
     def get_team_injuries(self, team_id):
         """Get current injuries for a team"""
@@ -19,8 +19,8 @@ class InjuryTracker:
             try:
                 current_time = time.time()
             
-                if (team_id in self.injury_cache and 
-                    current_time - self.last_cache_update < self.cache_timeout):
+                if (team_id in self.injury_cache and
+                    current_time - self.cache_timestamps.get(team_id, 0) < self.cache_timeout):
                     return self.injury_cache[team_id]
             
                 roster = CommonTeamRoster(team_id=team_id, timeout=60).get_data_frames()[0]
@@ -62,7 +62,7 @@ class InjuryTracker:
                 }
             
                 self.injury_cache[team_id] = injury_analysis
-                self.last_cache_update = current_time
+                self.cache_timestamps[team_id] = current_time
             
                 return injury_analysis
             
@@ -87,7 +87,7 @@ class InjuryTracker:
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
             
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, timeout=10)
             soup = BeautifulSoup(response.text, 'html.parser')
             
             injuries = {}
