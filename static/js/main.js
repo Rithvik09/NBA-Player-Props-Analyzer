@@ -1,5 +1,7 @@
 let selectedPlayerId = null;
 let performanceChart = null;
+let toastTimeout = null;
+let selectedLocation = 'auto';
 
 async function autoFillOpponent(playerId) {
     const opponentSelect = document.getElementById('opponentTeam');
@@ -62,6 +64,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const playerSearch = document.getElementById('playerSearch');
     const suggestions = document.getElementById('playerSuggestions');
     const analyzePropBtn = document.getElementById('analyzeProp');
+    const locationBtns = document.querySelectorAll('.location-btn');
+    
+    // Location button handlers
+    locationBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            locationBtns.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            selectedLocation = this.dataset.location;
+        });
+    });
     
     // Player search functionality
     let searchTimeout = null;
@@ -69,30 +81,42 @@ document.addEventListener('DOMContentLoaded', function() {
         clearTimeout(searchTimeout);
         selectedPlayerId = null;
         
-        const query = this.value;
+        const query = this.value.trim();
         
         if (query.length < 2) {
-            suggestions.innerHTML = '<div class="p-2 text-gray-500">Type at least 2 characters...</div>';
-            suggestions.classList.remove('hidden');
+            suggestions.innerHTML = '<div style="padding: 1rem; color: #94a3b8;">Type at least 2 characters to search...</div>';
+            suggestions.style.display = 'block';
             return;
         }
         
-        suggestions.innerHTML = '<div class="p-2 text-gray-500">Loading...</div>';
-        suggestions.classList.remove('hidden');
+        suggestions.innerHTML = '<div style="padding: 1rem; color: #94a3b8;">Searching...</div>';
+        suggestions.style.display = 'block';
         
         searchTimeout = setTimeout(() => {
             fetch(`/search_players?q=${encodeURIComponent(query)}`)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Search failed');
+                    }
+                    return response.json();
+                })
                 .then(players => {
                     suggestions.innerHTML = '';
-                    if (players.length === 0) {
-                        suggestions.innerHTML = '<div class="p-2 text-gray-500">No players found</div>';
+                    if (!players || players.length === 0) {
+                        suggestions.innerHTML = '<div style="padding: 1rem; color: #94a3b8;">No players found</div>';
                     } else {
                         players.forEach(player => {
                             const div = document.createElement('div');
-                            div.className = 'p-2 hover:bg-gray-100 cursor-pointer';
+                            div.style.cssText = 'padding: 0.75rem 1rem; cursor: pointer; border-bottom: 1px solid #f3f4f6; transition: background-color 0.15s;';
                             div.textContent = player.full_name;
-                            div.addEventListener('click', () => {
+                            div.addEventListener('mouseenter', function() {
+                                this.style.backgroundColor = '#f9fafb';
+                            });
+                            div.addEventListener('mouseleave', function() {
+                                this.style.backgroundColor = 'transparent';
+                            });
+                            div.addEventListener('click', function(e) {
+                                e.stopPropagation();
                                 playerSearch.value = player.full_name;
                                 selectedPlayerId = player.id;
                                 suggestions.classList.add('hidden');
@@ -100,42 +124,35 @@ document.addEventListener('DOMContentLoaded', function() {
                             });
                             suggestions.appendChild(div);
                         });
+                        // Remove border from last item
+                        if (suggestions.lastElementChild) {
+                            suggestions.lastElementChild.style.borderBottom = 'none';
+                        }
                     }
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    suggestions.innerHTML = '<div class="p-2 text-red-500">Error loading players</div>';
+                    console.error('Error searching players:', error);
+                    suggestions.innerHTML = '<div style="padding: 1rem; color: #ef4444;">Error loading players. Please try again.</div>';
                 });
         }, 300);
     });
 
-    // Keyboard navigation for player suggestions
-    playerSearch.addEventListener('keydown', function(e) {
-        const items = suggestions.querySelectorAll('div:not(.text-gray-500):not(.text-red-500)');
-        const active = suggestions.querySelector('.bg-blue-50');
-        
-        switch(e.key) {
-            case 'ArrowDown':
-            case 'ArrowUp':
-                e.preventDefault();
-                handleArrowNavigation(e.key, items, active);
-                break;
-            case 'Enter':
-                if (active) {
-                    e.preventDefault();
-                    active.click();
-                }
-                break;
-            case 'Escape':
-                suggestions.classList.add('hidden');
-                break;
+    // Close suggestions on click outside
+    document.addEventListener('click', function(e) {
+        if (!suggestions.contains(e.target) && e.target !== playerSearch && !playerSearch.contains(e.target)) {
+            suggestions.style.display = 'none';
         }
+    });
+    
+    // Keep suggestions open when clicking inside
+    suggestions.addEventListener('click', function(e) {
+        e.stopPropagation();
     });
 
     // Analyze prop button handler
     analyzePropBtn.addEventListener('click', async function() {
         if (!selectedPlayerId) {
-            alert('Please select a player');
+            showToast('Player Required', 'Please select a player from the search results.', 'error');
             return;
         }
         
@@ -144,25 +161,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const opponentTeamId = document.getElementById('opponentTeam').value;
         
         if (!line) {
-            alert('Please enter a line');
+            showToast('Line Required', 'Please enter a betting line (e.g., 25.5).', 'error');
             return;
         }
         
         if (!opponentTeamId) {
-            alert('Please select an opponent team');
+            showToast('Opponent Required', 'Please select an opponent team.', 'error');
             return;
         }
         
         try {
             analyzePropBtn.disabled = true;
-            analyzePropBtn.innerHTML = '<span class="loader"></span> Analyzing...';
-            
-            // Get player stats
-            const statsResponse = await fetch(`/get_player_stats/${selectedPlayerId}`);
-            if (!statsResponse.ok) throw new Error('Failed to fetch player stats');
-            const stats = await statsResponse.json();
-            
-            // Get prop analysis
+            analyzePropBtn.innerHTML = '<span class="loading"></span> <span>Analyzing...</span>';
+
             const analysisResponse = await fetch('/analyze_prop', {
                 method: 'POST',
                 headers: {
@@ -187,12 +198,17 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!analysis.success) {
                 throw new Error(analysis.error || 'Analysis failed');
             }
+
+            const stats = analysis.player_stats;
+            if (!stats) {
+                throw new Error('Missing player stats');
+            }
             
             updateResults(analysis, stats, propType, parseFloat(line));
             
         } catch (error) {
             console.error('Error:', error);
-            alert('Error analyzing prop: ' + error.message);
+            showToast('Analysis Failed', error.message || 'Please try again.', 'error');
         } finally {
             analyzePropBtn.disabled = false;
             analyzePropBtn.innerHTML = '<span class="analyze-btn-inner">⚡ Analyze Prop</span>';
@@ -221,43 +237,34 @@ function updateResults(analysis, stats, propType, line) {
             locationNote.className = 'text-xs text-blue-500 mt-1 font-medium';
         }
         
-        updateKeyMetrics(analysis, stats);
-        
-        const mainConclusion = document.getElementById('mainConclusion');
-        if (mainConclusion) {
-            const colorClass = analysis.recommendation.includes('OVER') ? 'text-green-600' : 
-                             analysis.recommendation.includes('UNDER') ? 'text-red-600' : 
-                             'text-gray-600';
-            mainConclusion.className = `text-4xl font-bold mb-4 ${colorClass}`;
-            mainConclusion.textContent = `${analysis.recommendation} (${analysis.confidence})`;
+    // Update main recommendation
+    const mainRec = document.getElementById('mainRecommendation');
+    mainRec.textContent = analysis.recommendation;
+    
+    // Update badges
+    const modelBadge = document.getElementById('modelBadge');
+    
+    // Extract model source - it can be a string or an object with 'source' field
+    let modelSource = 'heuristic';
+    if (analysis.model_used) {
+        if (typeof analysis.model_used === 'string') {
+            modelSource = analysis.model_used;
+        } else if (typeof analysis.model_used === 'object' && analysis.model_used.source) {
+            modelSource = analysis.model_used.source;
         }
 
         updateMLAnalysis(analysis, stats, propType);
         updatePlayerContext(analysis.context?.player, stats, propType, analysis);
         updateTeamContext(analysis.context?.team);
-        updateMatchupAnalysis(
-            analysis.context?.player?.matchup_history,
-            analysis.context?.player?.position_matchup
-        );
+    updateMatchupAnalysis(analysis.context?.player?.matchup_history, analysis.context?.player?.position_matchup);
+    
+    // Update chart and table
         updatePerformanceChart(stats, propType, line);
         updateRecentGames(stats, propType, line);
-        
-    } catch (error) {
-        console.error('Error updating results:', error);
-        alert('Error displaying results. Please try again.');
-    }
 }
 
 
-function updateKeyMetrics(analysis, stats) {
-    // Update Predicted Value
-    const predictedValue = document.getElementById('predictedValue');
-    const edgeValue = document.getElementById('edgeValue');
-    if (predictedValue && edgeValue) {
-        predictedValue.textContent = analysis.predicted_value.toFixed(1);
-        edgeValue.textContent = `${analysis.edge > 0 ? '+' : ''}${(analysis.edge * 100).toFixed(1)}% vs line`;
-        edgeValue.className = `text-sm ${analysis.edge > 0 ? 'text-green-600' : 'text-red-600'}`;
-    }
+    const fb = analysis.factor_breakdown || {};
     
     // Update Hit Rate
     const hitRate = document.getElementById('hitRate');
@@ -563,20 +570,23 @@ function updatePlayerContext(playerContext, stats, propType, analysis) {
                 value: propStats.last5_avg != null ? `${propStats.last5_avg.toFixed(1)}` : 'N/A'
             },
             { label: 'Games Played', value: stats.games_played || 'N/A' },
-            { label: 'Trend', value: propStats?.direction || 'Stable' }
+            { label: 'FG%', value: shooting.fg_pct_recent ? `${(shooting.fg_pct_recent * 100).toFixed(1)}%` : 'N/A' },
+            { label: 'Win Rate (L10)', value: stats.impact?.win_rate_last10 ? `${(stats.impact.win_rate_last10 * 100).toFixed(0)}%` : 'N/A' },
         ];
+        
+        if (schedule.is_back_to_back) {
+            items.push({ label: '⚠️ Schedule', value: 'Back-to-back game', class: 'text-red-600 font-bold' });
+        }
         
         items.forEach(item => {
             const div = document.createElement('div');
-            div.className = 'flex justify-between items-center py-2';
+            div.className = 'context-item' + (item.class ? ' ' + item.class : '');
             div.innerHTML = `
-                <span class="text-gray-600">${item.label}</span>
-                <span class="font-medium">${item.value}</span>
+                <span class="context-label">${item.label}</span>
+                <span class="context-value">${item.value}</span>
             `;
             container.appendChild(div);
         });
-    } else {
-        container.innerHTML = '<div class="text-gray-500 text-center py-4">No player data available</div>';
     }
 }
 
@@ -589,37 +599,25 @@ function updateTeamContext(teamContext) {
         const items = [
             { label: 'Pace', value: teamContext.pace?.toFixed(1) || 'N/A' },
             { label: 'Offensive Rating', value: teamContext.offensive_rating?.toFixed(1) || 'N/A' },
-            { 
-                label: 'Injury Impact', 
-                value: `${(teamContext.injury_impact * 100).toFixed(1)}%`,
-                className: teamContext.injury_impact > 0.15 ? 'text-red-600 font-bold' : ''
-            }
+            { label: 'Defensive Rating', value: teamContext.defensive_rating?.toFixed(1) || 'N/A' },
+            { label: 'Injury Impact', value: `${(teamContext.injury_impact * 100).toFixed(1)}%`,
+              class: teamContext.injury_impact > 0.15 ? 'text-red-600 font-bold' : '' }
         ];
         
-        // Add injury details if available
         if (teamContext.injuries && teamContext.injuries.total_players_out > 0) {
             items.push({
                 label: 'Players Out',
-                value: `${teamContext.injuries.key_players_out} key, ${teamContext.injuries.total_players_out} total`,
-                className: 'text-red-600'
-            });
-            
-            // Add individual injuries
-            teamContext.injuries.active_injuries.forEach(injury => {
-                items.push({
-                    label: injury.player_name,
-                    value: injury.status,
-                    className: 'text-sm text-gray-500 italic'
-                });
+                value: `${teamContext.injuries.key_players_out} key`,
+                class: 'text-red-600'
             });
         }
         
         items.forEach(item => {
             const div = document.createElement('div');
-            div.className = `context-item ${item.className || ''}`;
+            div.className = 'context-item' + (item.class ? ' ' + item.class : '');
             div.innerHTML = `
-                <span class="text-gray-600">${item.label}</span>
-                <span class="font-medium">${item.value}</span>
+                <span class="context-label">${item.label}</span>
+                <span class="context-value">${item.value}</span>
             `;
             container.appendChild(div);
         });
@@ -668,21 +666,15 @@ function updateMatchupAnalysis(matchupHistory, positionMatchup) {
             );
         }
         
-        if (items.length > 0) {
             items.forEach(item => {
                 const div = document.createElement('div');
-                div.className = 'flex justify-between items-center py-2';
+            div.className = 'context-item';
                 div.innerHTML = `
-                    <span class="text-gray-600">${item.label}</span>
-                    <span class="font-medium">${item.value}</span>
+                <span class="context-label">${item.label}</span>
+                <span class="context-value">${item.value}</span>
                 `;
                 container.appendChild(div);
             });
-        } else {
-            container.innerHTML = '<div class="text-gray-500 text-center py-4">No matchup data available</div>';
-        }
-    } else {
-        container.innerHTML = '<div class="text-gray-500 text-center py-4">No matchup data available</div>';
     }
 }
 
@@ -707,10 +699,7 @@ function updatePerformanceChart(stats, propType, line) {
     
     const dates = stats.dates?.map(date => {
         const d = new Date(date);
-        return d.toLocaleDateString('en-US', { 
-            month: 'short', 
-            day: 'numeric'
-        });
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }) || [];
     
     const reversedValues = [...values].reverse();
@@ -722,54 +711,87 @@ function updatePerformanceChart(stats, propType, line) {
             labels: reversedDates,
             datasets: [
                 {
-                    label: 'Actual',
+                    label: 'Actual Performance',
                     data: reversedValues,
-                    borderColor: 'rgb(59, 130, 246)',
-                    tension: 0.1,
-                    fill: false
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: '#3b82f6',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
                 },
                 {
-                    label: 'Line',
+                    label: 'Betting Line',
                     data: Array(reversedDates.length).fill(line),
-                    borderColor: 'rgb(239, 68, 68)',
-                    borderDash: [5, 5],
+                    borderColor: '#ef4444',
+                    borderDash: [8, 4],
                     tension: 0,
-                    fill: false
+                    fill: false,
+                    borderWidth: 2,
+                    pointRadius: 0,
                 }
             ]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
-                title: {
-                    display: true,
-                    text: 'Performance History'
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                },
                 legend: {
                     display: true,
-                    position: 'top'
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 20,
+                        font: {
+                            size: 13,
+                            weight: 600,
+                            family: 'Inter'
+                        }
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    cornerRadius: 8,
+                    titleFont: {
+                        size: 14,
+                        weight: 'bold'
+                    },
+                    bodyFont: {
+                        size: 13
+                    }
                 }
             },
             scales: {
                 y: {
                     beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: getPropTypeLabel(propType)
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        font: {
+                            size: 12,
+                            family: 'Inter'
+                        }
                     }
                 },
                 x: {
-                    title: {
-                        display: true,
-                        text: 'Game Date'
+                    grid: {
+                        display: false,
+                        drawBorder: false
                     },
                     ticks: {
                         maxRotation: 45,
-                        minRotation: 45
+                        minRotation: 45,
+                        font: {
+                            size: 11,
+                            family: 'Inter'
+                        }
                     }
                 }
             }
@@ -808,6 +830,24 @@ function updateRecentGames(stats, propType, line) {
         `;
         tbody.appendChild(row);
     });
+}
+
+function showToast(title, message, variant = 'success') {
+    const toast = document.getElementById('toast');
+    const toastTitle = document.getElementById('toastTitle');
+    const toastMessage = document.getElementById('toastMessage');
+    
+    if (!toast || !toastTitle || !toastMessage) return;
+
+    toast.classList.remove('hidden', 'toast-success', 'toast-error');
+    toast.classList.add(variant === 'error' ? 'toast-error' : 'toast-success');
+    toastTitle.textContent = title || '';
+    toastMessage.textContent = message || '';
+
+    if (toastTimeout) clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+        toast.classList.add('hidden');
+    }, 4000);
 }
 
 function getPropTypeLabel(propType) {

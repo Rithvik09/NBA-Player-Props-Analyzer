@@ -27,6 +27,7 @@ app.logger.setLevel(logging.INFO)
 app.logger.info('Basketball Betting Helper startup')
 
 betting_helper = BasketballBettingHelper()
+game_predictor = GamePredictor(betting_helper)
 
 # Auto-grade any pending predictions from previous days on startup
 def _startup_auto_grade():
@@ -106,6 +107,11 @@ def test_api():
 @app.route('/')
 def home():
     return render_template('index.html')
+
+
+@app.route('/game-predictions')
+def game_predictions_page():
+    return render_template('game_predictions.html')
 
 @app.route('/search_players')
 def search_players():

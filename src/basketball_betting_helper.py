@@ -8,12 +8,23 @@ from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
 from .models import EnhancedMLPredictor 
+import json
+from .precomputed_store import PrecomputedStore
+import threading
+from .precompute_jobs import update_precomputed
+from .background_jobs import BackgroundJobRunner, load_config
+from .arena_data import get_arena_info, get_home_court_advantage, calculate_travel_metrics
 
 
 class BasketballBettingHelper:
     def __init__(self, db_name='basketball_data.db'):
         self.db_name = db_name
         self.ml_predictor = EnhancedMLPredictor()
+        self.precomputed = PrecomputedStore(db_name)
+        self._precompute_lock = threading.Lock()
+        self._precompute_in_flight = False
+        self._precompute_last_attempt = 0
+        self._precompute_min_interval_seconds = 60 * 30  # 30 minutes cooldown between attempts
         
         current_year = datetime.now().year
         current_month = datetime.now().month
@@ -26,6 +37,67 @@ class BasketballBettingHelper:
             
         print(f"Current season set to: {self.current_season}")
         self.create_tables()
+
+        self.kick_precompute_if_stale()
+
+        self._auto_jobs = None
+        self._start_auto_jobs()
+
+    def _start_auto_jobs(self):
+        try:
+            cfg = load_config(db_path=self.db_name, season=self.current_season, models_dir=self.ml_predictor.model_dir)
+
+            def _on_models_updated():
+                try:
+                    # Reload trained models into the running app
+                    self.ml_predictor._load_trained_models()
+                except Exception:
+                    return
+
+            def _on_precompute_updated():
+                try:
+                    self.precomputed.refresh(force=True)
+                except Exception:
+                    return
+
+            self._auto_jobs = BackgroundJobRunner(cfg, on_models_updated=_on_models_updated, on_precompute_updated=_on_precompute_updated)
+            self._auto_jobs.start()
+        except Exception:
+            return
+
+    def kick_precompute_if_stale(self, force: bool = False) -> bool:
+        try:
+            if not force and self.precomputed.is_fresh():
+                return False
+
+            now = int(time.time())
+            if not force and (now - int(self._precompute_last_attempt) < self._precompute_min_interval_seconds):
+                return False
+
+            with self._precompute_lock:
+                if self._precompute_in_flight:
+                    return False
+                self._precompute_in_flight = True
+                self._precompute_last_attempt = now
+
+            def _run():
+                try:
+                    print("[precompute] auto-update starting...")
+                    summary = update_precomputed(db_path=self.db_name, season=self.current_season)
+                    # Refresh in-process cache so requests immediately see new data
+                    self.precomputed.refresh(force=True)
+                    print("[precompute] auto-update done:", summary)
+                except Exception as e:
+                    print("[precompute] auto-update failed:", e)
+                finally:
+                    with self._precompute_lock:
+                        self._precompute_in_flight = False
+
+            t = threading.Thread(target=_run, daemon=True)
+            t.start()
+            return True
+        except Exception:
+            return False
         
     def get_db(self):
         return sqlite3.connect(self.db_name)
@@ -64,6 +136,26 @@ class BasketballBettingHelper:
                 fg3_pct REAL,
                 ft_pct REAL,
                 FOREIGN KEY (player_id) REFERENCES players (id)
+            )
+        ''')
+
+        # Simple TTL cache for expensive API computations (player stats, etc.)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS api_cache (
+                cache_key TEXT PRIMARY KEY,
+                cache_value TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            )
+        ''')
+
+        # Incremental training state: track last processed game date per player/season
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS incremental_training_state (
+                season TEXT NOT NULL,
+                player_id INTEGER NOT NULL,
+                last_game_date TEXT,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY (season, player_id)
             )
         ''')
         
@@ -582,6 +674,11 @@ class BasketballBettingHelper:
     def get_player_stats(self, player_id):
         #Get player statistics
         try:
+            cache_key = f"player_stats:{player_id}:{self.current_season}"
+            cached = self._cache_get(cache_key, ttl_seconds=6 * 60 * 60)  # 6 hours
+            if cached:
+                return cached
+
             current_year = datetime.now().year
             current_month = datetime.now().month
             
@@ -592,8 +689,9 @@ class BasketballBettingHelper:
                 current_season = f"{current_year}-{str(current_year+1)[2:]}"
                 previous_season = f"{current_year-1}-{str(current_year)[2:]}"
             
-            seasons = [current_season, previous_season]
-            print(f"Fetching seasons: {seasons}")
+            # Start with current season; only fall back if we don't have enough games
+            seasons = [current_season]
+            print(f"Fetching seasons: {seasons} (fallback to previous if needed)")
             
             all_games = []
             
@@ -603,7 +701,6 @@ class BasketballBettingHelper:
                         player_id=player_id,
                         season=season
                     )
-                    time.sleep(0.5)
                     games = gamelog.get_data_frames()[0]
                     print(f"Found {len(games)} games for {season}")
                     if not games.empty:
@@ -651,6 +748,68 @@ class BasketballBettingHelper:
             stats['matchups'] = games_df['MATCHUP'].tolist()
             stats['minutes'] = games_df['MIN'].tolist()
             stats['last_game_date'] = games_df['GAME_DATE'].max().strftime('%Y-%m-%d')
+            
+            # Tier 1 additions: shooting efficiency & volume
+            stats['shooting'] = {
+                'fg_pct_recent': float(games_df.head(5)['FG_PCT'].mean()) if 'FG_PCT' in games_df.columns else 0.0,
+                'fg3_pct_recent': float(games_df.head(5)['FG3_PCT'].mean()) if 'FG3_PCT' in games_df.columns else 0.0,
+                'ft_pct_recent': float(games_df.head(5)['FT_PCT'].mean()) if 'FT_PCT' in games_df.columns else 0.0,
+                'fga_per_game': float(games_df['FGA'].mean()) if 'FGA' in games_df.columns else 0.0,
+                'fg3a_per_game': float(games_df['FG3A'].mean()) if 'FG3A' in games_df.columns else 0.0,
+                'fta_per_game': float(games_df['FTA'].mean()) if 'FTA' in games_df.columns else 0.0,
+            }
+            
+            # Tier 1: rebounding split
+            stats['rebounding'] = {
+                'oreb_per_game': float(games_df['OREB'].mean()) if 'OREB' in games_df.columns else 0.0,
+                'dreb_per_game': float(games_df['DREB'].mean()) if 'DREB' in games_df.columns else 0.0,
+            }
+            
+            # Tier 1: impact & context
+            stats['impact'] = {
+                'plus_minus_avg': float(games_df['PLUS_MINUS'].mean()) if 'PLUS_MINUS' in games_df.columns else 0.0,
+                'fouls_per_game': float(games_df['PF'].mean()) if 'PF' in games_df.columns else 0.0,
+                'win_rate_last10': float((games_df.head(10)['WL'] == 'W').sum() / min(10, len(games_df))) if 'WL' in games_df.columns else 0.5,
+            }
+            
+            # Tier 2 Quick Wins: momentum trends (per prop, calculate later)
+            stats['momentum'] = {}
+            for prop_col, prop_name in [('PTS', 'points'), ('AST', 'assists'), ('REB', 'rebounds'), 
+                                         ('STL', 'steals'), ('BLK', 'blocks'), ('TOV', 'turnovers'), ('FG3M', 'three_pointers')]:
+                if prop_col in games_df.columns:
+                    vals = games_df[prop_col].values
+                    stats['momentum'][prop_name] = {
+                        'last_3_trend': float(np.polyfit(range(min(3, len(vals))), vals[:min(3, len(vals))], 1)[0]) if len(vals) >= 2 else 0.0,
+                        'last_5_trend': float(np.polyfit(range(min(5, len(vals))), vals[:min(5, len(vals))], 1)[0]) if len(vals) >= 3 else 0.0,
+                        'last_10_trend': float(np.polyfit(range(min(10, len(vals))), vals[:min(10, len(vals))], 1)[0]) if len(vals) >= 5 else 0.0,
+                        'above_avg_last5': int((vals[:min(5, len(vals))] > np.mean(vals)).sum()) if len(vals) >= 5 else 0,
+                    }
+            
+            # Tier 2 Quick Wins: schedule/fatigue features
+            dates = pd.to_datetime(games_df['GAME_DATE'])
+            stats['schedule'] = {
+                'is_back_to_back': bool((dates.iloc[0] - dates.iloc[1]).days == 1) if len(dates) >= 2 else False,
+                'days_since_last_game': int((datetime.now() - dates.iloc[0]).days) if len(dates) > 0 else 7,
+                'games_in_last_7_days': int(((datetime.now() - dates).dt.days <= 7).sum()),
+            }
+            
+            # Fetch advanced metrics (cached separately)
+            stats['advanced_metrics'] = self._get_advanced_metrics(player_id, season)
+            stats['shot_location'] = self._get_shot_location_data(player_id, season)
+            stats['clutch_stats'] = self._get_clutch_stats(player_id, season)
+            stats['lineup_context'] = self._get_lineup_context(player_id, season)
+            stats['defensive_metrics'] = self._get_defensive_metrics(player_id, season)
+            stats['play_type_data'] = self._get_play_type_data(player_id, season)
+            # Tier 6: Shot quality, touch data
+            stats['shot_quality'] = self._get_shot_quality_metrics(player_id, season)
+            stats['touch_usage'] = self._get_touch_usage_data(player_id, season)
+            
+            # Tier 4: Calculate efficiency metrics from game logs
+            stats['calculated_efficiency'] = self._calculate_efficiency_metrics(games_df)
+            stats['opponent_adjusted'] = self._calculate_opponent_adjusted_stats(games_df)
+            
+            # Tier 5: Calculate rotation patterns from game logs
+            stats['rotation_patterns'] = self._calculate_rotation_patterns(games_df)
             
             stats['trends'] = self._calculate_trends(games_df)
 
@@ -770,7 +929,7 @@ class BasketballBettingHelper:
     def analyze_prop_bet(self, player_id, prop_type, line, opponent_team_id, is_home=None):
         """Analyze prop bet for given player and line"""
         try:
-            stats = self.get_player_stats(player_id)
+            stats = stats or self.get_player_stats(player_id)
             if not stats:
                 return {
                     'success': False,
@@ -794,7 +953,12 @@ class BasketballBettingHelper:
             # is_home=None means unknown; don't guess True/False
             location_known = location_detected or user_set_location
             team_context = self.ml_predictor.get_team_context(team_id) if team_id else None
-            opponent_context = self.ml_predictor.get_team_context(opponent_team_id)
+
+            # Precomputed daily datasets (DVP by position + special defenders)
+            pre = self.precomputed.refresh()
+            dvp_map = pre.get('dvp', {})
+            dvp_pos_avgs = pre.get('dvp_pos_avgs', {})
+            defenders_map = pre.get('defenders', {})
 
             prop_trend_key_map = {
                 'points': 'pts', 'assists': 'ast', 'rebounds': 'reb',
@@ -817,6 +981,70 @@ class BasketballBettingHelper:
                     'success': False,
                     'error': 'No historical data available'
                 }
+
+            # Map player's position to DVP position buckets (FantasyPros uses PG/SG/SF/PF/C).
+            raw_pos = ((player_context or {}).get('position') or '').upper()
+            if 'C' in raw_pos and 'G' not in raw_pos:
+                dvp_pos = 'C'
+                pos_group = 'C'
+            elif 'G' in raw_pos and 'F' not in raw_pos:
+                dvp_pos = 'SG'  # generic guard
+                pos_group = 'G'
+            elif 'F' in raw_pos and 'C' not in raw_pos and 'G' not in raw_pos:
+                dvp_pos = 'SF'  # generic forward
+                pos_group = 'F'
+            elif 'C' in raw_pos:
+                dvp_pos = 'C'
+                pos_group = 'C'
+            elif 'G' in raw_pos:
+                dvp_pos = 'SG'
+                pos_group = 'G'
+            else:
+                dvp_pos = 'SF'
+                pos_group = 'F'
+
+            dvp = dvp_map.get((int(opponent_team_id), dvp_pos))
+            dvp_avg = dvp_pos_avgs.get(dvp_pos, {})
+            dvp_deltas = {}
+            dvp_gp = 0
+            if dvp:
+                dvp_gp = int(dvp.get('gp', 0) or 0)
+                for k in ['pts', 'reb', 'ast', 'fg3m', 'stl', 'blk', 'tov', 'fd_pts']:
+                    dvp_deltas[f'dvp_{k}_delta'] = float(dvp.get(k, 0.0) - float(dvp_avg.get(k, 0.0) or 0.0))
+
+            special_defenders = defenders_map.get((int(opponent_team_id), pos_group), [])
+            primary_defender = special_defenders[0] if special_defenders else None
+            defender_score01 = float((primary_defender or {}).get('score01', 0.0) or 0.0)
+
+            # Location inference from matchup strings (aligned with `values`)
+            matchups = stats.get('matchups', []) or []
+            def infer_is_home(m):
+                m = str(m or '')
+                if ' vs ' in m:
+                    return True
+                if ' @ ' in m:
+                    return False
+                return None
+
+            is_home_flags = [infer_is_home(m) for m in matchups[:len(values)]]
+            home_values = [v for v, h in zip(values, is_home_flags) if h is True]
+            away_values = [v for v, h in zip(values, is_home_flags) if h is False]
+            home_avg = float(np.mean(home_values)) if home_values else float(stat_data.get('avg', 0))
+            away_avg = float(np.mean(away_values)) if away_values else float(stat_data.get('avg', 0))
+
+            is_home_game = None
+            if game_location == 'home':
+                is_home_game = True
+            elif game_location == 'away':
+                is_home_game = False
+
+            # Recent road-trip proxy: consecutive away games in the last N logs
+            away_streak = 0
+            for h in is_home_flags:
+                if h is False:
+                    away_streak += 1
+                else:
+                    break
 
             hits = sum(1 for x in values if x > line)
             hit_rate = hits / len(values) if values else 0
@@ -843,7 +1071,7 @@ class BasketballBettingHelper:
             features['location_avg'] = location_avg_val
 
             # ML prediction
-            ml_prediction = self.ml_predictor.predict(features, line)
+            ml_prediction = self.ml_predictor.predict(features, line, prop_type=prop_type)
             if not ml_prediction:
                 ml_prediction = {
                     'over_probability': hit_rate,
@@ -906,10 +1134,30 @@ class BasketballBettingHelper:
                 'over_probability': ml_prediction.get('over_probability', hit_rate),
                 'recommendation': ml_prediction.get('recommendation', 'PASS'),
                 'confidence': ml_prediction.get('confidence', 'LOW'),
+                'factor_breakdown': ml_prediction.get('factors', {}),
+                'factor_analysis': ml_prediction.get('factor_analysis', {}),  # Comprehensive factor analysis
+                'model_used': model_info or {'source': model_source},
+                'model_metrics': {
+                    'walk_forward': prop_meta.get('walk_forward'),
+                    'rmse': prop_meta.get('rmse'),
+                } if prop_meta else None,
+                'precomputed_freshness': {
+                    'dvp_updated_at': dvp_ts,
+                    'defenders_updated_at': def_ts,
+                    'updated_at': max(dvp_ts, def_ts),
+                },
+                'player_stats': stats,
                 'context': {
                     'player': player_context,
                     'team': team_context,
-                    'opponent': opponent_context
+                    'opponent': {
+                        **(opponent_context or {}),
+                        'dvp_position': dvp_pos,
+                        'dvp': dvp,
+                        'dvp_deltas': dvp_deltas,
+                        'special_defenders': special_defenders,
+                        'primary_defender': primary_defender
+                    }
                 }
             }
 

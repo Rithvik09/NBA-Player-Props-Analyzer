@@ -1,0 +1,12 @@
+# Example crontab entry (Linux/macOS) to run daily jobs at 6pm.
+# Edit paths to your repo.
+#
+# This runs daily incremental updates, and runs a weekly batch retrain on Sundays (BATCH_WEEKDAY=7).
+#
+# 0 18 * * * cd "/ABSOLUTE/PATH/TO/NBA-Player-Props-Analyzer" && \
+#   DB_PATH="basketball_data.db" MODELS_DIR="models" \
+#   INCREMENTAL_MAX_PLAYERS="200" \
+#   BATCH_WEEKLY="1" BATCH_WEEKDAY="7" BATCH_SEASONS="2021-22,2022-23,2023-24,2024-25,2025-26" BATCH_MAX_PLAYERS="400" \
+#   ./scripts/run_daily_jobs.sh >> logs/daily_jobs.cron.log 2>&1
+
+
