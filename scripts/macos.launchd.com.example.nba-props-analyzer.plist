@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.example.nba-props-analyzer.daily-jobs</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/ABSOLUTE/PATH/TO/NBA-Player-Props-Analyzer/scripts/run_daily_jobs.sh</string>
+  </array>
+
+  <!-- Run daily at 18:00 (6pm). Weekly batch is gated inside the script by BATCH_WEEKDAY. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>18</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>DB_PATH</key>
+    <string>/ABSOLUTE/PATH/TO/NBA-Player-Props-Analyzer/basketball_data.db</string>
+
+    <key>MODELS_DIR</key>
+    <string>/ABSOLUTE/PATH/TO/NBA-Player-Props-Analyzer/models</string>
+
+    <key>TRAIN_SEASONS</key>
+    <string>2023-24,2024-25,2025-26</string>
+
+    <key>TRAIN_MAX_PLAYERS</key>
+    <string>200</string>
+
+    <!-- Hybrid settings for scripts/run_daily_jobs.sh -->
+    <key>INCREMENTAL_MAX_PLAYERS</key>
+    <string>200</string>
+
+    <key>BATCH_WEEKLY</key>
+    <string>1</string>
+
+    <!-- 1=Mon .. 7=Sun (Sunday=7) -->
+    <key>BATCH_WEEKDAY</key>
+    <string>7</string>
+
+    <key>BATCH_SEASONS</key>
+    <string>2021-22,2022-23,2023-24,2024-25,2025-26</string>
+
+    <key>BATCH_MAX_PLAYERS</key>
+    <string>400</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/ABSOLUTE/PATH/TO/NBA-Player-Props-Analyzer/logs/daily_jobs.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/ABSOLUTE/PATH/TO/NBA-Player-Props-Analyzer/logs/daily_jobs.err.log</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- KeepAlive=false so it only runs on schedule -->
+  <key>KeepAlive</key>
+  <false/>
+</dict>
+</plist>
+
+

@@ -821,7 +821,6 @@ body, input, select, button, textarea {
 ═══════════════════════════════════════════ */
 .matchup-stat {
     display: flex;
-    justify-content: space-between;
     align-items: center;
     padding: 10px 12px;
     border-radius: 8px;
