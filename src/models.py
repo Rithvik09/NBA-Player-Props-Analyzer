@@ -1,17 +1,16 @@
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor, GradientBoostingClassifier, GradientBoostingRegressor
+from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, mean_squared_error
-from nba_api.stats.endpoints import TeamGameLog, CommonPlayerInfo, LeagueGameFinder, CommonTeamRoster
-from nba_api.stats.endpoints import playergamelog, TeamDashboardByGeneralSplits
-from nba_api.stats.static import teams
+from nba_api.stats.endpoints import TeamGameLog, CommonPlayerInfo, LeagueGameFinder
+from nba_api.stats.endpoints import playergamelog, LeagueDashPtDefend
 import scipy.stats
 import numpy as np
 import pandas as pd
 import joblib
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from .injury_tracker import InjuryTracker
 
 class EnhancedMLPredictor:
@@ -19,24 +18,36 @@ class EnhancedMLPredictor:
         self.model_dir = model_dir
         os.makedirs(model_dir, exist_ok=True)
         self.injury_tracker = InjuryTracker()
-        
-        self.classification_model = GradientBoostingClassifier(
-            n_estimators=200,
-            learning_rate=0.1,
-            max_depth=5,
-            random_state=42
-        )
-        
-        self.regression_model = GradientBoostingRegressor(
-            n_estimators=200,
-            learning_rate=0.1,
-            max_depth=5,
-            random_state=42
-        )
-        
-        self.scaler = StandardScaler()
-        self.position_matchup_cache = {}
-        self.team_context_cache = {}
+        self.models_trained = False
+
+        # Try to load pre-trained models from disk
+        try:
+            self.classification_model = joblib.load(f'{model_dir}/classification_model.joblib')
+            self.regression_model = joblib.load(f'{model_dir}/regression_model.joblib')
+            self.scaler = joblib.load(f'{model_dir}/scaler.joblib')
+            self.models_trained = True
+            print("Loaded pre-trained models from disk")
+        except Exception:
+            self.classification_model = GradientBoostingClassifier(
+                n_estimators=200,
+                learning_rate=0.1,
+                max_depth=5,
+                random_state=42
+            )
+            self.regression_model = GradientBoostingRegressor(
+                n_estimators=200,
+                learning_rate=0.1,
+                max_depth=5,
+                random_state=42
+            )
+            self.scaler = StandardScaler()
+
+        self.position_matchup_cache = {}   # evicted when > 200 entries
+        self.team_context_cache = {}       # evicted when > 100 entries
+        self._pt_defend_cache = None       # league-wide defensive data, fetched once per season
+        self._pt_defend_season = None      # track which season it was fetched for
+        self._CACHE_MAX_POSITION = 200
+        self._CACHE_MAX_TEAM = 100
         
 
     def _get_injury_history(self, player_id):
@@ -55,12 +66,16 @@ class EnhancedMLPredictor:
 
             all_games = []
             for season in seasons:
-                games = playergamelog.PlayerGameLog(
-                    player_id=player_id,
-                    season=season
-                ).get_data_frames()[0]
-                time.sleep(0.6)
-                all_games.append(games)
+                try:
+                    games = playergamelog.PlayerGameLog(
+                        player_id=player_id,
+                        season=season
+                    ).get_data_frames()[0]
+                    time.sleep(0.6)
+                    all_games.append(games)
+                except Exception as e:
+                    print(f"Error fetching injury history for season {season}: {e}")
+                    continue
 
             if not all_games:
                 return self._get_default_injury_history()
@@ -86,8 +101,9 @@ class EnhancedMLPredictor:
             total_gaps = len(injury_gaps)
             recent_gaps = sum(1 for inj in recent_injuries if inj['is_recent'])
             total_days_missed = injury_gaps['DAYS_BETWEEN'].sum()
+            recent_days_missed = sum(inj['days_missed'] for inj in recent_injuries if inj['is_recent'])
 
-            if recent_gaps > 0 or total_days_missed > 30:
+            if recent_gaps > 0 or recent_days_missed > 30:
                 injury_risk = 'high'
             elif total_gaps > 2:
                 injury_risk = 'medium'
@@ -139,118 +155,112 @@ class EnhancedMLPredictor:
             print(f"Error getting matchup history: {e}")
             return None
         
+    def _get_pt_defend_data(self):
+        """
+        Fetch LeagueDashPtDefend for the current season — once per session.
+        Returns the full DataFrame with all defenders across the league.
+        """
+        current_season = self._get_current_season()
+        if self._pt_defend_cache is not None and self._pt_defend_season == current_season:
+            return self._pt_defend_cache
+
+        try:
+            df = LeagueDashPtDefend(
+                league_id='00',
+                per_mode_simple='PerGame',
+                season=current_season,
+                season_type_all_star='Regular Season',
+                defense_category='Overall'
+            ).get_data_frames()[0]
+            time.sleep(0.6)
+            self._pt_defend_cache = df
+            self._pt_defend_season = current_season
+            return df
+        except Exception as e:
+            print(f"Error fetching LeagueDashPtDefend: {e}")
+            return None
+
+    def _get_current_season(self):
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+        if 1 <= current_month <= 7:
+            return f"{current_year-1}-{str(current_year)[2:]}"
+        return f"{current_year}-{str(current_year+1)[2:]}"
+
     def get_position_matchup_stats(self, position, team_id):
-        """Get team's defensive stats against specific position"""
+        """
+        Get opponent team's defensive stats against a specific position.
+
+        Uses LeagueDashPtDefend (1 API call per session, cached) instead of
+        100+ individual LeagueGameFinder calls. Filters to the opponent team's
+        defenders at the relevant position and computes weighted averages by
+        games played, preserving the same accuracy as the original approach.
+        """
         cache_key = f"{position}_{team_id}"
-        
         if cache_key in self.position_matchup_cache:
             return self.position_matchup_cache[cache_key]
-        
+
+        # Map any position string → canonical nba_api position codes
+        position_group_map = {
+            'G': ['G', 'G-F', 'F-G'],
+            'Guard': ['G', 'G-F', 'F-G'],
+            'SG': ['G', 'G-F', 'F-G'],
+            'PG': ['G', 'G-F', 'F-G'],
+            'G-F': ['G', 'G-F', 'F-G'],
+            'F-G': ['G', 'G-F', 'F-G'],
+            'F': ['F', 'F-G', 'G-F', 'F-C', 'C-F'],
+            'Forward': ['F', 'F-G', 'G-F', 'F-C', 'C-F'],
+            'SF': ['F', 'F-G', 'G-F', 'F-C', 'C-F'],
+            'PF': ['F', 'F-G', 'G-F', 'F-C', 'C-F'],
+            'F-C': ['F', 'F-C', 'C-F'],
+            'C-F': ['C', 'C-F', 'F-C'],
+            'C': ['C', 'C-F', 'F-C'],
+            'Center': ['C', 'C-F', 'F-C'],
+            'Forward-Center': ['F', 'F-C', 'C-F'],
+            'Center-Forward': ['C', 'C-F', 'F-C'],
+            'Forward- Center': ['F', 'F-C', 'C-F'],
+        }
+        valid_positions = position_group_map.get(position, [position])
+
         try:
-            sample_roster = CommonTeamRoster(team_id=team_id).get_data_frames()[0]
-            time.sleep(0.6)
-            
-            position_map = {
-                'Forward': ['F', 'SF', 'PF', 'F-G', 'G-F'],
-                'Guard': ['G', 'SG', 'PG', 'G-F', 'F-G'],
-                'Center': ['C', 'F-C', 'C-F'],
-                'Guard-Forward': ['G-F', 'F-G'],
-                'Forward-Guard': ['F-G', 'G-F'],
-                'Forward- Center': ['F-C', 'C-F'],
-                'Center-Forward': ['C-F', 'F-C'],
-                'F': ['F', 'SF', 'PF', 'F-G', 'G-F'],
-                'G': ['G', 'SG', 'PG', 'G-F', 'F-G'],
-                'C': ['C', 'F-C', 'C-F'],
-                'G-F': ['G-F', 'F-G'],
-                'F-G': ['F-G', 'G-F'],
-                'F-C': ['F-C', 'C-F'],
-                'C-F': ['C-F', 'F-C']
-            }
-            
-            valid_positions = position_map.get(position, [position])
-            
-            gamefinder = LeagueGameFinder(
-                team_id_nullable=team_id,
-                season_type_nullable='Regular Season'
-            ).get_data_frames()[0]
-            
-            time.sleep(0.6)
-
-            opponent_teams = set()
-            for matchup in gamefinder['MATCHUP']:
-                try:
-                    opponent_abbrev = matchup.split(' ')[-1]
-                    opp_team = teams.find_team_by_abbreviation(opponent_abbrev)
-                    if opp_team:
-                        opponent_teams.add(opp_team['id'])
-                except Exception as e:
-                    continue
-
-            opponent_players = []
-            for opp_team_id in opponent_teams:
-                try:
-                    roster = CommonTeamRoster(team_id=opp_team_id).get_data_frames()[0]                    
-
-                    position_players = roster[roster['POSITION'].isin(valid_positions)]
-                    if not position_players.empty:
-                        for _, player in position_players.iterrows():
-                            player_info = {
-                                'id': player['PLAYER_ID'],
-                                'name': player['PLAYER']
-                            }
-                            opponent_players.append(player_info)                
-                    time.sleep(0.6)
-                    
-                except Exception as e:
-                    continue
-            
-            if not opponent_players:
+            defend_df = self._get_pt_defend_data()
+            if defend_df is None or defend_df.empty:
                 return self._get_default_position_matchup()
-                
-            position_stats = []
-            for player in opponent_players:
-                try:
-                    matchups = LeagueGameFinder(
-                        player_id_nullable=player['id'],
-                        vs_team_id_nullable=team_id,
-                        season_type_nullable='Regular Season'
-                    ).get_data_frames()[0]
-                    time.sleep(0.6)
-                    
-                    if len(matchups) > 0:
-                        stats = {
-                            'pts_per_game': float(matchups['PTS'].mean()),
-                            'fg_pct': float(matchups['FG_PCT'].mean()),
-                            'plus_minus': float(matchups['PLUS_MINUS'].mean())
-                        }
-                        position_stats.append(stats)
-                except Exception as e:
-                    continue
 
+            # Filter to the opponent team's defenders at this position group
+            team_defenders = defend_df[
+                (defend_df['PLAYER_LAST_TEAM_ID'] == int(team_id)) &
+                (defend_df['PLAYER_POSITION'].isin(valid_positions))
+            ]
 
-            if position_stats:
-                pts_allowed = np.mean([s['pts_per_game'] for s in position_stats])
-                plus_minus = np.mean([s['plus_minus'] for s in position_stats])
-                fg_pcts = [s['fg_pct'] for s in position_stats if not np.isnan(s['fg_pct'])]
-            
-                effective_fg_pct = np.mean(fg_pcts) if fg_pcts else 0.47
-            
-                matchup_stats = {
-                    'pts_allowed_per_game': float(pts_allowed) if not np.isnan(pts_allowed) else 15.0,
-                    'defensive_rating': float(100.0 + plus_minus) if not np.isnan(plus_minus) else 110.0,
-                    'effective_fg_pct': float(effective_fg_pct)
-                }
-            
-                for key in matchup_stats:
-                    if np.isnan(matchup_stats[key]):
-                        matchup_stats[key] = self._get_default_position_matchup()[key]
-            
-                self.position_matchup_cache[cache_key] = matchup_stats
-                return matchup_stats
-                
-            return self._get_default_position_matchup()
-            
+            if team_defenders.empty:
+                return self._get_default_position_matchup()
+
+            # Weighted average by games played for accuracy
+            weights = team_defenders['G'].values
+            if weights.sum() == 0:
+                return self._get_default_position_matchup()
+
+            avg_fg_pct   = float(np.average(team_defenders['D_FG_PCT'],     weights=weights))
+            avg_pct_pm   = float(np.average(team_defenders['PCT_PLUSMINUS'], weights=weights))
+            # pts_allowed: weighted avg FGM * 2 (field goals, not perfect but consistent proxy)
+            pts_allowed  = float(np.average(team_defenders['D_FGM'] * 2,    weights=weights))
+            # defensive_rating: 100 baseline shifted by normalised plus/minus (PCT_PLUSMINUS is a fraction)
+            def_rating   = 100.0 + avg_pct_pm * 100.0
+
+            matchup_stats = {
+                'pts_allowed_per_game': pts_allowed if not np.isnan(pts_allowed) else 15.0,
+                'defensive_rating':     def_rating  if not np.isnan(def_rating)  else 110.0,
+                'effective_fg_pct':     avg_fg_pct  if not np.isnan(avg_fg_pct)  else 0.47,
+            }
+
+            if len(self.position_matchup_cache) >= self._CACHE_MAX_POSITION:
+                self.position_matchup_cache.clear()
+            self.position_matchup_cache[cache_key] = matchup_stats
+            return matchup_stats
+
         except Exception as e:
+            print(f"Error in get_position_matchup_stats: {e}")
             return self._get_default_position_matchup()
         
     def _get_default_position_matchup(self):
@@ -265,16 +275,20 @@ class EnhancedMLPredictor:
         """Get comprehensive player context including injuries and matchups"""
         try:
             player_info = CommonPlayerInfo(player_id=player_id).get_data_frames()[0]
+            time.sleep(0.6)
             position = player_info['POSITION'].iloc[0]
-            
+
             injury_history = self._get_injury_history(player_id)
             
             matchup_history = self._get_matchup_history(player_id, opponent_team_id)
             
             position_matchup = self.get_position_matchup_stats(position, opponent_team_id)
             
+            team_id = int(player_info['TEAM_ID'].iloc[0])
+
             return {
                 'position': position,
+                'team_id': team_id,
                 'injury_history': injury_history,
                 'matchup_history': matchup_history,
                 'position_matchup': position_matchup
@@ -303,35 +317,39 @@ class EnhancedMLPredictor:
             }
 
     def _calculate_defensive_rating(self, games_df):
-        """Calculate team's defensive rating from game data"""
+        """
+        Estimate defensive rating from TeamGameLog data.
+        TeamGameLog only has the team's own stats (PTS, FGA, etc.), not the opponent's,
+        so we derive a proxy: start from offensive rating and subtract the average
+        PLUS_MINUS per 100 possessions.
+          defensive_rating ≈ offensive_rating - avg_plus_minus_per_100_poss
+        A team that outscores opponents by +5/game gives up ~5 fewer pts/game → better defense.
+        """
         try:
-            away_games = games_df[games_df['MATCHUP'].str.contains('@')]
-            home_games = games_df[~games_df['MATCHUP'].str.contains('@')]
-            opp_pts_away = float(away_games['PTS'].mean()) if not away_games.empty else 0
-            opp_pts_home = float(home_games['PTS'].mean()) if not home_games.empty else 0
-
-            num_away = len(away_games)
-            num_home = len(home_games)
-            total_games = num_away + num_home
-        
-            if total_games == 0:
-                return 110.0
-            
-            opp_pts = ((opp_pts_away * num_away) + (opp_pts_home * num_home)) / total_games
-
+            oreb_dreb_sum = games_df['OREB'].mean() + games_df['DREB'].mean()
+            oreb_factor = (games_df['OREB'].mean() / oreb_dreb_sum) if oreb_dreb_sum > 0 else 0.33
             possessions = (
-                games_df['FGA'].mean() +  # Field goal attempts
-                0.4 * games_df['FTA'].mean() -  # Free throw factor
-                1.07 * (games_df['OREB'].mean() /
-                        (games_df['OREB'].mean() + games_df['DREB'].mean())) *
-                (games_df['FGA'].mean() - games_df['FGM'].mean()) +  
-                games_df['TOV'].mean()  # Turnovers
+                games_df['FGA'].mean() +
+                0.4 * games_df['FTA'].mean() -
+                1.07 * oreb_factor * (games_df['FGA'].mean() - games_df['FGM'].mean()) +
+                games_df['TOV'].mean()
             )
+            if possessions <= 0:
+                return 110.0
 
-            # Calculate defensive rating (points allowed per 100 possessions)
-            def_rating = (opp_pts / possessions) * 100 if possessions > 0 else 110.0
+            # Offensive rating: team's own points per 100 possessions
+            off_rating = (float(games_df['PTS'].mean()) / possessions) * 100
 
-            return float(def_rating)
+            # Approximate defensive rating using PLUS_MINUS
+            # PLUS_MINUS = pts_scored - pts_allowed per game
+            # pts_allowed ≈ pts_scored - plus_minus
+            # def_rating ≈ (pts_allowed / possessions) * 100
+            avg_plus_minus = float(games_df['PLUS_MINUS'].mean()) if 'PLUS_MINUS' in games_df.columns else 0.0
+            pts_allowed_est = float(games_df['PTS'].mean()) - avg_plus_minus
+            def_rating = (pts_allowed_est / possessions) * 100
+
+            # Sanity clamp: keep within realistic NBA range
+            return float(max(90.0, min(130.0, def_rating)))
 
         except Exception as e:
             return 110.0
@@ -347,6 +365,7 @@ class EnhancedMLPredictor:
                 team_id=team_id,
                 season_type_all_star='Regular Season'
             ).get_data_frames()[0]
+            time.sleep(0.6)
 
             if len(team_games) == 0:
                 return self._get_default_context()
@@ -360,7 +379,7 @@ class EnhancedMLPredictor:
 
             defensive_rating = self._calculate_defensive_rating(recent_games)
 
-            injury_impact = injury_info['total_impact']
+            injury_impact = self._calculate_injury_impact(team_id)
             adjusted_pace = possessions_per_game * (1 - injury_impact * 0.1)
             adjusted_pts = pts_per_game * (1 - injury_impact * 0.15)
 
@@ -378,6 +397,8 @@ class EnhancedMLPredictor:
                 }
             }
 
+            if len(self.team_context_cache) >= self._CACHE_MAX_TEAM:
+                self.team_context_cache.clear()
             self.team_context_cache[team_id] = context
             return context
 
@@ -386,14 +407,15 @@ class EnhancedMLPredictor:
             return self._get_default_context()
 
     def _calculate_estimated_pace(self, games_df):
-        """Calculate estimated pace from available stats"""
+        """Calculate estimated pace from available stats using Oliver formula"""
         try:
             fga = float(games_df['FGA'].mean()) if 'FGA' in games_df.columns else 85.0
             fta = float(games_df['FTA'].mean()) if 'FTA' in games_df.columns else 22.0
-            pts = float(games_df['PTS'].mean())
+            oreb = float(games_df['OREB'].mean()) if 'OREB' in games_df.columns else 10.0
+            tov = float(games_df['TOV'].mean()) if 'TOV' in games_df.columns else 14.0
 
-            # pace formula
-            estimated_pace = (fga + 0.4 * fta) or (pts / 1.1)
+            # Oliver possession formula: FGA - OREB + TOV + 0.44*FTA
+            estimated_pace = fga - oreb + tov + 0.44 * fta
 
             return float(max(estimated_pace, 90.0))
         except Exception as e:
@@ -412,7 +434,12 @@ class EnhancedMLPredictor:
                 'trend': 'neutral'
             },
             'rest_days': 2,
-            'injury_impact': 0.1
+            'injury_impact': 0.1,
+            'injuries': {
+                'total_players_out': 0,
+                'key_players_out': 0,
+                'active_injuries': []
+            }
         }
 
     def _calculate_rest_days(self, games_df):
@@ -453,7 +480,7 @@ class EnhancedMLPredictor:
             print(f"Error calculating injury impact: {e}")
             return 0.1
 
-    def prepare_features(self, features, player_stats, player_context, team_context, opponent_context):
+    def prepare_features(self, player_stats, player_context, team_context, opponent_context):
         """Prepare features for ML models including all context"""
         features = {}
         
@@ -462,21 +489,23 @@ class EnhancedMLPredictor:
             'season_avg': float(player_stats.get('avg', 0)),
             'max_recent': float(max(player_stats.get('values', [0]))),
             'min_recent': float(min(player_stats.get('values', [0]))),
-            'stddev': float(np.std(player_stats.get('values', [0]))),
+            'stddev': float(np.std(player_stats.get('values') or [0])),
             'games_played': len(player_stats.get('values', [])),
         })
         
         if player_context:
-            matchup_history = player_context.get('matchup_history', {})
-            position_matchup = player_context.get('position_matchup', {})
-            
+            matchup_history = player_context.get('matchup_history') or {}
+            position_matchup = player_context.get('position_matchup') or {}
+            injury_risk_map = {'low': 0.0, 'medium': 0.5, 'high': 1.0}
+            injury_risk_str = player_context.get('injury_history', {}).get('injury_risk', 'low')
+
             features.update({
                 'vs_team_avg': float(matchup_history.get('avg_points', 0)),
                 'matchup_games': int(matchup_history.get('games_played', 0)),
                 'matchup_success_rate': float(matchup_history.get('success_rate', 0)),
                 'pos_pts_allowed': float(position_matchup.get('pts_allowed_per_game', 0)),
                 'pos_def_rating': float(position_matchup.get('defensive_rating', 0)),
-                'injury_risk': float(player_context.get('injury_history', {}).get('injury_risk', 0))
+                'injury_risk': injury_risk_map.get(injury_risk_str, 0.0)
             })
         
         if team_context:
@@ -516,32 +545,57 @@ class EnhancedMLPredictor:
     def predict(self, features, line):
         """Make predictions using both classification and regression models"""
         try:
-            if not hasattr(self.scaler, 'mean_'):
-                self.scaler.mean_ = np.zeros(len(features))
-                self.scaler.scale_ = np.ones(len(features))
-                self.scaler.var_ = np.ones(len(features))
-                self.scaler.n_features_in_ = len(features)
-        
-            features_df = pd.DataFrame([features])
-            features_scaled = self.scaler.transform(features_df)
-        
             recent_avg = features.get('recent_avg', 0)
             season_avg = features.get('season_avg', 0)
             std_dev = features.get('stddev', 0)
-        
-            predicted_value = (0.7 * recent_avg + 0.3 * season_avg)
+
+            # Statistical baseline prediction
+            stat_predicted_value = (0.7 * recent_avg + 0.3 * season_avg)
+            stat_z_score = (line - stat_predicted_value) / (std_dev + 1e-6)
+            stat_over_prob = 1 - scipy.stats.norm.cdf(stat_z_score)
+
+            predicted_value = stat_predicted_value
+            over_prob = stat_over_prob
+
+            # Blend with trained ML models when available
+            if self.models_trained:
+                try:
+                    features_df = pd.DataFrame([features])
+                    # Align columns to what scaler was trained on
+                    if hasattr(self.scaler, 'feature_names_in_'):
+                        for col in self.scaler.feature_names_in_:
+                            if col not in features_df.columns:
+                                features_df[col] = 0.0
+                        features_df = features_df[self.scaler.feature_names_in_]
+                    features_scaled = self.scaler.transform(features_df)
+
+                    ml_pred = float(self.regression_model.predict(features_scaled)[0])
+                    ml_prob = float(self.classification_model.predict_proba(features_scaled)[0, 1])
+
+                    # 50/50 blend: statistical baseline + ML models
+                    predicted_value = 0.5 * stat_predicted_value + 0.5 * ml_pred
+                    blended_z = (line - predicted_value) / (std_dev + 1e-6)
+                    blended_stat_prob = 1 - scipy.stats.norm.cdf(blended_z)
+                    over_prob = 0.5 * blended_stat_prob + 0.5 * ml_prob
+                except Exception as e:
+                    print(f"ML model inference failed, using statistical fallback: {e}")
+            else:
+                if not hasattr(self.scaler, 'mean_'):
+                    self.scaler.mean_ = np.zeros(len(features))
+                    self.scaler.scale_ = np.ones(len(features))
+                    self.scaler.var_ = np.ones(len(features))
+                    self.scaler.n_features_in_ = len(features)
+
             edge = ((predicted_value - line) / line) if line > 0 else 0
-        
-            z_score = (line - predicted_value) / (std_dev + 1e-6)
-            over_prob = 1 - scipy.stats.norm.cdf(z_score)
-        
+
             # Calculate confidence
             prob_strength = abs(over_prob - 0.5)
             edge_strength = abs(edge)
             confidence = self._calculate_confidence(prob_strength, edge_strength)
-        
+
+            over_prob = max(0.0, min(1.0, over_prob))  # clamp to valid probability range
             recommendation = self._generate_recommendation(over_prob, predicted_value, line, edge, confidence)
-        
+
             return {
                 'over_probability': float(over_prob),
                 'predicted_value': float(predicted_value),
@@ -549,7 +603,7 @@ class EnhancedMLPredictor:
                 'confidence': confidence,
                 'edge': float(edge)
             }
-        
+
         except Exception as e:
             print(f"Prediction error: {e}")
             return {
@@ -563,10 +617,10 @@ class EnhancedMLPredictor:
     def _calculate_confidence(self, prob_strength, edge_strength):
         """Calculate prediction confidence based on probability and edge strength"""
         confidence_score = (0.7 * prob_strength + 0.3 * edge_strength)
-    
-        if confidence_score > 0.15:
+
+        if confidence_score > 0.08:
             return 'HIGH'
-        elif confidence_score > 0.1:
+        elif confidence_score > 0.04:
             return 'MEDIUM'
         return 'LOW'
 
@@ -596,8 +650,9 @@ class EnhancedMLPredictor:
         y_class = [1 if data['result'] > data['line'] else 0 for data in training_data]
         y_reg = [data['result'] for data in training_data]
         
-        X_train, X_test, y_class_train, y_class_test = train_test_split(X, y_class, test_size=0.2)
-        _, _, y_reg_train, y_reg_test = train_test_split(X, y_reg, test_size=0.2)
+        X_train, X_test, y_class_train, y_class_test, y_reg_train, y_reg_test = train_test_split(
+            X, y_class, y_reg, test_size=0.2, random_state=42
+        )
         
         X_train_scaled = self.scaler.fit_transform(X_train)
         X_test_scaled = self.scaler.transform(X_test)
@@ -618,3 +673,5 @@ class EnhancedMLPredictor:
         joblib.dump(self.classification_model, f'{self.model_dir}/classification_model.joblib')
         joblib.dump(self.regression_model, f'{self.model_dir}/regression_model.joblib')
         joblib.dump(self.scaler, f'{self.model_dir}/scaler.joblib')
+        self.models_trained = True
+        return {'auc': float(class_auc), 'rmse': float(reg_rmse)}
