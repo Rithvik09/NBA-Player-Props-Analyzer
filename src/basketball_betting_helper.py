@@ -7,13 +7,18 @@ import time
 from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
-from .models import EnhancedMLPredictor 
+from .models import EnhancedMLPredictor
+from .incremental_models import IncrementalModelManager
+from .ml_features import build_feature_vector, build_classifier_vector
+from .precomputed_store import PrecomputedStore
 
 
 class BasketballBettingHelper:
     def __init__(self, db_name='basketball_data.db'):
         self.db_name = db_name
         self.ml_predictor = EnhancedMLPredictor()
+        self._incremental_mm = IncrementalModelManager('models')
+        self._precomputed = PrecomputedStore(db_name)
         
         current_year = datetime.now().year
         current_month = datetime.now().month
@@ -966,6 +971,56 @@ class BasketballBettingHelper:
             features['location_avg'] = location_avg_val
 
             ml_prediction = self.ml_predictor.predict(features, line, prop_type=prop_type)
+
+            # ---- incremental model (262 features, DVP-aware) ----
+            try:
+                inc_feats = self._build_incremental_features(
+                    prop_type=prop_type,
+                    player_stats=stat_data,
+                    player_context=player_context,
+                    team_context=team_context,
+                    opponent_context=opponent_context,
+                    opponent_team_id=opponent_team_id,
+                    is_home=is_home,
+                    stats=stats,
+                    efficiency=stats.get('efficiency', {}),
+                )
+                Xr = build_feature_vector(inc_feats).X.values.astype(float)
+                Xc = build_classifier_vector(inc_feats, line=float(line)).X.values.astype(float)
+                inc_pred = self._incremental_mm.predict(prop_type, Xr, Xc)
+            except Exception as _inc_err:
+                print(f"incremental model prediction failed: {_inc_err}")
+                inc_pred = None
+
+            # blend: 40% GradientBoosting + 60% incremental (more/better features)
+            # gracefully degrades to GB-only if incremental hasn't been trained yet
+            if inc_pred and ml_prediction:
+                _gb_prob  = float(ml_prediction.get('over_probability', 0.5))
+                _gb_val   = float(ml_prediction.get('predicted_value', recent_avg))
+                _inc_prob = float(inc_pred.get('over_probability', 0.5))
+                _inc_val  = inc_pred.get('predicted_value')
+
+                blended_prob = 0.4 * _gb_prob + 0.6 * _inc_prob
+                blended_val  = (0.4 * _gb_val + 0.6 * float(_inc_val)
+                                if _inc_val is not None else _gb_val)
+
+                # recompute edge and recommendation with blended values
+                _blended_edge = ((blended_val - line) / line) if line > 0 else 0.0
+                from .models import EnhancedMLPredictor as _EMP
+                _prob_strength = abs(blended_prob - 0.5)
+                _edge_strength = abs(_blended_edge)
+                _confidence    = self.ml_predictor._calculate_confidence(_prob_strength, _edge_strength)
+                _recommendation = self.ml_predictor._generate_recommendation(
+                    blended_prob, blended_val, line, _blended_edge, _confidence
+                )
+                ml_prediction = {
+                    'over_probability': float(max(0.0, min(1.0, blended_prob))),
+                    'predicted_value':  float(blended_val),
+                    'recommendation':   _recommendation,
+                    'confidence':       _confidence,
+                    'edge':             float(_blended_edge),
+                }
+
             if not ml_prediction:
                 ml_prediction = {
                     'over_probability': hit_rate,
@@ -1045,6 +1100,355 @@ class BasketballBettingHelper:
                 'error': str(e)
             }
     
+    # ------------------------------------------------------------------
+    # Incremental model integration
+    # ------------------------------------------------------------------
+
+    _DVP_POS_MAP = {
+        # raw POSITION string from CommonPlayerInfo → DVP position key + G/F/C group
+        # used to look up (opponent_team_id, dvp_pos) in PrecomputedStore
+    }
+
+    @staticmethod
+    def _position_keys(raw_pos: str):
+        """Map CommonPlayerInfo POSITION string to (dvp_pos, pos_group)."""
+        p = raw_pos.upper()
+        if 'C' in p and 'G' not in p:
+            return 'C', 'C'
+        if 'G' in p and 'F' not in p and 'C' not in p:
+            return 'SG', 'G'
+        if 'F' in p and 'C' not in p and 'G' not in p:
+            return 'SF', 'F'
+        if 'C' in p:
+            return 'C', 'C'
+        if 'G' in p:
+            return 'SG', 'G'
+        return 'SF', 'F'   # default forward
+
+    def _build_incremental_features(
+        self, prop_type, player_stats, player_context,
+        team_context, opponent_context, opponent_team_id,
+        is_home, stats, efficiency
+    ):
+        """
+        Build the full ~262-key feature dict expected by IncrementalModelManager /
+        ml_features.NUMERIC_FEATURE_KEYS.  Keys that can't be populated from
+        currently-available data default to 0.0 — consistent with how the
+        incremental model was trained (same zeros were used during training in
+        update_incremental_models.py).
+        """
+        values    = player_stats.get('values', []) or []
+        last5     = values[:5] if len(values) >= 5 else values
+        recent_avg = float(player_stats.get('last5_avg', 0))
+        season_avg = float(player_stats.get('avg',       0))
+        stddev     = float(np.std(values)) if values else 0.0
+        max_recent = float(max(last5))  if last5 else 0.0
+        min_recent = float(min(last5))  if last5 else 0.0
+
+        # ---- team / opponent context ----
+        tc = team_context or {}
+        oc = opponent_context or {}
+        team_pace       = float(tc.get('pace', 100.0))
+        opp_pace        = float(oc.get('pace', 100.0))
+        team_off_rating = float(tc.get('offensive_rating', 110.0))
+        team_def_rating = float(tc.get('defensive_rating', 110.0))
+        opp_off_rating  = float(oc.get('offensive_rating', 110.0))
+        opp_def_rating  = float(oc.get('defensive_rating', 110.0))
+        rest_days       = int(tc.get('rest_days', 2))
+        opp_injury_imp  = float(oc.get('injury_impact', 0.0))
+        opp_key_out     = int((oc.get('injuries') or {}).get('key_players_out', 0))
+        team_key_out    = int((tc.get('injuries') or {}).get('key_players_out', 0))
+
+        # ---- player context ----
+        pc = player_context or {}
+        mh = pc.get('matchup_history') or {}
+        vs_team_avg  = float(mh.get('avg_points',  recent_avg))
+        matchup_games = int(mh.get('games_played', 0))
+        position = str(pc.get('position', '') or '')
+        dvp_pos, pos_group = self._position_keys(position)
+
+        # ---- DVP (Defense vs Position) deltas ----
+        pre = self._precomputed.refresh()
+        dvp_map     = pre.get('dvp', {})
+        dvp_avgs    = pre.get('dvp_pos_avgs', {})
+        defenders_m = pre.get('defenders', {})
+
+        dvp = dvp_map.get((int(opponent_team_id), dvp_pos), {})
+        avg = dvp_avgs.get(dvp_pos, {})
+        dvp_gp = int(dvp.get('gp', 0))
+        dvp_deltas = {
+            f'dvp_{k}_delta': float(dvp.get(k, 0.0)) - float(avg.get(k, 0.0))
+            for k in ('pts', 'reb', 'ast', 'fg3m', 'stl', 'blk', 'tov')
+        }
+
+        # ---- primary defender on opposing team ----
+        defenders = defenders_m.get((int(opponent_team_id), pos_group), [])
+        primary_def_score = float((defenders[0] if defenders else {}).get('score01', 0.0) or 0.0)
+
+        # ---- efficiency from already-computed stats dict ----
+        eff = efficiency or {}
+        fg_pct_recent  = float(eff.get('recent_fg_pct', eff.get('fg_pct',  0.0)))
+        ft_pct_recent  = float(eff.get('ft_pct',  0.75))
+        fga_per_game   = float(sum(values) / max(len(values), 1)) if prop_type == 'points' else 0.0
+        fg3_pct_recent = float(player_stats.get('fg3_pct', 0.0))  # populated for 3PT props
+        avg_minutes    = float(eff.get('avg_minutes',    24.0))
+        recent_minutes = float(eff.get('recent_minutes', 24.0))
+        usage_rate     = float(eff.get('usage_rate',     18.0))
+
+        # computed efficiency metrics (from efficiency block)
+        total_pts = float(player_stats.get('avg', 0)) * len(values)
+        pts_per_shot = total_pts / max(usage_rate * len(values), 1.0)
+
+        # trend features
+        trend_slope = float(player_stats.get('trend_slope', 0.0))
+        prev5 = values[5:10] if len(values) >= 10 else values
+        momentum_score = ((recent_avg - float(np.mean(prev5))) / max(float(np.mean(prev5)), 1.0)
+                          if prev5 else 0.0)
+        volatility_ratio = (stddev / max(season_avg, 1.0)) if season_avg > 0 else 0.0
+
+        # games above season avg
+        games_above_last5 = sum(1 for v in last5 if v > season_avg)
+
+        # b2b
+        b2b_flag = int(rest_days <= 1)
+
+        # location splits
+        home_avg = float(player_stats.get('home_avg', recent_avg))
+        away_avg = float(player_stats.get('away_avg', recent_avg))
+
+        feats = {
+            # core rolling stats
+            'recent_avg':     recent_avg,
+            'season_avg':     season_avg,
+            'stddev':         stddev,
+            'games_played':   len(values),
+            'max_recent':     max_recent,
+            'min_recent':     min_recent,
+            # schedule / minutes
+            'mins_last5':     recent_minutes,
+            'mins_season':    avg_minutes,
+            'rest_days':      rest_days,
+            'is_home_game':   (True if is_home else (False if is_home is False else None)),
+            'recent_away_streak': 0,
+            # team / opp context
+            'team_pace':        team_pace,
+            'opp_pace':         opp_pace,
+            'team_off_rating':  team_off_rating,
+            'team_def_rating':  team_def_rating,
+            'opp_off_rating':   opp_off_rating,
+            'opp_def_rating':   opp_def_rating,
+            # injuries
+            'team_key_players_out': team_key_out,
+            'opp_key_players_out':  opp_key_out,
+            'opp_injury_impact':    opp_injury_imp,
+            # team style (no live data → 0.0 consistent with training)
+            'team_pts_fb': 0.0, 'opp_pts_fb_allowed': 0.0,
+            'team_pts_off_tov': 0.0, 'opp_pts_off_tov_allowed': 0.0,
+            'opp_pts_paint': 0.0,
+            'opp_fga': 0.0, 'opp_fg_pct': 0.47,
+            'opp_fg3a': 0.0, 'opp_fg3_pct': 0.36,
+            'opp_tov': 0.0, 'opp_stl': 0.0, 'opp_blk': 0.0,
+            # league averages (NBA season norms)
+            'lg_pts_fb': 12.0, 'lg_opp_pts_fb': 12.0,
+            'lg_pts_off_tov': 16.0, 'lg_opp_pts_off_tov': 16.0,
+            'lg_fga': 86.0, 'lg_fg_pct': 0.47,
+            'lg_fg3a': 35.0, 'lg_tov': 14.0, 'lg_stl': 7.0,
+            # matchup history
+            'vs_team_avg':   vs_team_avg,
+            'matchup_games': matchup_games,
+            # DVP deltas — the core "defence vs position" signal
+            'dvp_gp': dvp_gp,
+            **dvp_deltas,
+            # primary defender composite score
+            'primary_defender_score01': primary_def_score,
+            # shooting efficiency from game log
+            'fg_pct_recent':  fg_pct_recent,
+            'fg3_pct_recent': fg3_pct_recent,
+            'ft_pct_recent':  ft_pct_recent,
+            'fga_per_game':   fga_per_game,
+            'fg3a_per_game':  0.0,   # populated when prop_type = three_pointers below
+            'fta_per_game':   float(eff.get('usage_rate', 0.0)) * 0.15,  # rough FTA proxy
+            'oreb_per_game':  0.0,
+            'dreb_per_game':  0.0,
+            'plus_minus_avg': 0.0,
+            'fouls_per_game': 2.0,
+            'win_rate_last10': float(tc.get('recent_form', {}).get('win_pct', 0.5)),
+            # Tier 2: momentum
+            'last_3_games_trend':            float(np.mean(values[:3]))  - season_avg if len(values) >= 3 else 0.0,
+            'last_5_games_trend':            recent_avg - season_avg,
+            'last_10_games_trend':           float(np.mean(values[:10])) - season_avg if len(values) >= 10 else 0.0,
+            'games_above_season_avg_last5':  games_above_last5,
+            # Tier 2: schedule
+            'is_back_to_back':     b2b_flag,
+            'days_since_last_game': rest_days + 1,
+            'games_in_last_7_days': 2 if b2b_flag else 1,
+            # Tier 2: advanced player metrics (0 → defaults; model learned to weight these low)
+            'usage_rate': usage_rate / 100.0,  # normalise to 0-1
+            'true_shooting_pct': float(eff.get('fg_pct', 0.55)),
+            'effective_fg_pct':  float(eff.get('fg_pct', 0.50)),
+            'assist_percentage': 0.0,
+            'rebound_percentage': 0.0,
+            'pie': 0.0,
+            # Tier 2: shot location (populated if available, else 0.0)
+            'rim_fga_per_game':       0.0,
+            'paint_fga_per_game':     0.0,
+            'mid_range_fga_per_game': 0.0,
+            'corner_3_pct':           float(player_stats.get('corner3_pct',      0.37)),
+            'above_break_3_pct':      float(player_stats.get('above_break3_pct', 0.35)),
+            # Tier 2: clutch (0 → model uses other features)
+            'clutch_pts_per_game':     0.0,
+            'clutch_fg_pct':           0.0,
+            'clutch_minutes_per_game': 0.0,
+            # Tier 4: efficiency
+            'points_per_shot':          pts_per_shot,
+            'ast_to_tov_ratio':         float(player_stats.get('ast_tov_ratio', 1.0)),
+            'reb_rate_per_36':          0.0,
+            'scoring_efficiency_trend': 0.0,
+            'usage_trend':              0.0,
+            'minutes_volatility':       0.0,
+            'blowout_game_pct':         0.0,
+            'close_game_pct':           0.0,
+            # Tier 4: opp defensive trends
+            'opp_def_rating_home_away_split': 0.0,
+            'opp_blocks_per_game_last5':      0.0,
+            'opp_steals_per_game_last5':      0.0,
+            # Tier 4: game context (unknown → 0)
+            'days_rest_opponent': 2, 'opponent_back_to_back': 0,
+            'playoff_implications': 0, 'rivalry_game': 0,
+            'national_tv_game': 0, 'season_phase': 0,
+            # Tier 4: teammate impact
+            'primary_teammate_out': 0, 'secondary_teammate_out': 0,
+            'new_teammate_games': 0, 'lineup_stability_score': 1.0, 'bench_strength': 0.0,
+            # Tier 4: opponent-adjusted
+            'pts_vs_top10_defenses':    season_avg,
+            'pts_vs_bottom10_defenses': season_avg,
+            'consistency_score':        max(0.0, 1.0 - volatility_ratio),
+            'ceiling_game_frequency':   0.0,
+            # Tier 4: advanced defensive (live → 0)
+            'def_fg_pct_allowed': 0.0, 'def_rating_individual': 0.0,
+            'deflections_per_game': 0.0, 'contested_shots_per_game': 0.0,
+            # Tier 4: play type (live → 0)
+            'pnr_ball_handler_pct': 0.0, 'pnr_roll_man_pct': 0.0,
+            'isolation_pct': 0.0, 'spot_up_pct': 0.0,
+            'post_up_pct': 0.0, 'transition_pct': 0.0,
+            # Tier 5: streaks / game importance (0)
+            'consecutive_over_games': 0, 'consecutive_under_games': 0,
+            'hot_hand_indicator': 0.0, 'recent_variance_spike': 0.0,
+            'playoff_seeding_impact': 0.5, 'tanking_indicator': 0.0,
+            'must_win_situation': 0.0, 'games_back_from_playoff': 0.0,
+            # Tier 5: rotation
+            'fourth_quarter_usage_rate': 0.25 if avg_minutes > 30 else 0.18,
+            'garbage_time_minutes_pct': 0.0,
+            'typical_substitution_minute': min(48.0, avg_minutes + 3.0),
+            'crunch_time_usage': 0.28 if avg_minutes > 28 else 0.15,
+            # Tier 5: specific matchup (0)
+            'career_vs_defender': 0.0, 'recent_vs_defender': 0.0, 'player_vs_arena': 0.0,
+            # Tier 6: shot quality (0; model degrades gracefully)
+            'avg_shot_distance': 0.0, 'contested_shot_pct': 0.5,
+            'open_shot_pct': 0.3, 'wide_open_shot_pct': 0.2,
+            'catch_and_shoot_pct': 0.3, 'pull_up_shot_pct': 0.3,
+            'paint_touch_frequency': 0.0,
+            'corner_three_pct':           float(player_stats.get('corner3_pct',      0.37)),
+            'above_break_three_pct':      float(player_stats.get('above_break3_pct', 0.35)),
+            'restricted_area_fg_pct':     float(eff.get('fg_pct', 0.55)),
+            'mid_range_frequency': 0.0, 'shot_quality_vs_expected': 0.0,
+            'avg_shot_clock_time': 12.0, 'late_clock_shot_frequency': 0.15,
+            'early_clock_shot_frequency': 0.25,
+            # Tier 6: touch/usage (0)
+            'touches_per_game': float(fga_per_game + recent_avg * 0.3),
+            'avg_dribbles_per_touch': 2.0, 'avg_seconds_per_touch': 3.0,
+            'elbow_touches_per_game': 0.0, 'post_touches_per_game': 0.0,
+            'paint_touches_per_game': 0.0, 'front_court_touches_per_game': 0.0,
+            'time_of_possession_per_game': avg_minutes * 0.25,
+            'touches_per_possession': 0.0, 'avg_points_per_touch': 0.0,
+            # Tier 6: lineup (0)
+            'net_rating_with_starters': 0.0,
+            'usage_rate_with_star_out': usage_rate / 100.0 * 1.1,
+            'minutes_with_starting_lineup_pct': 0.65 if avg_minutes > 25 else 0.35,
+            'five_man_unit_net_rating': 0.0,
+            'on_court_net_rating': 0.0, 'off_court_net_rating': 0.0,
+            'on_off_differential': 0.0, 'lineups_played_count': 1.0,
+            # Tier 3: travel / arena (0)
+            'time_zone_change': 0.0, 'travel_distance': 0.0, 'coast_to_coast': 0.0,
+            'arena_altitude': 0.0, 'arena_capacity': 0.0, 'home_court_advantage_rating': 0.0,
+            # Tier 3: lineup on/off
+            'on_court_plus_minus': 0.0, 'off_court_plus_minus': 0.0,
+            'net_rating': 0.0, 'top_lineup_minutes_pct': 0.0,
+            # Tier 3: vs-team history
+            'vs_team_last_season_avg': vs_team_avg,
+            'vs_team_home_away_split': home_avg - away_avg,
+            'vs_team_win_pct': 0.5,
+            # Tier 3: model calibration (0 → neutral)
+            'model_accuracy_player': 0.0, 'avg_prediction_error_player': 0.0,
+            'calibration_score_player': 0.0,
+            # Tier 7: time-series
+            'rolling_7day_avg': recent_avg, 'rolling_14day_avg': recent_avg,
+            'rolling_30day_avg': season_avg,
+            'ewm_alpha_0.3': recent_avg, 'ewm_alpha_0.5': recent_avg,
+            'trend_slope_10games': trend_slope,
+            'trend_slope_5games':  trend_slope,
+            'volatility_ratio':    volatility_ratio,
+            'momentum_score':      momentum_score,
+            'games_above_season_avg_7day':  games_above_last5,
+            'games_above_season_avg_14day': games_above_last5,
+            # Tier 7: enhanced matchup
+            'head_to_head_avg': vs_team_avg, 'head_to_head_games': matchup_games,
+            'position_vs_position_dvp': float(dvp_deltas.get('dvp_pts_delta', 0.0)),
+            'matchup_pace': (team_pace + opp_pace) / 2,
+            'defender_switching_frequency': 0.0,
+            'historical_game_script_avg': 0.0,
+            # Tier 8: rest / form
+            'rest_advantage': 0.0, 'rest_advantage_abs': 0.0, 'both_teams_rested': 0.0,
+            'opp_def_rating_last5':  opp_def_rating,
+            'opp_def_rating_last10': opp_def_rating,
+            'opp_def_rating_trend':  0.0,
+            'opp_pace_last5':   opp_pace,
+            'opp_win_rate_last10': float(oc.get('recent_form', {}).get('win_pct', 0.5)),
+            # Tier 8: player age/experience (0 → unknown)
+            'player_age': 0.0, 'years_experience': 0.0, 'is_rookie': 0.0, 'is_veteran': 0.0,
+            # Tier 8: game script
+            'expected_game_script': 0.5, 'blowout_probability': 0.2, 'close_game_probability': 0.4,
+            # Tier 8: quarter-specific (0)
+            'first_quarter_avg': 0.0, 'fourth_quarter_avg': 0.0, 'clutch_performance_score': 0.0,
+            # Tier 8: shot selection quality (0)
+            'shot_selection_rating': 0.0, 'bad_shot_frequency': 0.0, 'shot_clock_management': 0.0,
+            # Tier 8: team chemistry (0)
+            'teammate_chemistry_score': 0.0, 'lineup_continuity': 0.0,
+            'team_win_streak': 0.0, 'team_loss_streak': 0.0,
+            # Tier 8: defender detail
+            'primary_defender_rating': 0.0, 'primary_defender_age': 0.0,
+            'defender_size_mismatch': 0.0, 'defender_recent_form': 0.0,
+            # Tier 9: pace-adjusted (0)
+            'pts_per_100': 0.0, 'ast_per_100': 0.0, 'reb_per_100': 0.0,
+            'stl_per_100': 0.0, 'blk_per_100': 0.0, 'tov_per_100': 0.0,
+            # Tier 9: FT / foul drawing
+            'ft_rate': 0.0, 'fouls_drawn_per_game': 0.0,
+            'ft_attempts_per_game': 0.0, 'and_one_frequency': 0.0, 'foul_drawing_ability': 0.0,
+            # Tier 9: rebounding rates (0)
+            'oreb_rate': 0.0, 'dreb_rate': 0.0, 'total_reb_rate': 0.0,
+            'rebound_contested_pct': 0.0, 'rebound_positioning_score': 0.0,
+            # Tier 9: paint scoring (0)
+            'paint_pts_per_game': 0.0, 'paint_attempts_per_game': 0.0,
+            'paint_fg_pct': float(eff.get('fg_pct', 0.55)),
+            'paint_touch_to_points': 0.0, 'restricted_area_attempts': 0.0,
+            # Tier 9: game situation (0)
+            'performance_when_leading': season_avg, 'performance_when_trailing': season_avg,
+            'performance_when_tied': season_avg, 'performance_in_overtime': season_avg,
+            'performance_by_score_differential': season_avg,
+            # Tier 10: minutes fatigue
+            'minutes_last_3_games': recent_minutes * 3,
+            'minutes_last_5_games': recent_minutes * 5,
+            'minutes_last_7_games': avg_minutes   * 7,
+            'avg_minutes_last_3':   recent_minutes,
+            'minutes_fatigue_score': min(1.0, (recent_minutes * 5) / max(avg_minutes * 7, 1.0)),
+            # Tier 10: player-level advanced (0)
+            'player_off_rating': 0.0, 'player_def_rating': 0.0, 'player_pace': team_pace,
+            'fta_rate_player': 0.0,
+            'pct_fga_2pt': 0.65, 'pct_fga_3pt': 0.35,
+            'pct_pts_in_paint': 0.3, 'pct_pts_off_tov': 0.1, 'pct_pts_fb': 0.1,
+        }
+        return feats
+
     def _get_player_team_id(self, player_id):
         try:
             player_info = CommonPlayerInfo(player_id=player_id).get_data_frames()[0]
