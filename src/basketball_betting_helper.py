@@ -379,7 +379,30 @@ class BasketballBettingHelper:
             collector = TrainingDataCollector()
             player_ids = collector.get_active_player_ids(n=num_players)
             seasons = collector._get_seasons(num_seasons=num_seasons)
-            historical = collector.collect_bulk(player_ids, seasons=seasons)
+
+            # Load precomputed DVP / defender data so training samples include
+            # the same matchup-context features that inference uses at prediction time.
+            try:
+                _pre_data  = self._precomputed.refresh(force=True)
+                _dvp_map   = _pre_data.get('dvp') or {}
+                _dvp_avgs  = _pre_data.get('dvp_pos_avgs') or {}
+                _defs_map  = _pre_data.get('defenders') or {}
+                print(f"retrain: precomputed DVP loaded — "
+                      f"{len(_dvp_map)} team/pos entries, "
+                      f"{len(_defs_map)} defender entries")
+            except Exception as _pre_err:
+                print(f"retrain: could not load precomputed data ({_pre_err}), "
+                      "DVP features will be zero-filled")
+                _dvp_map  = {}
+                _dvp_avgs = {}
+                _defs_map = {}
+
+            historical = collector.collect_bulk(
+                player_ids, seasons=seasons,
+                dvp_map=_dvp_map,
+                dvp_pos_avgs=_dvp_avgs,
+                defenders_map=_defs_map,
+            )
             print(f"retrain: {len(historical)} historical samples collected")
 
             # double up log samples since they use real lines (higher quality)
@@ -948,6 +971,31 @@ class BasketballBettingHelper:
             _rest = int(team_context.get('rest_days', 2)) if team_context else 2
             stat_data['b2b_flag'] = int(_rest <= 1)
 
+            # ---- DVP (Defense vs Position) + primary defender ----
+            # Inject into stat_data so prepare_features() picks them up
+            try:
+                _pre  = self._precomputed.refresh()
+                _pos  = str((player_context or {}).get('position', '') or '')
+                _dvp_pos, _pos_group = self._position_keys(_pos)
+                _dvp     = _pre['dvp'].get((int(opponent_team_id), _dvp_pos), {})
+                _dvp_avg = _pre['dvp_pos_avgs'].get(_dvp_pos, {})
+                stat_data['dvp_gp'] = int(_dvp.get('gp', 0))
+                for _k in ('pts', 'reb', 'ast', 'fg3m', 'stl', 'blk', 'tov'):
+                    stat_data[f'dvp_{_k}_delta'] = (
+                        float(_dvp.get(_k, 0.0)) - float(_dvp_avg.get(_k, 0.0))
+                    )
+                _defs = _pre['defenders'].get((int(opponent_team_id), _pos_group), [])
+                stat_data['primary_defender_score01'] = float(
+                    (_defs[0] if _defs else {}).get('score01', 0.0) or 0.0
+                )
+            except Exception as _dvp_err:
+                print(f"DVP lookup failed (non-fatal): {_dvp_err}")
+                # defaults: zero deltas = league-average defence, no elite defender
+                for _k in ('pts', 'reb', 'ast', 'fg3m', 'stl', 'blk', 'tov'):
+                    stat_data.setdefault(f'dvp_{_k}_delta', 0.0)
+                stat_data.setdefault('dvp_gp', 0)
+                stat_data.setdefault('primary_defender_score01', 0.0)
+
             features = self.ml_predictor.prepare_features(
                 stat_data, player_context, team_context, opponent_context
             )
@@ -971,55 +1019,6 @@ class BasketballBettingHelper:
             features['location_avg'] = location_avg_val
 
             ml_prediction = self.ml_predictor.predict(features, line, prop_type=prop_type)
-
-            # ---- incremental model (262 features, DVP-aware) ----
-            try:
-                inc_feats = self._build_incremental_features(
-                    prop_type=prop_type,
-                    player_stats=stat_data,
-                    player_context=player_context,
-                    team_context=team_context,
-                    opponent_context=opponent_context,
-                    opponent_team_id=opponent_team_id,
-                    is_home=is_home,
-                    stats=stats,
-                    efficiency=stats.get('efficiency', {}),
-                )
-                Xr = build_feature_vector(inc_feats).X.values.astype(float)
-                Xc = build_classifier_vector(inc_feats, line=float(line)).X.values.astype(float)
-                inc_pred = self._incremental_mm.predict(prop_type, Xr, Xc)
-            except Exception as _inc_err:
-                print(f"incremental model prediction failed: {_inc_err}")
-                inc_pred = None
-
-            # blend: 40% GradientBoosting + 60% incremental (more/better features)
-            # gracefully degrades to GB-only if incremental hasn't been trained yet
-            if inc_pred and ml_prediction:
-                _gb_prob  = float(ml_prediction.get('over_probability', 0.5))
-                _gb_val   = float(ml_prediction.get('predicted_value', recent_avg))
-                _inc_prob = float(inc_pred.get('over_probability', 0.5))
-                _inc_val  = inc_pred.get('predicted_value')
-
-                blended_prob = 0.4 * _gb_prob + 0.6 * _inc_prob
-                blended_val  = (0.4 * _gb_val + 0.6 * float(_inc_val)
-                                if _inc_val is not None else _gb_val)
-
-                # recompute edge and recommendation with blended values
-                _blended_edge = ((blended_val - line) / line) if line > 0 else 0.0
-                from .models import EnhancedMLPredictor as _EMP
-                _prob_strength = abs(blended_prob - 0.5)
-                _edge_strength = abs(_blended_edge)
-                _confidence    = self.ml_predictor._calculate_confidence(_prob_strength, _edge_strength)
-                _recommendation = self.ml_predictor._generate_recommendation(
-                    blended_prob, blended_val, line, _blended_edge, _confidence
-                )
-                ml_prediction = {
-                    'over_probability': float(max(0.0, min(1.0, blended_prob))),
-                    'predicted_value':  float(blended_val),
-                    'recommendation':   _recommendation,
-                    'confidence':       _confidence,
-                    'edge':             float(_blended_edge),
-                }
 
             if not ml_prediction:
                 ml_prediction = {
