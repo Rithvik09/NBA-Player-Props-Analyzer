@@ -1081,6 +1081,49 @@ class BasketballBettingHelper:
             _rest = int(team_context.get('rest_days', 2)) if team_context else 2
             stat_data['b2b_flag'] = int(_rest <= 1)
 
+            # ---- extended game-log features (computed from values array) ----
+            try:
+                _vals_ext = list(stat_data.get('values') or [])
+                if len(_vals_ext) >= 3:
+                    _arr = np.array(_vals_ext[::-1], dtype=float)  # most-recent-first -> flip to chronological
+                    _seas_avg_e = float(np.mean(_arr))
+                    _seas_std_e = float(np.std(_arr)) if len(_arr) > 1 else 1.0
+                    _last5_e  = _arr[-5:]  if len(_arr) >= 5  else _arr
+                    _last10_e = _arr[-10:] if len(_arr) >= 10 else _arr
+                    _last3_e  = _arr[-3:]  if len(_arr) >= 3  else _arr
+
+                    def _slope_e(a):
+                        if len(a) < 2:
+                            return 0.0
+                        try:
+                            return float(np.polyfit(range(len(a)), a, 1)[0])
+                        except Exception:
+                            return 0.0
+
+                    stat_data.setdefault('last_3_games_trend',  _slope_e(_last3_e))
+                    stat_data.setdefault('last_5_games_trend',  _slope_e(_last5_e))
+                    stat_data.setdefault('last_10_games_trend', _slope_e(_last10_e))
+                    stat_data.setdefault('games_above_season_avg_last5', float(np.sum(_last5_e > _seas_avg_e)))
+                    stat_data.setdefault('consistency_score', max(0.0, 1.0 - (_seas_std_e / max(_seas_avg_e, 0.1))))
+                    stat_data.setdefault('ceiling_game_frequency', float(np.mean(_arr > _seas_avg_e * 1.5)))
+                    _rec3_std_e = float(np.std(_last3_e)) if len(_last3_e) >= 2 else 0.0
+                    stat_data.setdefault('recent_variance_spike', float(_rec3_std_e / max(_seas_std_e, 0.1) - 1.0))
+                    stat_data.setdefault('blowout_game_pct', 0.2)
+                    stat_data.setdefault('close_game_pct', 0.3)
+            except Exception:
+                pass
+
+            # zero-fill remaining game-log features if not already set
+            for _k, _default in [
+                ('fg3_pct_recent', 0.33), ('fga_per_game', 15.0), ('fg3a_per_game', 5.0),
+                ('fta_per_game', 4.0), ('oreb_per_game', 1.0), ('dreb_per_game', 3.0),
+                ('plus_minus_avg', 0.0), ('fouls_per_game', 2.0), ('win_rate_last10', 0.5),
+                ('points_per_shot', 0.5), ('ast_to_tov_ratio', 1.5), ('reb_rate_per_36', 0.0),
+                ('scoring_efficiency_trend', 0.0), ('usage_trend', 0.0), ('minutes_volatility', 3.0),
+                ('days_since_last_game', 2.0), ('games_in_last_7_days', 3.0),
+            ]:
+                stat_data.setdefault(_k, _default)
+
             # ---- DVP (Defense vs Position) + primary defender ----
             # Inject into stat_data so prepare_features() picks them up
             _pre  = {}
@@ -1148,6 +1191,54 @@ class BasketballBettingHelper:
                 stat_data.setdefault('ref_foul_rate', 0.0)
                 stat_data.setdefault('ref_home_bias', 0.5)
                 stat_data.setdefault('ref_pace_tendency', 0.0)
+
+            # ---- team style + opponent baseline (from team_stats) ----
+            try:
+                _opp_stats      = _pre.get('team_stats', {}).get(int(opponent_team_id), {}) if opponent_team_id else {}
+                _team_stats_own = _pre.get('team_stats', {}).get(int(team_id), {}) if team_id else {}
+
+                stat_data['team_pts_fb']             = float(_team_stats_own.get('pts_fb', 12.0))
+                stat_data['team_pts_off_tov']        = float(_team_stats_own.get('pts_off_tov', 16.0))
+                stat_data['opp_pts_fb_allowed']      = float(_opp_stats.get('opp_pts_fb', 12.0))
+                stat_data['opp_pts_off_tov_allowed'] = float(_opp_stats.get('opp_pts_off_tov', 16.0))
+                stat_data['opp_pts_paint']           = float(_opp_stats.get('opp_pts_paint', 44.0))
+                stat_data['opp_fga']                 = float(_opp_stats.get('opp_fga', 86.0))
+                stat_data['opp_fg_pct']              = float(_opp_stats.get('opp_fg_pct', 0.47))
+                stat_data['opp_fg3a']                = float(_opp_stats.get('opp_fg3a', 35.0))
+                stat_data['opp_fg3_pct']             = float(_opp_stats.get('opp_fg3_pct', 0.36))
+                stat_data['opp_tov']                 = float(_opp_stats.get('opp_tov', 14.0))
+                stat_data['opp_stl']                 = float(_opp_stats.get('opp_stl', 7.0))
+                stat_data['opp_blk']                 = float(_opp_stats.get('opp_blk', 5.0))
+                stat_data['opp_off_rating']          = float(_opp_stats.get('opp_off_rating',
+                                                           (opponent_context or {}).get('offensive_rating', 110.0)))
+                stat_data['opp_def_rating_last5']      = float(_opp_stats.get('opp_def_rating_last5', 110.0))
+                stat_data['opp_blocks_per_game_last5'] = float(_opp_stats.get('opp_blk_last5', 5.0))
+                stat_data['opp_steals_per_game_last5'] = float(_opp_stats.get('opp_stl_last5', 7.0))
+                # League averages (stored per-row; use _opp_stats as source)
+                _lg = _opp_stats
+                stat_data['lg_pts_fb']          = float(_lg.get('lg_pts_fb', 12.0))
+                stat_data['lg_opp_pts_fb']      = float(_lg.get('lg_pts_off_tov', 16.0))
+                stat_data['lg_pts_off_tov']     = float(_lg.get('lg_pts_off_tov', 16.0))
+                stat_data['lg_opp_pts_off_tov'] = float(_lg.get('lg_pts_off_tov', 16.0))
+                stat_data['lg_fga']             = float(_lg.get('lg_fga', 86.0))
+                stat_data['lg_fg_pct']          = float(_lg.get('lg_fg_pct', 0.47))
+                stat_data['lg_fg3a']            = float(_lg.get('lg_fg3a', 35.0))
+                stat_data['lg_tov']             = float(_lg.get('lg_tov', 14.0))
+                stat_data['lg_stl']             = float(_lg.get('lg_stl', 7.0))
+            except Exception as _ts_err:
+                # safe defaults for all team-stats features
+                for _k, _d in [
+                    ('team_pts_fb', 12.0), ('team_pts_off_tov', 16.0),
+                    ('opp_pts_fb_allowed', 12.0), ('opp_pts_off_tov_allowed', 16.0),
+                    ('opp_pts_paint', 44.0), ('opp_fga', 86.0), ('opp_fg_pct', 0.47),
+                    ('opp_fg3a', 35.0), ('opp_fg3_pct', 0.36), ('opp_tov', 14.0),
+                    ('opp_stl', 7.0), ('opp_blk', 5.0), ('opp_off_rating', 110.0),
+                    ('opp_def_rating_last5', 110.0), ('opp_blocks_per_game_last5', 5.0),
+                    ('opp_steals_per_game_last5', 7.0), ('lg_pts_fb', 12.0), ('lg_opp_pts_fb', 12.0),
+                    ('lg_pts_off_tov', 16.0), ('lg_opp_pts_off_tov', 16.0), ('lg_fga', 86.0),
+                    ('lg_fg_pct', 0.47), ('lg_fg3a', 35.0), ('lg_tov', 14.0), ('lg_stl', 7.0),
+                ]:
+                    stat_data.setdefault(_k, _d)
 
             # Injury trajectory (derived from game log stats, always computable)
             try:

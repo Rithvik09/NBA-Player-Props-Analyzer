@@ -283,8 +283,10 @@ class TrainingDataCollector:
             return []
 
         # --- coerce all numeric columns we'll use ---
-        for _c in [col, 'FG_PCT', 'FT_PCT', 'MIN', 'FGA', 'FTA', 'TOV']:
+        for _c in [col, 'FG_PCT', 'FT_PCT', 'MIN', 'FGA', 'FTA', 'TOV', 'FG3_PCT', 'FG3A', 'OREB', 'DREB', 'PLUS_MINUS', 'PF', 'WL']:
             if _c in games_df.columns:
+                if _c == 'WL':
+                    continue  # handled separately
                 games_df[_c] = pd.to_numeric(games_df[_c], errors='coerce').fillna(0)
 
         stat_values = games_df[col].values.astype(float)
@@ -298,6 +300,18 @@ class TrainingDataCollector:
             0.44 * games_df['FTA'].values.astype(float) +
             games_df['TOV'].values.astype(float)
         ) if all(c in games_df.columns for c in ('FGA', 'FTA', 'TOV')) else np.full(len(games_df), 18.0)
+
+        # --- additional arrays for extended features ---
+        fg3_pct_vals = games_df['FG3_PCT'].values.astype(float) if 'FG3_PCT' in games_df.columns else np.full(len(games_df), 0.33)
+        fga_vals     = games_df['FGA'].values.astype(float)     if 'FGA'    in games_df.columns else np.full(len(games_df), 15.0)
+        fg3a_vals    = games_df['FG3A'].values.astype(float)    if 'FG3A'   in games_df.columns else np.full(len(games_df), 5.0)
+        fta_vals     = games_df['FTA'].values.astype(float)     if 'FTA'    in games_df.columns else np.full(len(games_df), 4.0)
+        oreb_vals    = games_df['OREB'].values.astype(float)    if 'OREB'   in games_df.columns else np.full(len(games_df), 1.0)
+        dreb_vals    = games_df['DREB'].values.astype(float)    if 'DREB'   in games_df.columns else np.full(len(games_df), 3.0)
+        plus_minus_v = games_df['PLUS_MINUS'].values.astype(float) if 'PLUS_MINUS' in games_df.columns else np.zeros(len(games_df))
+        pf_vals      = games_df['PF'].values.astype(float)      if 'PF'     in games_df.columns else np.full(len(games_df), 2.0)
+        wl_vals      = np.array([1.0 if str(w).upper() == 'W' else 0.0 for w in games_df.get('WL', pd.Series([''] * len(games_df)))])
+        pts_vals     = games_df['PTS'].values.astype(float) if 'PTS' in games_df.columns else stat_values
 
         # Rest-days array: actual gap between consecutive games
         game_dates = games_df['GAME_DATE'].values  # numpy datetime64
@@ -413,6 +427,115 @@ class TrainingDataCollector:
                 'trend_slope': trend_slope,
                 'b2b_flag':    b2b_flag,
             }
+
+            # ---- extended game-log features ----
+            prior_fg3p  = fg3_pct_vals[:i]
+            prior_fga   = fga_vals[:i]
+            prior_fg3a  = fg3a_vals[:i]
+            prior_fta   = fta_vals[:i]
+            prior_oreb  = oreb_vals[:i]
+            prior_dreb  = dreb_vals[:i]
+            prior_pm    = plus_minus_v[:i]
+            prior_pf    = pf_vals[:i]
+            prior_wl    = wl_vals[:i]
+            prior_pts   = pts_vals[:i]
+
+            # per-game averages
+            fg3_pct_recent  = float(np.mean(prior_fg3p[-5:])) if len(prior_fg3p) >= 5 else float(np.mean(prior_fg3p))
+            fga_per_game    = float(np.mean(prior_fga))
+            fg3a_per_game   = float(np.mean(prior_fg3a))
+            fta_per_game    = float(np.mean(prior_fta))
+            oreb_per_game   = float(np.mean(prior_oreb))
+            dreb_per_game   = float(np.mean(prior_dreb))
+            plus_minus_avg  = float(np.mean(prior_pm))
+            fouls_per_game  = float(np.mean(prior_pf))
+            win_rate_last10 = float(np.mean(prior_wl[-10:])) if len(prior_wl) >= 10 else float(np.mean(prior_wl)) if len(prior_wl) > 0 else 0.5
+
+            # efficiency derived metrics
+            _mean_fga  = float(np.mean(prior_fga[-5:])) if len(prior_fga) >= 5 else float(np.mean(prior_fga))
+            _mean_pts5 = float(np.mean(prior[-5:]))
+            _seas_pts  = float(np.mean(prior))
+            _seas_fga  = float(np.mean(prior_fga))
+            points_per_shot  = float(_mean_pts5 / max(_mean_fga, 1.0))
+            ast_vals_p       = games_df['AST'].values.astype(float)[:i] if 'AST' in games_df.columns else np.zeros(i)
+            tov_vals_p       = games_df['TOV'].values.astype(float)[:i] if 'TOV' in games_df.columns else np.ones(i)
+            ast_to_tov_ratio = float(np.mean(ast_vals_p[-5:])) / max(float(np.mean(tov_vals_p[-5:])), 0.5)
+            reb_rate_per_36  = float(np.mean((prior_oreb + prior_dreb))) / max(float(np.mean(min_vals[:i])), 1.0) * 36.0
+
+            # trend/variance metrics
+            _seas_pts_per_shot       = float(_seas_pts / max(_seas_fga, 1.0))
+            scoring_efficiency_trend = float(points_per_shot - _seas_pts_per_shot)
+            _seas_usg  = float(np.mean(usage_vals[:i]))
+            _rec_usg   = float(np.mean(usage_vals[max(0, i - 5):i]))
+            usage_trend       = float(_rec_usg - _seas_usg)
+            minutes_volatility = float(np.std(min_vals[:i])) if i >= 3 else 0.0
+
+            # game script features (need PLUS_MINUS to infer margin)
+            _margins = np.abs(prior_pm)
+            blowout_game_pct = float(np.mean(_margins > 15)) if len(_margins) > 0 else 0.0
+            close_game_pct   = float(np.mean(_margins < 5))  if len(_margins) > 0 else 0.0
+
+            # consistency and ceiling
+            _cv = float(np.std(prior)) / max(float(np.mean(prior)), 0.1)
+            consistency_score      = max(0.0, 1.0 - _cv)
+            ceiling_game_frequency = float(np.mean(prior > _seas_pts * 1.5)) if _seas_pts > 0 else 0.0
+            _rec3_std  = float(np.std(prior[-3:])) if len(prior) >= 3 else 0.0
+            _seas_std  = float(np.std(prior))      if len(prior) >= 3 else 1.0
+            recent_variance_spike = float(_rec3_std / max(_seas_std, 0.1) - 1.0)
+
+            # trend slopes (polyfit)
+            def _ext_slope(arr):
+                if len(arr) < 2:
+                    return 0.0
+                try:
+                    return float(np.polyfit(range(len(arr)), arr, 1)[0])
+                except Exception:
+                    return 0.0
+
+            _last3_ext  = prior[-3:]
+            _last10_ext = prior[-10:]
+            last_3_games_trend  = _ext_slope(_last3_ext)
+            last_5_games_trend  = _ext_slope(last5)   # last5 already computed earlier in loop
+            last_10_games_trend = _ext_slope(_last10_ext)
+
+            # vs season average
+            _seas_avg_val = float(np.mean(prior))
+            games_above_season_avg_last5 = int(np.sum(np.array(last5) > _seas_avg_val))
+
+            # schedule density
+            _today_dt       = game_dates[i]
+            days_since_last_game = float((game_dates[i] - game_dates[i - 1]) / np.timedelta64(1, 'D')) if i > 0 else 2.0
+            _seven_days_ago = _today_dt - np.timedelta64(7, 'D')
+            games_in_last_7_days = int(np.sum(game_dates[:i] >= _seven_days_ago))
+
+            features.update({
+                'fg3_pct_recent':               fg3_pct_recent,
+                'fga_per_game':                 fga_per_game,
+                'fg3a_per_game':                fg3a_per_game,
+                'fta_per_game':                 fta_per_game,
+                'oreb_per_game':                oreb_per_game,
+                'dreb_per_game':                dreb_per_game,
+                'plus_minus_avg':               plus_minus_avg,
+                'fouls_per_game':               fouls_per_game,
+                'win_rate_last10':              win_rate_last10,
+                'points_per_shot':              points_per_shot,
+                'ast_to_tov_ratio':             ast_to_tov_ratio,
+                'reb_rate_per_36':              reb_rate_per_36,
+                'scoring_efficiency_trend':     scoring_efficiency_trend,
+                'usage_trend':                  usage_trend,
+                'minutes_volatility':           minutes_volatility,
+                'blowout_game_pct':             blowout_game_pct,
+                'close_game_pct':               close_game_pct,
+                'consistency_score':            consistency_score,
+                'ceiling_game_frequency':       ceiling_game_frequency,
+                'recent_variance_spike':        recent_variance_spike,
+                'last_3_games_trend':           last_3_games_trend,
+                'last_5_games_trend':           last_5_games_trend,
+                'last_10_games_trend':          last_10_games_trend,
+                'games_above_season_avg_last5': float(games_above_season_avg_last5),
+                'days_since_last_game':         days_since_last_game,
+                'games_in_last_7_days':         float(games_in_last_7_days),
+            })
 
             # --- team context (current-season proxy) ---
             team_ctx = self._team_context_cache.get(team_abbrevs[i]) if team_abbrevs[i] else None

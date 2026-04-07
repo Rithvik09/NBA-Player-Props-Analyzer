@@ -37,6 +37,8 @@ class PrecomputedStore:
         refs_meta: dict[str, Any] = {'updated_at': None}
         team_foul: dict[int, dict] = {}
         dvp_rolling: dict[tuple, dict] = {}
+        team_stats: dict[int, dict] = {}
+        team_stats_meta: dict[str, Any] = {'updated_at': None}
 
         try:
             conn = self._get_db()
@@ -162,6 +164,59 @@ class PrecomputedStore:
             except Exception:
                 pass
 
+            # --- team stats (rich offensive/defensive baseline) ---
+            try:
+                cur.execute(
+                    """
+                    SELECT team_id, pts_fb, pts_off_tov,
+                           opp_fga, opp_fg_pct, opp_fg3a, opp_fg3_pct,
+                           opp_tov, opp_stl, opp_blk, opp_pts_paint, opp_pts_fb, opp_pts_off_tov,
+                           opp_def_rating_last5, opp_blk_last5, opp_stl_last5,
+                           lg_pts_fb, lg_pts_off_tov, lg_fga, lg_fg_pct, lg_fg3a, lg_tov, lg_stl,
+                           foul_rate_season, foul_rate_last5, updated_at
+                    FROM team_stats
+                    """
+                )
+                ts_max_ts = None
+                for row in cur.fetchall():
+                    (tid, pts_fb, pts_off_tov,
+                     opp_fga, opp_fg_pct, opp_fg3a, opp_fg3_pct,
+                     opp_tov, opp_stl, opp_blk, opp_pts_paint, opp_pts_fb, opp_pts_off_tov,
+                     opp_def_rating_last5, opp_blk_last5, opp_stl_last5,
+                     lg_pts_fb, lg_pts_off_tov, lg_fga, lg_fg_pct, lg_fg3a, lg_tov, lg_stl,
+                     foul_rate_season, foul_rate_last5, updated_at) = row
+                    team_stats[int(tid)] = {
+                        'pts_fb':               float(pts_fb)              if pts_fb              is not None else 12.0,
+                        'pts_off_tov':          float(pts_off_tov)         if pts_off_tov         is not None else 16.0,
+                        'opp_fga':              float(opp_fga)             if opp_fga             is not None else 86.0,
+                        'opp_fg_pct':           float(opp_fg_pct)          if opp_fg_pct          is not None else 0.47,
+                        'opp_fg3a':             float(opp_fg3a)            if opp_fg3a            is not None else 35.0,
+                        'opp_fg3_pct':          float(opp_fg3_pct)         if opp_fg3_pct         is not None else 0.36,
+                        'opp_tov':              float(opp_tov)             if opp_tov             is not None else 14.0,
+                        'opp_stl':              float(opp_stl)             if opp_stl             is not None else 7.0,
+                        'opp_blk':              float(opp_blk)             if opp_blk             is not None else 5.0,
+                        'opp_pts_paint':        float(opp_pts_paint)       if opp_pts_paint       is not None else 44.0,
+                        'opp_pts_fb':           float(opp_pts_fb)          if opp_pts_fb          is not None else 12.0,
+                        'opp_pts_off_tov':      float(opp_pts_off_tov)     if opp_pts_off_tov     is not None else 16.0,
+                        'opp_def_rating_last5': float(opp_def_rating_last5) if opp_def_rating_last5 is not None else 110.0,
+                        'opp_blk_last5':        float(opp_blk_last5)       if opp_blk_last5       is not None else 5.0,
+                        'opp_stl_last5':        float(opp_stl_last5)       if opp_stl_last5       is not None else 7.0,
+                        'lg_pts_fb':            float(lg_pts_fb)           if lg_pts_fb           is not None else 12.0,
+                        'lg_pts_off_tov':       float(lg_pts_off_tov)      if lg_pts_off_tov      is not None else 16.0,
+                        'lg_fga':               float(lg_fga)              if lg_fga              is not None else 86.0,
+                        'lg_fg_pct':            float(lg_fg_pct)           if lg_fg_pct           is not None else 0.47,
+                        'lg_fg3a':              float(lg_fg3a)             if lg_fg3a             is not None else 35.0,
+                        'lg_tov':               float(lg_tov)              if lg_tov              is not None else 14.0,
+                        'lg_stl':               float(lg_stl)              if lg_stl              is not None else 7.0,
+                        'foul_rate_season':     float(foul_rate_season)    if foul_rate_season    is not None else 20.0,
+                        'foul_rate_last5':      float(foul_rate_last5)     if foul_rate_last5     is not None else 20.0,
+                    }
+                    if updated_at is not None:
+                        ts_max_ts = int(updated_at) if ts_max_ts is None else max(ts_max_ts, int(updated_at))
+                team_stats_meta['updated_at'] = ts_max_ts
+            except Exception:
+                pass
+
             conn.close()
 
         except Exception:
@@ -178,6 +233,8 @@ class PrecomputedStore:
             'refs_meta': refs_meta,
             'team_foul': team_foul,
             'dvp_rolling': dvp_rolling,
+            'team_stats': team_stats,
+            'team_stats_meta': team_stats_meta,
         }
         self._cache = payload
         self._cache_at = now
@@ -188,7 +245,8 @@ class PrecomputedStore:
         now = int(time.time())
         dvp_ts = data.get('dvp_meta', {}).get('updated_at') or 0
         def_ts = data.get('defenders_meta', {}).get('updated_at') or 0
-        newest = max(int(dvp_ts), int(def_ts))
+        ts_ts  = data.get('team_stats_meta', {}).get('updated_at') or 0
+        newest = max(int(dvp_ts), int(def_ts), int(ts_ts))
         return newest > 0 and (now - newest) < max_age_seconds
 
 
