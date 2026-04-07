@@ -8,8 +8,7 @@ from logging.handlers import RotatingFileHandler
 import os
 from nba_api.stats.static import players
 
-# Initialize Flask app
-app = Flask(__name__, 
+app = Flask(__name__,
     static_url_path='',
     static_folder='../static',
     template_folder='../templates')
@@ -24,11 +23,10 @@ file_handler.setFormatter(logging.Formatter(
 file_handler.setLevel(logging.INFO)
 app.logger.addHandler(file_handler)
 app.logger.setLevel(logging.INFO)
-app.logger.info('Basketball Betting Helper startup')
+app.logger.info('app started')
 
 betting_helper = BasketballBettingHelper()
 
-# Auto-grade any pending predictions from previous days on startup
 def _startup_auto_grade():
     try:
         result = betting_helper.auto_grade_pending()
@@ -43,15 +41,12 @@ _retrain_status = {'running': False, 'last_result': None}
 _retrain_lock   = threading.Lock()
 
 def _run_retrain_job(min_new_samples=50, num_players=100, num_seasons=3):
-    """Background retrain task — auto-grade first, then retrain if enough new samples."""
-    # running=True is pre-set by the caller (endpoint or scheduler) inside the lock
+    """Runs in a background thread — grades pending preds first, then retrains."""
     _retrain_status['last_result'] = None
     try:
-        # Step 1: grade any pending predictions so they count as training data
         grade_result = betting_helper.auto_grade_pending()
-        app.logger.info(f"Retrain job auto-grade: {grade_result}")
+        app.logger.info(f"auto-grade before retrain: {grade_result}")
 
-        # Step 2: retrain if enough new graded samples
         result = betting_helper.retrain(
             min_new_samples=min_new_samples,
             num_players=num_players,
@@ -59,25 +54,32 @@ def _run_retrain_job(min_new_samples=50, num_players=100, num_seasons=3):
         )
         app.logger.info(f"Retrain job result: {result}")
         _retrain_status['last_result'] = result
+
+        # recalibrate confidence thresholds from graded logs after retraining
+        try:
+            graded = betting_helper.get_confidence_calibration_data()
+            if graded:
+                betting_helper.ml_predictor.calibrate_confidence_thresholds(graded)
+                app.logger.info(f"confidence thresholds recalibrated on {len(graded)} samples")
+        except Exception as _ce:
+            app.logger.warning(f"confidence calibration skipped: {_ce}")
     except Exception as e:
         app.logger.error(f"Retrain job error: {e}")
         _retrain_status['last_result'] = {'status': 'error', 'error': str(e)}
     finally:
         _retrain_status['running'] = False
 
-# ── Nightly scheduler — runs at ~4 AM local time ─────────────────────────────
 def _nightly_scheduler():
-    """Sleep-based scheduler: wake every minute, run the retrain job at 4 AM."""
+    """Wakes every minute, fires the retrain job once per day around 4 AM."""
     from datetime import datetime as _dt
-    triggered_today = None  # date string of the day we last triggered
+    triggered_today = None
     while True:
         try:
             now = _dt.now()
             today_str = now.strftime('%Y-%m-%d')
-            # Trigger once per day between 04:00 and 04:59
             if now.hour == 4 and triggered_today != today_str:
                 triggered_today = today_str
-                app.logger.info("Nightly scheduler: starting auto-grade + retrain")
+                app.logger.info("nightly retrain triggered")
                 with _retrain_lock:
                     if not _retrain_status['running']:
                         _retrain_status['running'] = True
@@ -91,7 +93,7 @@ threading.Thread(target=_nightly_scheduler, daemon=True).start()
 
 @app.route('/test_api')
 def test_api():
-    #Test route to check NBA API functionality
+    # quick sanity check that the NBA API is reachable
     try:
         all_players = players.get_players()
         active_players = [p for p in all_players if p['is_active']]
@@ -124,10 +126,7 @@ def search_players():
 
 @app.route('/player_game_info/<int:player_id>')
 def player_game_info(player_id):
-    """
-    Lightweight endpoint: returns the player's team_id and today's opponent_team_id
-    (if a game is scheduled today). Used to auto-fill the opponent dropdown.
-    """
+    """Returns today's opponent for a player, if there's a game. Used to auto-fill the dropdown."""
     try:
         from nba_api.stats.endpoints import CommonPlayerInfo, ScoreboardV2
         from datetime import datetime
@@ -170,7 +169,6 @@ def player_game_info(player_id):
 
 @app.route('/get_player_stats/<int:player_id>')
 def get_player_stats(player_id):
-    #Get comprehensive player statistics
     try:
         stats = betting_helper.get_player_stats(player_id)
         if stats:
@@ -197,8 +195,8 @@ def analyze_prop():
         prop_type = data['prop_type']
         line = float(data['line'])
         opponent_team_id = int(data['opponent_team_id'])
-        # is_home: None means auto-detect from schedule; True/False is a manual override.
-        # Must compare string explicitly — bool('false') is True in Python.
+        # is_home can be None (auto), True, or False — but it might arrive as a string
+        # bool('false') is True in Python, so compare explicitly
         is_home_raw = data.get('is_home', None)
         if is_home_raw is None or is_home_raw == '':
             is_home = None
@@ -216,7 +214,7 @@ def analyze_prop():
         )
         
         if analysis:
-            return jsonify(analysis)  # The success flag is now included in the analysis dict
+            return jsonify(analysis)
         else:
             return jsonify({'error': 'Unable to perform analysis', 'success': False}), 500
             
@@ -229,12 +227,7 @@ _training_lock   = threading.Lock()
 
 @app.route('/train', methods=['POST'])
 def train_models():
-    """
-    Kick off model training in a background thread.
-    POST body (JSON, all optional):
-        { "num_players": 100, "num_seasons": 3 }
-    Returns immediately with 202; poll /train/status for progress.
-    """
+    """Kicks off a full retrain in the background. Returns 202 immediately."""
     with _training_lock:
         if _training_status['running']:
             return jsonify({'error': 'Training already in progress'}), 409
@@ -245,16 +238,15 @@ def train_models():
     num_seasons = int(data.get('num_seasons', 3))
 
     def _run_training():
-        # running=True already set inside the lock above; just clear last_result
         _training_status['last_result'] = None
         try:
             collector = TrainingDataCollector()
             player_ids = collector.get_active_player_ids(n=num_players)
             seasons = collector._get_seasons(num_seasons=num_seasons)
-            app.logger.info(f'Training: collecting data for {len(player_ids)} players, seasons={seasons}')
+            app.logger.info(f'training: {len(player_ids)} players, seasons={seasons}')
 
             training_data = collector.collect_bulk(player_ids, seasons=seasons)
-            app.logger.info(f'Training: {len(training_data)} samples collected')
+            app.logger.info(f'training: got {len(training_data)} samples')
 
             if len(training_data) < 500:
                 _training_status['last_result'] = {
@@ -264,8 +256,8 @@ def train_models():
                 return
 
             metrics = betting_helper.ml_predictor.train(training_data)
-            app.logger.info('Training complete — models saved to disk')
-            # Also persist metrics in retrain_meta so the Accuracy tab can display them
+            app.logger.info('training done, models saved')
+            # save metrics to retrain_meta for the Accuracy tab
             try:
                 conn = betting_helper.get_db()
                 cur = conn.cursor()
@@ -281,6 +273,14 @@ def train_models():
                 conn.close()
             except Exception as _e:
                 app.logger.warning(f'Could not update retrain_meta after /train: {_e}')
+            # recalibrate confidence thresholds from graded logs after training
+            try:
+                graded = betting_helper.get_confidence_calibration_data()
+                if graded:
+                    betting_helper.ml_predictor.calibrate_confidence_thresholds(graded)
+                    app.logger.info(f'confidence thresholds recalibrated on {len(graded)} samples')
+            except Exception as _ce:
+                app.logger.warning(f'confidence calibration skipped after /train: {_ce}')
             _training_status['last_result'] = {
                 'success': True,
                 'samples': len(training_data),
@@ -300,7 +300,6 @@ def train_models():
 
 @app.route('/train/status', methods=['GET'])
 def training_status():
-    """Return current training status."""
     return jsonify({
         'running': _training_status['running'],
         'last_result': _training_status['last_result']
@@ -309,10 +308,10 @@ def training_status():
 
 @app.route('/logs/auto-grade', methods=['POST'])
 def auto_grade():
-    """Fetch actual results for all ungraded predictions from previous days."""
+    """Grades any ungraded predictions from previous days in the background."""
     def _run():
         result = betting_helper.auto_grade_pending()
-        app.logger.info(f"Auto-grade complete: {result}")
+        app.logger.info(f"auto-grade done: {result}")
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
     return jsonify({'message': 'Auto-grading started in background'}), 202
@@ -320,7 +319,6 @@ def auto_grade():
 
 @app.route('/logs', methods=['GET'])
 def get_logs():
-    """Fetch prediction logs. Query params: limit, prop_type, player_id, graded_only"""
     try:
         limit = int(request.args.get('limit', 50))
         prop_type = request.args.get('prop_type', None)
@@ -334,7 +332,6 @@ def get_logs():
 
 @app.route('/logs/<int:log_id>/result', methods=['POST'])
 def update_result(log_id):
-    """Record the actual result for a logged prediction."""
     try:
         data = request.get_json()
         if not data or 'actual_result' not in data:
@@ -351,7 +348,6 @@ def update_result(log_id):
 
 @app.route('/accuracy', methods=['GET'])
 def accuracy_stats():
-    """Return accuracy stats across all logged predictions."""
     try:
         stats = betting_helper.get_accuracy_stats()
         return jsonify(stats)
@@ -361,18 +357,14 @@ def accuracy_stats():
 
 @app.route('/retrain', methods=['POST'])
 def trigger_retrain():
-    """
-    Manually kick off an auto-grade + retrain cycle in the background.
-    Optional JSON body: { "min_new_samples": 10, "num_players": 100, "num_seasons": 3 }
-    Returns 202 immediately; poll /retrain/status for progress.
-    """
+    """Manual trigger for the auto-grade + retrain cycle. Returns 202 immediately."""
     with _retrain_lock:
         if _retrain_status['running']:
             return jsonify({'error': 'Retrain already in progress'}), 409
         _retrain_status['running'] = True   # pre-mark inside the lock
 
     data = request.get_json(silent=True) or {}
-    min_new_samples = int(data.get('min_new_samples', 10))  # lower threshold for manual trigger
+    min_new_samples = int(data.get('min_new_samples', 10))  # lower bar when triggered manually
     num_players     = int(data.get('num_players', 100))
     num_seasons     = int(data.get('num_seasons', 3))
 
@@ -387,7 +379,6 @@ def trigger_retrain():
 
 @app.route('/retrain/status', methods=['GET'])
 def retrain_status():
-    """Return current retrain job status and stored retrain metadata."""
     try:
         meta = betting_helper.get_retrain_meta()
         return jsonify({
@@ -395,6 +386,15 @@ def retrain_status():
             'last_result': _retrain_status['last_result'],
             'meta': meta,
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/bias', methods=['GET'])
+def bias_report():
+    try:
+        report = betting_helper.get_bias_report()
+        return jsonify(report)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

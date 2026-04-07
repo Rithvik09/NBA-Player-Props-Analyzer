@@ -12,13 +12,12 @@ async function autoFillOpponent(playerId) {
 
     try {
         const res  = await fetch(`/player_game_info/${playerId}`);
+        if (!res.ok) throw new Error(`server returned ${res.status}`);
         const data = await res.json();
 
         if (data.opponent_team_id) {
-            // Auto-select the opponent in the dropdown
-            opponentSelect.value = data.opponent_team_id;
+                    opponentSelect.value = data.opponent_team_id;
 
-            // Auto-set home/away
             if (data.is_home !== null) {
                 setHomeAway(null); // keep on Auto — backend will confirm
                 if (locationNote) {
@@ -44,7 +43,6 @@ async function autoFillOpponent(playerId) {
 }
 
 function setHomeAway(isHome) {
-    // isHome: true = Home, false = Away, null = Auto
     document.getElementById('isHome').value = isHome === null ? '' : (isHome ? 'true' : 'false');
     const autoBtn = document.getElementById('autoBtn');
     const homeBtn = document.getElementById('homeBtn');
@@ -63,7 +61,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const suggestions = document.getElementById('playerSuggestions');
     const analyzePropBtn = document.getElementById('analyzeProp');
     
-    // Player search functionality
     let searchTimeout = null;
     playerSearch.addEventListener('input', function() {
         clearTimeout(searchTimeout);
@@ -82,7 +79,10 @@ document.addEventListener('DOMContentLoaded', function() {
         
         searchTimeout = setTimeout(() => {
             fetch(`/search_players?q=${encodeURIComponent(query)}`)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) throw new Error(`search failed: ${response.status}`);
+                    return response.json();
+                })
                 .then(players => {
                     suggestions.innerHTML = '';
                     if (players.length === 0) {
@@ -109,7 +109,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 300);
     });
 
-    // Keyboard navigation for player suggestions
     playerSearch.addEventListener('keydown', function(e) {
         const items = suggestions.querySelectorAll('div:not(.text-gray-500):not(.text-red-500)');
         const active = suggestions.querySelector('.bg-blue-50');
@@ -132,7 +131,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Analyze prop button handler
     analyzePropBtn.addEventListener('click', async function() {
         if (!selectedPlayerId) {
             alert('Please select a player');
@@ -157,12 +155,10 @@ document.addEventListener('DOMContentLoaded', function() {
             analyzePropBtn.disabled = true;
             analyzePropBtn.innerHTML = '<span class="loader"></span> Analyzing...';
             
-            // Get player stats
             const statsResponse = await fetch(`/get_player_stats/${selectedPlayerId}`);
             if (!statsResponse.ok) throw new Error('Failed to fetch player stats');
             const stats = await statsResponse.json();
             
-            // Get prop analysis
             const analysisResponse = await fetch('/analyze_prop', {
                 method: 'POST',
                 headers: {
@@ -199,7 +195,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Close suggestions on click outside
     document.addEventListener('click', function(e) {
         if (!suggestions.contains(e.target) && e.target !== playerSearch) {
             suggestions.classList.add('hidden');
@@ -212,7 +207,6 @@ function updateResults(analysis, stats, propType, line) {
         const resultsSection = document.getElementById('results');
         resultsSection.classList.remove('hidden');
 
-        // Update the location note to show what was detected
         const locationNote = document.getElementById('locationNote');
         if (locationNote && analysis.location_detected) {
             locationNote.textContent = analysis.is_home
@@ -250,7 +244,6 @@ function updateResults(analysis, stats, propType, line) {
 
 
 function updateKeyMetrics(analysis, stats) {
-    // Update Predicted Value
     const predictedValue = document.getElementById('predictedValue');
     const edgeValue = document.getElementById('edgeValue');
     if (predictedValue && edgeValue) {
@@ -259,7 +252,6 @@ function updateKeyMetrics(analysis, stats) {
         edgeValue.className = `text-sm ${analysis.edge > 0 ? 'text-green-600' : 'text-red-600'}`;
     }
     
-    // Update Hit Rate
     const hitRate = document.getElementById('hitRate');
     const hitRateDetails = document.getElementById('hitRateDetails');
     if (hitRate && hitRateDetails) {
@@ -267,7 +259,6 @@ function updateKeyMetrics(analysis, stats) {
         hitRateDetails.textContent = `${analysis.times_hit} / ${analysis.total_games} games`;
     }
     
-    // Update Model Confidence
     const modelConfidence = document.getElementById('modelConfidence');
     if (modelConfidence) {
         modelConfidence.textContent = analysis.confidence;
@@ -296,7 +287,7 @@ function updateMLAnalysis(analysis, stats, propType) {
     const matchup  = player.matchup_history    || null;
     const posDef   = player.position_matchup   || null;
 
-    // Gather stat data for this prop — combined props live under stats.combined_stats
+    // combined props live under stats.combined_stats
     const propStats = propType && propType in stats
         ? (stats[propType] || {})
         : (propType && stats.combined_stats && propType in stats.combined_stats)
@@ -306,14 +297,11 @@ function updateMLAnalysis(analysis, stats, propType) {
     const last5Avg   = propStats.last5_avg ?? null;
     const trend      = analysis.trend      || {};
 
-    // ── Factor scoring ──────────────────────────────────────────────────────
-    // Each factor produces a { label, summary, strength, bullish } object.
-    // strength: 'strong' | 'moderate' | 'weak'
-    // bullish: true = favours OVER, false = favours UNDER
+    // each factor: { label, summary, strength ('strong'|'moderate'|'weak'), bullish }
     const factors = [];
 
-    // 0. Home/Away split
-    const isHome = analysis.is_home ?? null;  // null = unknown, don't guess
+    // home/away split
+    const isHome = analysis.is_home ?? null;  // null = location unknown
     const locationAvgFactor = isHome === true ? propStats.home_avg : isHome === false ? propStats.away_avg : null;
     const locationGamesFactor = isHome === true ? propStats.home_games : isHome === false ? propStats.away_games : null;
     if (isHome !== null && locationAvgFactor != null && seasonAvg != null && (locationGamesFactor ?? 0) >= 5) {
@@ -330,7 +318,7 @@ function updateMLAnalysis(analysis, stats, propType) {
         });
     }
 
-    // 1. Recent trend
+    // recent trend
     if (trend.direction) {
         const dir = trend.direction;
         const slope = trend.slope ?? 0;
@@ -347,7 +335,7 @@ function updateMLAnalysis(analysis, stats, propType) {
         });
     }
 
-    // 2. Hot/cold streak (last 5 vs season avg)
+    // hot/cold: last 5 vs season avg
     if (seasonAvg != null && last5Avg != null) {
         const diff = last5Avg - seasonAvg;
         const pct  = seasonAvg > 0 ? (diff / seasonAvg) * 100 : 0;
@@ -362,7 +350,7 @@ function updateMLAnalysis(analysis, stats, propType) {
         });
     }
 
-    // 3. Historical hit rate
+    // historical hit rate
     if (analysis.hit_rate != null) {
         const hr = analysis.hit_rate;
         const isBullish = hr > 0.5;
@@ -374,9 +362,8 @@ function updateMLAnalysis(analysis, stats, propType) {
         });
     }
 
-    // 4. Matchup history vs this opponent
+    // head-to-head history vs this opponent
     if (matchup && matchup.games_played > 0) {
-        // Compute the right combined average depending on prop type
         let matchupAvg = matchup.avg_points ?? 0;
         if (propType === 'pts_reb')      matchupAvg = (matchup.avg_points ?? 0) + (matchup.avg_rebounds ?? 0);
         else if (propType === 'pts_ast') matchupAvg = (matchup.avg_points ?? 0) + (matchup.avg_assists  ?? 0);
@@ -399,8 +386,7 @@ function updateMLAnalysis(analysis, stats, propType) {
     if (posDef && posDef.defensive_rating != null) {
         const defRtg   = posDef.defensive_rating;
         const ptsAllowed = posDef.pts_allowed_per_game ?? null;
-        // Higher defensive rating = worse defense = bullish for player
-        const isBullish = defRtg > 110;
+        const isBullish = defRtg > 110;  // high def rating = worse defense
         factors.push({
             label: 'Opponent Positional Defense',
             summary: ptsAllowed != null
@@ -411,7 +397,7 @@ function updateMLAnalysis(analysis, stats, propType) {
         });
     }
 
-    // 6. Opponent injury impact
+    // opponent injuries
     if (opponent.injury_impact != null && opponent.injury_impact > 0.05) {
         const impact = opponent.injury_impact;
         factors.push({
@@ -422,7 +408,7 @@ function updateMLAnalysis(analysis, stats, propType) {
         });
     }
 
-    // 7. Team injury impact (hurts the player)
+    // player's own team injuries (hurts usage)
     if (team.injury_impact != null && team.injury_impact > 0.05) {
         const impact = team.injury_impact;
         factors.push({
@@ -433,7 +419,7 @@ function updateMLAnalysis(analysis, stats, propType) {
         });
     }
 
-    // 8. Rest days
+    // rest days / fatigue
     if (team.rest_days != null) {
         const rest = team.rest_days;
         const isBullish = rest >= 2;
@@ -453,11 +439,9 @@ function updateMLAnalysis(analysis, stats, propType) {
         }
     }
 
-    // ── Sort: strongest factors first ────────────────────────────────────────
     const strengthOrder = { strong: 0, moderate: 1, weak: 2 };
     factors.sort((a, b) => strengthOrder[a.strength] - strengthOrder[b.strength]);
 
-    // ── Build narrative ───────────────────────────────────────────────────────
     const edgePct = (analysis.edge * 100).toFixed(1);
     const edgeStr = `${analysis.edge > 0 ? '+' : ''}${edgePct}%`;
 
@@ -487,7 +471,6 @@ function updateMLAnalysis(analysis, stats, propType) {
 
     mainAnalysisText.textContent = narrative;
 
-    // ── Build injury listing helpers ─────────────────────────────────────────
     const teamInjuries = team.injuries?.active_injuries || [];
     const oppInjuries  = opponent.injuries?.active_injuries || [];
 
@@ -500,7 +483,7 @@ function updateMLAnalysis(analysis, stats, propType) {
         }).join('<br>');
     };
 
-    // Prediction Model / Value Analysis cards
+    // fill in the Prediction Model / Value Analysis cards
     classificationConf.innerHTML = `
         Over probability: <strong>${(analysis.over_probability * 100).toFixed(1)}%</strong><br>
         ${factors.slice(0, 3).map(f =>
@@ -596,15 +579,12 @@ function updateTeamContext(teamContext) {
             }
         ];
         
-        // Add injury details if available
         if (teamContext.injuries && teamContext.injuries.total_players_out > 0) {
             items.push({
                 label: 'Players Out',
                 value: `${teamContext.injuries.key_players_out} key, ${teamContext.injuries.total_players_out} total`,
                 className: 'text-red-600'
             });
-            
-            // Add individual injuries
             teamContext.injuries.active_injuries.forEach(injury => {
                 items.push({
                     label: injury.player_name,
@@ -856,7 +836,7 @@ function handleArrowNavigation(key, items, active) {
 // TAB NAVIGATION
 // ══════════════════════════════════════════════════════
 function showTab(tab) {
-    ['analyzer', 'logs', 'accuracy'].forEach(t => {
+    ['analyzer', 'logs', 'accuracy', 'bias'].forEach(t => {
         document.getElementById(`tab-content-${t}`).classList.toggle('hidden', t !== tab);
         const btn = document.getElementById(`tab-${t}`);
         if (btn) {
@@ -865,6 +845,7 @@ function showTab(tab) {
     });
     if (tab === 'logs') loadLogs();
     if (tab === 'accuracy') loadAccuracy();
+    if (tab === 'bias') loadBias();
 }
 
 // ══════════════════════════════════════════════════════
@@ -874,9 +855,9 @@ async function triggerAutoGrade() {
     const status = document.getElementById('autoGradeStatus');
     if (status) status.textContent = 'Fetching results...';
     try {
-        await fetch('/logs/auto-grade', { method: 'POST' });
-        // Poll for completion — results come back via background thread
-        // Just wait a few seconds then refresh
+        const agRes = await fetch('/logs/auto-grade', { method: 'POST' });
+        if (!agRes.ok) throw new Error(`auto-grade failed: ${agRes.status}`);
+        // give the background thread a moment to finish then refresh
         setTimeout(async () => {
             await loadLogs();
             if (status) status.textContent = 'Done ✓';
@@ -892,6 +873,7 @@ async function loadLogs() {
     container.innerHTML = '<p class="text-gray-400 text-center py-8">Loading...</p>';
     try {
         const res = await fetch('/logs?limit=100');
+        if (!res.ok) throw new Error(`failed to load logs: ${res.status}`);
         const logs = await res.json();
         if (!logs.length) {
             container.innerHTML = '<p class="text-gray-400 text-center py-8">No predictions logged yet. Run an analysis first.</p>';
@@ -909,12 +891,10 @@ function renderLogsTable(logs, container) {
     const correctBadge = row => {
         if (row.correct === 1) return `<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-bold">✓ Correct</span>`;
         if (row.correct === 0) return `<span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-bold">✗ Wrong</span>`;
-        // correct is null — either PASS (result already filled) or ungraded
+        // null = PASS or not yet graded
         if (row.actual_result != null) {
-            // PASS prediction with a known result — show badge only
             return `<span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded">PASS</span>`;
         }
-        // No result yet — allow manual entry
         return `<button onclick="openModal(${row.id})"
             class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded">+ Result</button>`;
     };
@@ -979,6 +959,7 @@ async function submitResult() {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ actual_result: parseFloat(actual), notes })
         });
+        if (!res.ok) throw new Error(`server returned ${res.status}`);
         const data = await res.json();
         if (data.success) {
             closeModal();
@@ -1013,6 +994,8 @@ async function loadAccuracy() {
             fetch('/accuracy'),
             fetch('/retrain/status'),
         ]);
+        if (!accRes.ok)     throw new Error(`accuracy fetch failed: ${accRes.status}`);
+        if (!retrainRes.ok) throw new Error(`retrain status fetch failed: ${retrainRes.status}`);
         const accData     = await accRes.json();
         const retrainData = await retrainRes.json();
         renderAccuracy(accData, retrainData, container);
@@ -1197,11 +1180,13 @@ async function triggerRetrain() {
             if (btn) { btn.disabled = false; btn.textContent = '🔄 Retrain Now'; }
             return;
         }
-        // Poll until done (give up after 30 consecutive failures ~2 minutes)
+        if (!res.ok) throw new Error(`retrain start failed: ${res.status}`);
+        // poll every few seconds; give up after 30 failures (~2 min)
         let pollFailures = 0;
         const poll = setInterval(async () => {
             try {
                 const sr = await fetch('/retrain/status');
+                if (!sr.ok) throw new Error(`status ${sr.status}`);
                 const sd = await sr.json();
                 pollFailures = 0;
                 if (!sd.running) {
@@ -1222,5 +1207,149 @@ async function triggerRetrain() {
     } catch (e) {
         alert('Error starting retrain: ' + e.message);
         if (btn) { btn.disabled = false; btn.textContent = '🔄 Retrain Now'; }
+    }
+}
+
+async function loadBias() {
+    const container = document.getElementById('biasContainer');
+    container.innerHTML = '<p class="text-gray-400 text-center py-8">Loading...</p>';
+    try {
+        const res = await fetch('/bias');
+        if (!res.ok) throw new Error(`bias fetch failed: ${res.status}`);
+        const data = await res.json();
+
+        if (!data || (!data.by_prop && !data.by_location && !data.by_confidence)) {
+            container.innerHTML = '<p class="text-gray-400 text-center py-8">Not enough graded predictions yet (need at least 10 per prop type).</p>';
+            return;
+        }
+
+        const pct = v => v != null ? `${v.toFixed(1)}%` : '—';
+        const num = v => v != null ? v.toFixed(2) : '—';
+        const errorBadge = err => {
+            if (err == null) return '—';
+            const cls = Math.abs(err) < 0.5 ? 'text-green-600' : Math.abs(err) < 1.5 ? 'text-yellow-600' : 'text-red-600';
+            return `<span class="${cls} font-medium">${err > 0 ? '+' : ''}${err.toFixed(2)}</span>`;
+        };
+        const calBadge = (avgProb, actualRate) => {
+            if (avgProb == null || actualRate == null) return '—';
+            const diff = (avgProb - actualRate) * 100;
+            const cls = Math.abs(diff) < 5 ? 'text-green-600' : Math.abs(diff) < 12 ? 'text-yellow-600' : 'text-red-600';
+            return `<span class="${cls} text-xs">${diff > 0 ? '+' : ''}${diff.toFixed(1)}% (pred vs actual over rate)</span>`;
+        };
+
+        let html = '';
+
+        // by prop
+        if (data.by_prop && data.by_prop.length) {
+            html += `
+            <div class="glass-card mb-6">
+                <div class="card-header-bar">
+                    <span class="card-header-dot orange"></span><span class="card-header-dot yellow"></span><span class="card-header-dot green"></span>
+                    <span class="card-header-label">Bias by Prop Type</span>
+                </div>
+                <div class="p-4 overflow-x-auto">
+                    <p class="text-xs text-gray-400 mb-3">Avg Error = predicted − actual. Positive = over-predicting. Calibration = how far avg probability is from actual over rate.</p>
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+                            <tr>
+                                <th class="px-3 py-2 text-left">Prop</th>
+                                <th class="px-3 py-2 text-right">n</th>
+                                <th class="px-3 py-2 text-right">Accuracy</th>
+                                <th class="px-3 py-2 text-right">Avg Error</th>
+                                <th class="px-3 py-2 text-right">MAE</th>
+                                <th class="px-3 py-2 text-left">Calibration</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.by_prop.map(r => `
+                            <tr class="border-t border-gray-100 hover:bg-gray-50">
+                                <td class="px-3 py-2 font-medium">${getPropTypeLabel(r.prop_type)}</td>
+                                <td class="px-3 py-2 text-right text-gray-500">${r.n}</td>
+                                <td class="px-3 py-2 text-right">${pct(r.accuracy_pct)}</td>
+                                <td class="px-3 py-2 text-right">${errorBadge(r.avg_error)}</td>
+                                <td class="px-3 py-2 text-right text-gray-500">${num(r.mae)}</td>
+                                <td class="px-3 py-2">${calBadge(r.avg_prob, r.actual_over_rate)}</td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+        }
+
+        // by location
+        if (data.by_location && data.by_location.length) {
+            html += `
+            <div class="glass-card mb-6">
+                <div class="card-header-bar">
+                    <span class="card-header-dot orange"></span><span class="card-header-dot yellow"></span><span class="card-header-dot green"></span>
+                    <span class="card-header-label">Bias by Home / Away</span>
+                </div>
+                <div class="p-4 overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+                            <tr>
+                                <th class="px-3 py-2 text-left">Location</th>
+                                <th class="px-3 py-2 text-right">n</th>
+                                <th class="px-3 py-2 text-right">Accuracy</th>
+                                <th class="px-3 py-2 text-right">Avg Error</th>
+                                <th class="px-3 py-2 text-left">Calibration</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.by_location.map(r => `
+                            <tr class="border-t border-gray-100 hover:bg-gray-50">
+                                <td class="px-3 py-2 font-medium capitalize">${r.location}</td>
+                                <td class="px-3 py-2 text-right text-gray-500">${r.n}</td>
+                                <td class="px-3 py-2 text-right">${pct(r.accuracy_pct)}</td>
+                                <td class="px-3 py-2 text-right">${errorBadge(r.avg_error)}</td>
+                                <td class="px-3 py-2">${calBadge(r.avg_prob, r.actual_over_rate)}</td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+        }
+
+        // by confidence tier
+        if (data.by_confidence && data.by_confidence.length) {
+            html += `
+            <div class="glass-card mb-6">
+                <div class="card-header-bar">
+                    <span class="card-header-dot orange"></span><span class="card-header-dot yellow"></span><span class="card-header-dot green"></span>
+                    <span class="card-header-label">Confidence Tier Calibration</span>
+                </div>
+                <div class="p-4 overflow-x-auto">
+                    <p class="text-xs text-gray-400 mb-3">HIGH should hit >60%, MEDIUM >52%. If not, the model will auto-adjust thresholds on next retrain.</p>
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+                            <tr>
+                                <th class="px-3 py-2 text-left">Confidence</th>
+                                <th class="px-3 py-2 text-right">n</th>
+                                <th class="px-3 py-2 text-right">Accuracy</th>
+                                <th class="px-3 py-2 text-left">Calibration</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.by_confidence.map(r => {
+                                const target = r.confidence === 'HIGH' ? 60 : r.confidence === 'MEDIUM' ? 52 : 0;
+                                const ok = r.accuracy_pct != null && r.accuracy_pct >= target;
+                                const cls = ok ? 'text-green-600' : 'text-red-600';
+                                return `
+                                <tr class="border-t border-gray-100 hover:bg-gray-50">
+                                    <td class="px-3 py-2 font-medium ${cls}">${r.confidence}</td>
+                                    <td class="px-3 py-2 text-right text-gray-500">${r.n}</td>
+                                    <td class="px-3 py-2 text-right ${cls} font-bold">${pct(r.accuracy_pct)}</td>
+                                    <td class="px-3 py-2">${calBadge(r.avg_prob, r.actual_over_rate)}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+        }
+
+        container.innerHTML = html || '<p class="text-gray-400 text-center py-8">No bias data yet.</p>';
+    } catch (e) {
+        container.innerHTML = `<p class="text-red-400 text-center py-8">Error loading bias report: ${e.message}</p>`;
     }
 }
