@@ -18,6 +18,18 @@ import requests
 from bs4 import BeautifulSoup
 
 from nba_api.stats.endpoints import CommonTeamRoster, leaguedashplayerstats, leaguedashteamstats
+from nba_api.stats.endpoints import (
+    leaguedashplayerbiostats,
+    leaguedashplayerclutch,
+    leaguehustlestatsplayer,
+    leaguedashplayerptshot,
+    leaguedashoppptshot,
+    synergyplaytypes,
+    teamplayeronoffsummary,
+    playerdashboardbyshootingsplits,
+    playerdashboardbygamesplits,
+    commonallplayers,
+)
 from nba_api.stats.static import teams
 
 FANTASYPROS_DVP_URL = "https://www.fantasypros.com/daily-fantasy/nba/fanduel-defense-vs-position.php"
@@ -141,6 +153,125 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
             lg_stl REAL,
             foul_rate_season REAL,
             foul_rate_last5 REAL,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS player_advanced_stats (
+            player_id INTEGER PRIMARY KEY,
+            usg_pct REAL, ts_pct REAL, efg_pct REAL, ast_pct REAL,
+            oreb_pct REAL, dreb_pct REAL, reb_pct REAL, pie REAL,
+            off_rating REAL, def_rating REAL, pace REAL, net_rating REAL,
+            age REAL, height_inches REAL, weight REAL, years_experience REAL,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS player_clutch_stats (
+            player_id INTEGER PRIMARY KEY,
+            clutch_pts_pg REAL, clutch_fg_pct REAL, clutch_fg3_pct REAL,
+            clutch_fta_pg REAL, clutch_plus_minus REAL, clutch_min_pg REAL,
+            clutch_games INTEGER,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS player_hustle_stats (
+            player_id INTEGER PRIMARY KEY,
+            contested_shots_pg REAL, deflections_pg REAL,
+            charges_drawn_pg REAL, screen_assists_pg REAL,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS player_shot_profile (
+            player_id INTEGER PRIMARY KEY,
+            open_shot_fg_pct REAL, open_shot_freq REAL,
+            tight_shot_fg_pct REAL, tight_shot_freq REAL,
+            catch_shoot_fg_pct REAL, catch_shoot_freq REAL,
+            pullup_fg_pct REAL, pullup_freq REAL,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS player_play_types (
+            player_id INTEGER PRIMARY KEY,
+            iso_poss_pct REAL, iso_ppp REAL,
+            pnr_bh_poss_pct REAL, pnr_bh_ppp REAL,
+            pnr_roll_poss_pct REAL, pnr_roll_ppp REAL,
+            spotup_poss_pct REAL, spotup_ppp REAL,
+            transition_poss_pct REAL, transition_ppp REAL,
+            postup_poss_pct REAL, cut_poss_pct REAL,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS player_on_off (
+            player_id INTEGER PRIMARY KEY,
+            on_court_net_rating REAL,
+            off_court_net_rating REAL,
+            on_off_differential REAL,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS player_shot_zones (
+            player_id INTEGER PRIMARY KEY,
+            rim_fga_pct REAL, rim_fg_pct REAL,
+            paint_fga_pct REAL, paint_fg_pct REAL,
+            midrange_fga_pct REAL, midrange_fg_pct REAL,
+            corner3_fga_pct REAL, corner3_fg_pct REAL,
+            above_break3_fga_pct REAL, above_break3_fg_pct REAL,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS player_quarter_splits (
+            player_id INTEGER PRIMARY KEY,
+            q1_avg REAL, q2_avg REAL, q3_avg REAL, q4_avg REAL,
+            q4_min_pg REAL,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS team_opp_shot_zones (
+            team_id INTEGER PRIMARY KEY,
+            rim_fg_pct_allowed REAL,
+            paint_fg_pct_allowed REAL,
+            midrange_fg_pct_allowed REAL,
+            corner3_fg_pct_allowed REAL,
+            above_break3_fg_pct_allowed REAL,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS team_synergy_defense (
+            team_id INTEGER PRIMARY KEY,
+            pnr_ppp_allowed REAL,
+            iso_ppp_allowed REAL,
+            spotup_ppp_allowed REAL,
+            transition_ppp_allowed REAL,
+            postup_ppp_allowed REAL,
             updated_at INTEGER NOT NULL
         )
         """
@@ -814,6 +945,891 @@ def upsert_rolling_dvp(conn: sqlite3.Connection, rows: list[dict[str, Any]], upd
     conn.commit()
 
 
+def compute_advanced_player_stats(season: str) -> list[dict[str, Any]]:
+    """Fetch official NBA advanced stats + bio stats and merge by player_id."""
+    current_year = time.localtime().tm_year
+
+    def _sf(val, default=0.0):
+        try:
+            return float(val) if val is not None and str(val) not in ('nan', '') else default
+        except Exception:
+            return default
+
+    adv_map: dict[int, dict[str, Any]] = {}
+    try:
+        adv_df = leaguedashplayerstats.LeagueDashPlayerStats(
+            season=season,
+            measure_type_detailed='Advanced',
+            per_mode_detailed='PerGame',
+        ).get_data_frames()[0]
+        time.sleep(0.5)
+        for _, row in adv_df.iterrows():
+            pid = int(row['PLAYER_ID'])
+            oreb = _sf(row.get('OREB_PCT', 0))
+            dreb = _sf(row.get('DREB_PCT', 0))
+            reb  = _sf(row.get('REB_PCT', oreb + dreb))
+            adv_map[pid] = {
+                'usg_pct':    _sf(row.get('USG_PCT', 0.18)),
+                'ts_pct':     _sf(row.get('TS_PCT', 0.55)),
+                'efg_pct':    _sf(row.get('EFG_PCT', 0.50)),
+                'ast_pct':    _sf(row.get('AST_PCT', 0.15)),
+                'oreb_pct':   oreb,
+                'dreb_pct':   dreb,
+                'reb_pct':    reb,
+                'pie':        _sf(row.get('PIE', 0.10)),
+                'off_rating': _sf(row.get('OFF_RATING', 110.0)),
+                'def_rating': _sf(row.get('DEF_RATING', 110.0)),
+                'pace':       _sf(row.get('PACE', 100.0)),
+                'net_rating': _sf(row.get('NET_RATING', 0.0)),
+            }
+    except Exception as e:
+        print(f"compute_advanced_player_stats: advanced fetch failed: {e}")
+
+    bio_map: dict[int, dict[str, Any]] = {}
+    try:
+        bio_df = leaguedashplayerbiostats.LeagueDashPlayerBioStats(
+            season=season,
+            per_mode_simple='PerGame',
+        ).get_data_frames()[0]
+        time.sleep(0.5)
+        for _, row in bio_df.iterrows():
+            pid = int(row['PLAYER_ID'])
+            draft_year = row.get('DRAFT_YEAR', 0)
+            try:
+                draft_year_int = int(float(draft_year)) if draft_year and str(draft_year) not in ('', 'nan', 'Undrafted') else 0
+            except Exception:
+                draft_year_int = 0
+            years_exp = max(1, current_year - draft_year_int) if draft_year_int > 0 else 1
+            height_raw = row.get('PLAYER_HEIGHT_INCHES', 78.0)
+            bio_map[pid] = {
+                'age':            _sf(row.get('AGE', 26.0)),
+                'height_inches':  _sf(height_raw, 78.0),
+                'weight':         _sf(row.get('PLAYER_WEIGHT', 220.0)),
+                'years_experience': float(years_exp),
+            }
+    except Exception as e:
+        print(f"compute_advanced_player_stats: bio fetch failed: {e}")
+
+    all_pids = set(adv_map.keys()) | set(bio_map.keys())
+    results: list[dict[str, Any]] = []
+    for pid in all_pids:
+        adv = adv_map.get(pid, {})
+        bio = bio_map.get(pid, {})
+        results.append({
+            'player_id':      pid,
+            'usg_pct':        adv.get('usg_pct', 0.18),
+            'ts_pct':         adv.get('ts_pct', 0.55),
+            'efg_pct':        adv.get('efg_pct', 0.50),
+            'ast_pct':        adv.get('ast_pct', 0.15),
+            'oreb_pct':       adv.get('oreb_pct', 0.05),
+            'dreb_pct':       adv.get('dreb_pct', 0.15),
+            'reb_pct':        adv.get('reb_pct', 0.10),
+            'pie':            adv.get('pie', 0.10),
+            'off_rating':     adv.get('off_rating', 110.0),
+            'def_rating':     adv.get('def_rating', 110.0),
+            'pace':           adv.get('pace', 100.0),
+            'net_rating':     adv.get('net_rating', 0.0),
+            'age':            bio.get('age', 26.0),
+            'height_inches':  bio.get('height_inches', 78.0),
+            'weight':         bio.get('weight', 220.0),
+            'years_experience': bio.get('years_experience', 5.0),
+        })
+    return results
+
+
+def compute_clutch_stats(season: str) -> list[dict[str, Any]]:
+    """Fetch clutch stats (last 5 min, within 5 pts)."""
+    try:
+        df = leaguedashplayerclutch.LeagueDashPlayerClutch(
+            season=season,
+            per_mode_simple='PerGame',
+        ).get_data_frames()[0]
+        time.sleep(0.5)
+    except Exception as e:
+        print(f"compute_clutch_stats: fetch failed: {e}")
+        return []
+
+    results: list[dict[str, Any]] = []
+    for _, row in df.iterrows():
+        def _sf(col, default=0.0):
+            try:
+                v = row.get(col)
+                return float(v) if v is not None and str(v) not in ('nan', '') else default
+            except Exception:
+                return default
+        results.append({
+            'player_id':         int(row['PLAYER_ID']),
+            'clutch_pts_pg':     _sf('PTS', 0.0),
+            'clutch_fg_pct':     _sf('FG_PCT', 0.45),
+            'clutch_fg3_pct':    _sf('FG3_PCT', 0.33),
+            'clutch_fta_pg':     _sf('FTA', 0.0),
+            'clutch_plus_minus': _sf('PLUS_MINUS', 0.0),
+            'clutch_min_pg':     _sf('MIN', 0.0),
+            'clutch_games':      int(_sf('GP', 0)),
+        })
+    return results
+
+
+def compute_hustle_stats(season: str) -> list[dict[str, Any]]:
+    """Fetch league hustle stats (per game)."""
+    try:
+        df = leaguehustlestatsplayer.LeagueHustleStatsPlayer(
+            season=season,
+            per_mode_time='PerGame',
+        ).get_data_frames()[0]
+        time.sleep(0.5)
+    except Exception as e:
+        print(f"compute_hustle_stats: fetch failed: {e}")
+        return []
+
+    results: list[dict[str, Any]] = []
+    for _, row in df.iterrows():
+        def _sf(col, default=0.0):
+            try:
+                v = row.get(col)
+                return float(v) if v is not None and str(v) not in ('nan', '') else default
+            except Exception:
+                return default
+        results.append({
+            'player_id':            int(row['PLAYER_ID']),
+            'contested_shots_pg':   _sf('CONTESTED_SHOTS', 3.0),
+            'deflections_pg':       _sf('DEFLECTIONS', 1.0),
+            'charges_drawn_pg':     _sf('CHARGES_DRAWN', 0.1),
+            'screen_assists_pg':    _sf('SCREEN_ASSISTS', 0.5),
+        })
+    return results
+
+
+def compute_shot_profile(season: str) -> list[dict[str, Any]]:
+    """Fetch shot profile by defender distance and shot type."""
+
+    def _fetch_ptshot(**kwargs) -> Any:
+        try:
+            df = leaguedashplayerptshot.LeagueDashPlayerPtShot(
+                per_mode_simple='PerGame',
+                **kwargs,
+            ).get_data_frames()[0]
+            time.sleep(0.5)
+            return df
+        except Exception as e:
+            print(f"compute_shot_profile: fetch failed {kwargs}: {e}")
+            return None
+
+    def _extract(df, pid_col='PLAYER_ID', freq_col='FGA_FREQUENCY', pct_col='FG_PCT') -> dict[int, tuple]:
+        out = {}
+        if df is None or df.empty:
+            return out
+        for _, row in df.iterrows():
+            try:
+                pid = int(row[pid_col])
+                freq = float(row.get(freq_col, 0.0) or 0.0)
+                pct  = float(row.get(pct_col, 0.0) or 0.0)
+                out[pid] = (freq, pct)
+            except Exception:
+                continue
+        return out
+
+    open_df   = _fetch_ptshot(season=season, close_def_dist_range_nullable='6+ Feet - Wide Open')
+    tight_df  = _fetch_ptshot(season=season, close_def_dist_range_nullable='0-2 Feet - Very Tight')
+    cs_df     = _fetch_ptshot(season=season, general_range_nullable='Catch and Shoot')
+    pullup_df = _fetch_ptshot(season=season, general_range_nullable='Pullups')
+
+    open_map   = _extract(open_df)
+    tight_map  = _extract(tight_df)
+    cs_map     = _extract(cs_df)
+    pullup_map = _extract(pullup_df)
+
+    all_pids = set(open_map) | set(tight_map) | set(cs_map) | set(pullup_map)
+    results: list[dict[str, Any]] = []
+    for pid in all_pids:
+        o_freq, o_pct   = open_map.get(pid, (0.30, 0.50))
+        t_freq, t_pct   = tight_map.get(pid, (0.15, 0.38))
+        c_freq, c_pct   = cs_map.get(pid, (0.25, 0.40))
+        p_freq, p_pct   = pullup_map.get(pid, (0.20, 0.40))
+        results.append({
+            'player_id':          pid,
+            'open_shot_fg_pct':   o_pct,
+            'open_shot_freq':     o_freq,
+            'tight_shot_fg_pct':  t_pct,
+            'tight_shot_freq':    t_freq,
+            'catch_shoot_fg_pct': c_pct,
+            'catch_shoot_freq':   c_freq,
+            'pullup_fg_pct':      p_pct,
+            'pullup_freq':        p_freq,
+        })
+    return results
+
+
+def compute_synergy_play_types(season: str) -> list[dict[str, Any]]:
+    """Fetch player synergy play type stats for offensive play types."""
+    play_type_map = {
+        'Isolation':    ('iso_poss_pct', 'iso_ppp'),
+        'PRBallHandler': ('pnr_bh_poss_pct', 'pnr_bh_ppp'),
+        'PRRollman':    ('pnr_roll_poss_pct', 'pnr_roll_ppp'),
+        'Postup':       ('postup_poss_pct', 'postup_ppp'),
+        'Spotup':       ('spotup_poss_pct', 'spotup_ppp'),
+        'Transition':   ('transition_poss_pct', 'transition_ppp'),
+        'Cut':          ('cut_poss_pct', 'cut_ppp'),
+    }
+
+    player_data: dict[int, dict[str, float]] = {}
+
+    for pt, (pct_key, ppp_key) in play_type_map.items():
+        try:
+            df = synergyplaytypes.SynergyPlayTypes(
+                season_year_nullable=season,
+                play_type_nullable=pt,
+                player_or_team_abbreviation='P',
+                type_grouping_nullable='offensive',
+                per_mode_simple_nullable='PerGame',
+            ).get_data_frames()[0]
+            time.sleep(0.5)
+            for _, row in df.iterrows():
+                try:
+                    pid = int(row.get('PLAYER_ID', 0) or row.get('ENTITY_ID', 0) or 0)
+                    if pid == 0:
+                        continue
+                    if pid not in player_data:
+                        player_data[pid] = {}
+                    player_data[pid][pct_key] = float(row.get('POSS_PCT', 0.0) or 0.0)
+                    player_data[pid][ppp_key]  = float(row.get('PPP', 0.9) or 0.9)
+                except Exception:
+                    continue
+        except Exception as e:
+            print(f"compute_synergy_play_types: fetch failed for {pt}: {e}")
+            time.sleep(0.5)
+
+    results: list[dict[str, Any]] = []
+    for pid, data in player_data.items():
+        results.append({
+            'player_id':          pid,
+            'iso_poss_pct':       data.get('iso_poss_pct', 0.0),
+            'iso_ppp':            data.get('iso_ppp', 0.9),
+            'pnr_bh_poss_pct':    data.get('pnr_bh_poss_pct', 0.0),
+            'pnr_bh_ppp':         data.get('pnr_bh_ppp', 0.9),
+            'pnr_roll_poss_pct':  data.get('pnr_roll_poss_pct', 0.0),
+            'pnr_roll_ppp':       data.get('pnr_roll_ppp', 0.9),
+            'spotup_poss_pct':    data.get('spotup_poss_pct', 0.0),
+            'spotup_ppp':         data.get('spotup_ppp', 1.0),
+            'transition_poss_pct': data.get('transition_poss_pct', 0.0),
+            'transition_ppp':     data.get('transition_ppp', 1.1),
+            'postup_poss_pct':    data.get('postup_poss_pct', 0.0),
+            'cut_poss_pct':       data.get('cut_poss_pct', 0.0),
+        })
+    return results
+
+
+def compute_on_off_ratings(season: str) -> list[dict[str, Any]]:
+    """Fetch player on/off court net ratings for all teams."""
+    results: list[dict[str, Any]] = []
+
+    for t in teams.get_teams():
+        team_id = int(t['id'])
+        try:
+            frames = teamplayeronoffsummary.TeamPlayerOnOffSummary(
+                team_id=team_id,
+                season_nullable=season,
+            ).get_data_frames()
+            time.sleep(0.35)
+
+            # Look for the on-court frame and off-court frame
+            on_df = None
+            off_df = None
+            for frame in frames:
+                if frame.empty:
+                    continue
+                cols = [c.upper() for c in frame.columns]
+                if 'PLAYER_ID' in cols or 'VS_PLAYER_ID' in cols:
+                    if on_df is None:
+                        on_df = frame
+                    elif off_df is None:
+                        off_df = frame
+                        break
+
+            if on_df is None:
+                continue
+
+            on_map: dict[int, float] = {}
+            off_map: dict[int, float] = {}
+
+            def _pid_col(df):
+                for c in df.columns:
+                    if 'PLAYER_ID' in c.upper():
+                        return c
+                return None
+
+            def _rating_col(df):
+                for c in df.columns:
+                    if 'NET_RATING' in c.upper():
+                        return c
+                return None
+
+            pid_c = _pid_col(on_df)
+            rat_c = _rating_col(on_df)
+            if pid_c and rat_c:
+                for _, row in on_df.iterrows():
+                    try:
+                        pid = int(row[pid_c])
+                        on_map[pid] = float(row.get(rat_c, 0.0) or 0.0)
+                    except Exception:
+                        continue
+
+            if off_df is not None:
+                pid_c2 = _pid_col(off_df)
+                rat_c2 = _rating_col(off_df)
+                if pid_c2 and rat_c2:
+                    for _, row in off_df.iterrows():
+                        try:
+                            pid = int(row[pid_c2])
+                            off_map[pid] = float(row.get(rat_c2, 0.0) or 0.0)
+                        except Exception:
+                            continue
+
+            for pid in on_map:
+                on_r  = on_map[pid]
+                off_r = off_map.get(pid, 0.0)
+                results.append({
+                    'player_id':            pid,
+                    'on_court_net_rating':  on_r,
+                    'off_court_net_rating': off_r,
+                    'on_off_differential':  on_r - off_r,
+                })
+        except Exception as e:
+            print(f"compute_on_off_ratings: team {team_id} failed: {e}")
+            time.sleep(0.35)
+
+    return results
+
+
+def _get_active_player_ids(limit: int = 400) -> list[int]:
+    """Return up to `limit` active player IDs."""
+    try:
+        df = commonallplayers.CommonAllPlayers(
+            is_only_current_season=1,
+        ).get_data_frames()[0]
+        time.sleep(0.5)
+        pids = [int(r['PERSON_ID']) for _, r in df.iterrows()]
+        return pids[:limit]
+    except Exception as e:
+        print(f"_get_active_player_ids failed: {e}")
+        return []
+
+
+def compute_shot_zone_breakdown(season: str, player_ids: list[int] | None = None) -> list[dict[str, Any]]:
+    """Fetch shot zone breakdown for each active player."""
+    if player_ids is None:
+        player_ids = _get_active_player_ids(400)
+
+    results: list[dict[str, Any]] = []
+
+    for pid in player_ids:
+        try:
+            frames = playerdashboardbyshootingsplits.PlayerDashboardByShootingSplits(
+                player_id=pid,
+                season=season,
+                per_mode_overall='PerGame',
+            ).get_data_frames()
+            time.sleep(0.6)
+
+            zone_df = None
+            for frame in frames:
+                if frame.empty:
+                    continue
+                cols_upper = [c.upper() for c in frame.columns]
+                if 'GROUP_VALUE' in cols_upper:
+                    zone_df = frame
+                    break
+
+            if zone_df is None:
+                continue
+
+            # Build zone accumulator
+            zone_fga: dict[str, float] = {}
+            zone_fgm: dict[str, float] = {}
+            zone_fg_pct: dict[str, float] = {}
+
+            def _classify(gv: str) -> str | None:
+                gv_up = gv.upper()
+                if 'RESTRICTED' in gv_up or ('PAINT' in gv_up and '3' not in gv_up):
+                    if 'RESTRICTED' in gv_up:
+                        return 'rim'
+                    return 'paint'
+                if 'MID' in gv_up or 'MIDRANGE' in gv_up or 'MID-RANGE' in gv_up:
+                    return 'midrange'
+                if 'CORNER' in gv_up and '3' in gv_up:
+                    return 'corner3'
+                if ('ABOVE' in gv_up and 'BREAK' in gv_up) or ('ABOVE BREAK' in gv_up):
+                    return 'above_break3'
+                if 'IN THE PAINT' in gv_up:
+                    return 'paint'
+                return None
+
+            total_fga = 0.0
+            for _, row in zone_df.iterrows():
+                gv = str(row.get('GROUP_VALUE', '') or '')
+                zone = _classify(gv)
+                if zone is None:
+                    continue
+                try:
+                    fga = float(row.get('FGA', 0.0) or 0.0)
+                    pct = float(row.get('FG_PCT', 0.0) or 0.0)
+                    fgm = fga * pct
+                    zone_fga[zone] = zone_fga.get(zone, 0.0) + fga
+                    zone_fgm[zone] = zone_fgm.get(zone, 0.0) + fgm
+                    total_fga += fga
+                except Exception:
+                    continue
+
+            def _zone_stats(z: str) -> tuple[float, float]:
+                fga = zone_fga.get(z, 0.0)
+                fgm = zone_fgm.get(z, 0.0)
+                freq = (fga / total_fga) if total_fga > 0 else 0.0
+                pct  = (fgm / fga) if fga > 0 else 0.0
+                return freq, pct
+
+            r_freq, r_pct    = _zone_stats('rim')
+            pa_freq, pa_pct  = _zone_stats('paint')
+            m_freq, m_pct    = _zone_stats('midrange')
+            c3_freq, c3_pct  = _zone_stats('corner3')
+            ab_freq, ab_pct  = _zone_stats('above_break3')
+
+            results.append({
+                'player_id':          pid,
+                'rim_fga_pct':        r_freq,
+                'rim_fg_pct':         r_pct,
+                'paint_fga_pct':      pa_freq,
+                'paint_fg_pct':       pa_pct,
+                'midrange_fga_pct':   m_freq,
+                'midrange_fg_pct':    m_pct,
+                'corner3_fga_pct':    c3_freq,
+                'corner3_fg_pct':     c3_pct,
+                'above_break3_fga_pct': ab_freq,
+                'above_break3_fg_pct':  ab_pct,
+            })
+        except Exception as e:
+            print(f"compute_shot_zone_breakdown: player {pid} failed: {e}")
+            time.sleep(0.6)
+
+    return results
+
+
+def compute_quarter_splits(season: str, player_ids: list[int] | None = None) -> list[dict[str, Any]]:
+    """Fetch per-quarter scoring averages for each active player."""
+    if player_ids is None:
+        player_ids = _get_active_player_ids(400)
+
+    results: list[dict[str, Any]] = []
+
+    quarter_map = {
+        '1ST QTR': 'q1_avg',
+        '2ND QTR': 'q2_avg',
+        '3RD QTR': 'q3_avg',
+        '4TH QTR': 'q4_avg',
+        '1ST': 'q1_avg',
+        '2ND': 'q2_avg',
+        '3RD': 'q3_avg',
+        '4TH': 'q4_avg',
+    }
+
+    for pid in player_ids:
+        try:
+            frames = playerdashboardbygamesplits.PlayerDashboardByGameSplits(
+                player_id=pid,
+                season=season,
+                per_mode_overall='PerGame',
+            ).get_data_frames()
+            time.sleep(0.6)
+
+            period_df = None
+            for frame in frames:
+                if frame.empty:
+                    continue
+                cols_upper = [c.upper() for c in frame.columns]
+                if 'GROUP_VALUE' in cols_upper:
+                    gvs = [str(v).upper() for v in frame.get('GROUP_VALUE', [])]
+                    if any('QTR' in g or 'PERIOD' in g or '1ST' in g for g in gvs):
+                        period_df = frame
+                        break
+
+            if period_df is None:
+                continue
+
+            q_avgs = {k: 0.0 for k in ('q1_avg', 'q2_avg', 'q3_avg', 'q4_avg')}
+            q4_min = 0.0
+
+            for _, row in period_df.iterrows():
+                gv = str(row.get('GROUP_VALUE', '') or '').upper()
+                key = None
+                for pattern, qkey in quarter_map.items():
+                    if pattern in gv:
+                        key = qkey
+                        break
+                if key is None:
+                    continue
+                try:
+                    q_avgs[key] = float(row.get('PTS', 0.0) or 0.0)
+                    if key == 'q4_avg':
+                        q4_min = float(row.get('MIN', 0.0) or 0.0)
+                except Exception:
+                    continue
+
+            results.append({
+                'player_id': pid,
+                'q1_avg':    q_avgs['q1_avg'],
+                'q2_avg':    q_avgs['q2_avg'],
+                'q3_avg':    q_avgs['q3_avg'],
+                'q4_avg':    q_avgs['q4_avg'],
+                'q4_min_pg': q4_min,
+            })
+        except Exception as e:
+            print(f"compute_quarter_splits: player {pid} failed: {e}")
+            time.sleep(0.6)
+
+    return results
+
+
+def compute_opp_shot_zones(season: str) -> list[dict[str, Any]]:
+    """Fetch opponent shot zone FG% allowed per team."""
+    try:
+        df = leaguedashoppptshot.LeagueDashOppPtShot(
+            season=season,
+            per_mode_simple='PerGame',
+        ).get_data_frames()[0]
+        time.sleep(0.5)
+    except Exception as e:
+        print(f"compute_opp_shot_zones: fetch failed: {e}")
+        return []
+
+    # This endpoint has one row per team with zone columns
+    # Look for columns like LESS_THAN_6FT_FG_PCT etc.
+    # Zone classification from column names
+    results: list[dict[str, Any]] = []
+    for _, row in df.iterrows():
+        try:
+            team_id = int(row.get('TEAM_ID', 0) or 0)
+            if team_id == 0:
+                continue
+
+            def _find_col(keywords: list[str]) -> float:
+                for col in df.columns:
+                    col_up = col.upper()
+                    if all(k in col_up for k in keywords):
+                        try:
+                            return float(row.get(col, 0.0) or 0.0)
+                        except Exception:
+                            return 0.0
+                return 0.0
+
+            # Try to find rim/paint/midrange/corner3/above_break3 columns
+            rim_pct      = _find_col(['LESS_THAN_6', 'FG_PCT']) or _find_col(['RESTRICTED', 'FG_PCT'])
+            paint_pct    = _find_col(['PAINT', 'FG_PCT']) or _find_col(['LESS_THAN_10', 'FG_PCT'])
+            mid_pct      = _find_col(['MID', 'FG_PCT'])
+            corner3_pct  = _find_col(['CORNER', 'FG3_PCT']) or _find_col(['CORNER', 'FG_PCT'])
+            above3_pct   = _find_col(['ABOVE', 'BREAK', 'FG3_PCT']) or _find_col(['ABOVE', 'FG3_PCT'])
+
+            # Fallback to league averages if columns not found
+            results.append({
+                'team_id':                   team_id,
+                'rim_fg_pct_allowed':        rim_pct if rim_pct > 0 else 0.62,
+                'paint_fg_pct_allowed':      paint_pct if paint_pct > 0 else 0.55,
+                'midrange_fg_pct_allowed':   mid_pct if mid_pct > 0 else 0.42,
+                'corner3_fg_pct_allowed':    corner3_pct if corner3_pct > 0 else 0.38,
+                'above_break3_fg_pct_allowed': above3_pct if above3_pct > 0 else 0.35,
+            })
+        except Exception as e:
+            print(f"compute_opp_shot_zones: row error: {e}")
+            continue
+
+    return results
+
+
+def compute_synergy_team_defense(season: str) -> list[dict[str, Any]]:
+    """Fetch team synergy defense stats (PPP allowed per play type)."""
+    play_type_map = {
+        'PRBallHandler': 'pnr_ppp_allowed',
+        'Isolation':     'iso_ppp_allowed',
+        'Spotup':        'spotup_ppp_allowed',
+        'Transition':    'transition_ppp_allowed',
+        'Postup':        'postup_ppp_allowed',
+    }
+
+    team_data: dict[int, dict[str, float]] = {}
+
+    for pt, key in play_type_map.items():
+        try:
+            df = synergyplaytypes.SynergyPlayTypes(
+                season_year_nullable=season,
+                play_type_nullable=pt,
+                player_or_team_abbreviation='T',
+                type_grouping_nullable='defensive',
+                per_mode_simple_nullable='PerGame',
+            ).get_data_frames()[0]
+            time.sleep(0.5)
+            for _, row in df.iterrows():
+                try:
+                    tid = int(row.get('TEAM_ID', 0) or 0)
+                    if tid == 0:
+                        continue
+                    if tid not in team_data:
+                        team_data[tid] = {}
+                    team_data[tid][key] = float(row.get('PPP', 0.9) or 0.9)
+                except Exception:
+                    continue
+        except Exception as e:
+            print(f"compute_synergy_team_defense: fetch failed for {pt}: {e}")
+            time.sleep(0.5)
+
+    results: list[dict[str, Any]] = []
+    for tid, data in team_data.items():
+        results.append({
+            'team_id':               tid,
+            'pnr_ppp_allowed':       data.get('pnr_ppp_allowed', 0.9),
+            'iso_ppp_allowed':       data.get('iso_ppp_allowed', 0.9),
+            'spotup_ppp_allowed':    data.get('spotup_ppp_allowed', 1.0),
+            'transition_ppp_allowed': data.get('transition_ppp_allowed', 1.1),
+            'postup_ppp_allowed':    data.get('postup_ppp_allowed', 0.9),
+        })
+    return results
+
+
+# ---- Upsert functions for new tables ----
+
+def upsert_advanced_player_stats(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO player_advanced_stats
+              (player_id, usg_pct, ts_pct, efg_pct, ast_pct,
+               oreb_pct, dreb_pct, reb_pct, pie,
+               off_rating, def_rating, pace, net_rating,
+               age, height_inches, weight, years_experience, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(r['player_id']),
+                float(r.get('usg_pct', 0.18)), float(r.get('ts_pct', 0.55)),
+                float(r.get('efg_pct', 0.50)), float(r.get('ast_pct', 0.15)),
+                float(r.get('oreb_pct', 0.05)), float(r.get('dreb_pct', 0.15)),
+                float(r.get('reb_pct', 0.10)), float(r.get('pie', 0.10)),
+                float(r.get('off_rating', 110.0)), float(r.get('def_rating', 110.0)),
+                float(r.get('pace', 100.0)), float(r.get('net_rating', 0.0)),
+                float(r.get('age', 26.0)), float(r.get('height_inches', 78.0)),
+                float(r.get('weight', 220.0)), float(r.get('years_experience', 5.0)),
+                int(updated_at),
+            ),
+        )
+    conn.commit()
+
+
+def upsert_clutch_stats(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO player_clutch_stats
+              (player_id, clutch_pts_pg, clutch_fg_pct, clutch_fg3_pct,
+               clutch_fta_pg, clutch_plus_minus, clutch_min_pg, clutch_games, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(r['player_id']),
+                float(r.get('clutch_pts_pg', 0.0)), float(r.get('clutch_fg_pct', 0.45)),
+                float(r.get('clutch_fg3_pct', 0.33)), float(r.get('clutch_fta_pg', 0.0)),
+                float(r.get('clutch_plus_minus', 0.0)), float(r.get('clutch_min_pg', 0.0)),
+                int(r.get('clutch_games', 0)), int(updated_at),
+            ),
+        )
+    conn.commit()
+
+
+def upsert_hustle_stats(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO player_hustle_stats
+              (player_id, contested_shots_pg, deflections_pg,
+               charges_drawn_pg, screen_assists_pg, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(r['player_id']),
+                float(r.get('contested_shots_pg', 3.0)), float(r.get('deflections_pg', 1.0)),
+                float(r.get('charges_drawn_pg', 0.1)), float(r.get('screen_assists_pg', 0.5)),
+                int(updated_at),
+            ),
+        )
+    conn.commit()
+
+
+def upsert_shot_profile(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO player_shot_profile
+              (player_id, open_shot_fg_pct, open_shot_freq,
+               tight_shot_fg_pct, tight_shot_freq,
+               catch_shoot_fg_pct, catch_shoot_freq,
+               pullup_fg_pct, pullup_freq, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(r['player_id']),
+                float(r.get('open_shot_fg_pct', 0.50)), float(r.get('open_shot_freq', 0.30)),
+                float(r.get('tight_shot_fg_pct', 0.38)), float(r.get('tight_shot_freq', 0.15)),
+                float(r.get('catch_shoot_fg_pct', 0.40)), float(r.get('catch_shoot_freq', 0.25)),
+                float(r.get('pullup_fg_pct', 0.40)), float(r.get('pullup_freq', 0.20)),
+                int(updated_at),
+            ),
+        )
+    conn.commit()
+
+
+def upsert_play_types(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO player_play_types
+              (player_id, iso_poss_pct, iso_ppp,
+               pnr_bh_poss_pct, pnr_bh_ppp,
+               pnr_roll_poss_pct, pnr_roll_ppp,
+               spotup_poss_pct, spotup_ppp,
+               transition_poss_pct, transition_ppp,
+               postup_poss_pct, cut_poss_pct, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(r['player_id']),
+                float(r.get('iso_poss_pct', 0.0)), float(r.get('iso_ppp', 0.9)),
+                float(r.get('pnr_bh_poss_pct', 0.0)), float(r.get('pnr_bh_ppp', 0.9)),
+                float(r.get('pnr_roll_poss_pct', 0.0)), float(r.get('pnr_roll_ppp', 0.9)),
+                float(r.get('spotup_poss_pct', 0.0)), float(r.get('spotup_ppp', 1.0)),
+                float(r.get('transition_poss_pct', 0.0)), float(r.get('transition_ppp', 1.1)),
+                float(r.get('postup_poss_pct', 0.0)), float(r.get('cut_poss_pct', 0.0)),
+                int(updated_at),
+            ),
+        )
+    conn.commit()
+
+
+def upsert_on_off(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO player_on_off
+              (player_id, on_court_net_rating, off_court_net_rating,
+               on_off_differential, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                int(r['player_id']),
+                float(r.get('on_court_net_rating', 0.0)),
+                float(r.get('off_court_net_rating', 0.0)),
+                float(r.get('on_off_differential', 0.0)),
+                int(updated_at),
+            ),
+        )
+    conn.commit()
+
+
+def upsert_shot_zones(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO player_shot_zones
+              (player_id, rim_fga_pct, rim_fg_pct,
+               paint_fga_pct, paint_fg_pct,
+               midrange_fga_pct, midrange_fg_pct,
+               corner3_fga_pct, corner3_fg_pct,
+               above_break3_fga_pct, above_break3_fg_pct, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(r['player_id']),
+                float(r.get('rim_fga_pct', 0.25)), float(r.get('rim_fg_pct', 0.62)),
+                float(r.get('paint_fga_pct', 0.30)), float(r.get('paint_fg_pct', 0.55)),
+                float(r.get('midrange_fga_pct', 0.20)), float(r.get('midrange_fg_pct', 0.42)),
+                float(r.get('corner3_fga_pct', 0.10)), float(r.get('corner3_fg_pct', 0.38)),
+                float(r.get('above_break3_fga_pct', 0.25)), float(r.get('above_break3_fg_pct', 0.35)),
+                int(updated_at),
+            ),
+        )
+    conn.commit()
+
+
+def upsert_quarter_splits(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO player_quarter_splits
+              (player_id, q1_avg, q2_avg, q3_avg, q4_avg, q4_min_pg, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(r['player_id']),
+                float(r.get('q1_avg', 0.0)), float(r.get('q2_avg', 0.0)),
+                float(r.get('q3_avg', 0.0)), float(r.get('q4_avg', 0.0)),
+                float(r.get('q4_min_pg', 0.0)),
+                int(updated_at),
+            ),
+        )
+    conn.commit()
+
+
+def upsert_opp_shot_zones(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO team_opp_shot_zones
+              (team_id, rim_fg_pct_allowed, paint_fg_pct_allowed,
+               midrange_fg_pct_allowed, corner3_fg_pct_allowed,
+               above_break3_fg_pct_allowed, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(r['team_id']),
+                float(r.get('rim_fg_pct_allowed', 0.62)),
+                float(r.get('paint_fg_pct_allowed', 0.55)),
+                float(r.get('midrange_fg_pct_allowed', 0.42)),
+                float(r.get('corner3_fg_pct_allowed', 0.38)),
+                float(r.get('above_break3_fg_pct_allowed', 0.35)),
+                int(updated_at),
+            ),
+        )
+    conn.commit()
+
+
+def upsert_synergy_defense(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO team_synergy_defense
+              (team_id, pnr_ppp_allowed, iso_ppp_allowed,
+               spotup_ppp_allowed, transition_ppp_allowed,
+               postup_ppp_allowed, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(r['team_id']),
+                float(r.get('pnr_ppp_allowed', 0.9)),
+                float(r.get('iso_ppp_allowed', 0.9)),
+                float(r.get('spotup_ppp_allowed', 1.0)),
+                float(r.get('transition_ppp_allowed', 1.1)),
+                float(r.get('postup_ppp_allowed', 0.9)),
+                int(updated_at),
+            ),
+        )
+    conn.commit()
+
+
 def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any]:
     """
     Runs full update and returns summary.
@@ -850,6 +1866,97 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
     rolling_rows = compute_rolling_dvp(season=season)
     upsert_rolling_dvp(conn, rolling_rows, updated_at=updated_at)
 
+    # ---- New enriched feature jobs ----
+    adv_rows: list[dict[str, Any]] = []
+    try:
+        print("computing advanced player stats...")
+        adv_rows = compute_advanced_player_stats(season=season)
+        upsert_advanced_player_stats(conn, adv_rows, updated_at=updated_at)
+        print(f"  advanced player stats: {len(adv_rows)} rows")
+    except Exception as _e:
+        print(f"advanced player stats failed: {_e}")
+
+    clutch_rows: list[dict[str, Any]] = []
+    try:
+        print("computing clutch stats...")
+        clutch_rows = compute_clutch_stats(season=season)
+        upsert_clutch_stats(conn, clutch_rows, updated_at=updated_at)
+        print(f"  clutch stats: {len(clutch_rows)} rows")
+    except Exception as _e:
+        print(f"clutch stats failed: {_e}")
+
+    hustle_rows: list[dict[str, Any]] = []
+    try:
+        print("computing hustle stats...")
+        hustle_rows = compute_hustle_stats(season=season)
+        upsert_hustle_stats(conn, hustle_rows, updated_at=updated_at)
+        print(f"  hustle stats: {len(hustle_rows)} rows")
+    except Exception as _e:
+        print(f"hustle stats failed: {_e}")
+
+    shot_profile_rows: list[dict[str, Any]] = []
+    try:
+        print("computing shot profile...")
+        shot_profile_rows = compute_shot_profile(season=season)
+        upsert_shot_profile(conn, shot_profile_rows, updated_at=updated_at)
+        print(f"  shot profile: {len(shot_profile_rows)} rows")
+    except Exception as _e:
+        print(f"shot profile failed: {_e}")
+
+    play_type_rows: list[dict[str, Any]] = []
+    try:
+        print("computing synergy play types...")
+        play_type_rows = compute_synergy_play_types(season=season)
+        upsert_play_types(conn, play_type_rows, updated_at=updated_at)
+        print(f"  play types: {len(play_type_rows)} rows")
+    except Exception as _e:
+        print(f"synergy play types failed: {_e}")
+
+    on_off_rows: list[dict[str, Any]] = []
+    try:
+        print("computing on/off ratings...")
+        on_off_rows = compute_on_off_ratings(season=season)
+        upsert_on_off(conn, on_off_rows, updated_at=updated_at)
+        print(f"  on/off ratings: {len(on_off_rows)} rows")
+    except Exception as _e:
+        print(f"on/off ratings failed: {_e}")
+
+    shot_zone_rows: list[dict[str, Any]] = []
+    try:
+        print("computing shot zone breakdown (up to 400 players)...")
+        shot_zone_rows = compute_shot_zone_breakdown(season=season)
+        upsert_shot_zones(conn, shot_zone_rows, updated_at=updated_at)
+        print(f"  shot zones: {len(shot_zone_rows)} rows")
+    except Exception as _e:
+        print(f"shot zone breakdown failed: {_e}")
+
+    quarter_split_rows: list[dict[str, Any]] = []
+    try:
+        print("computing quarter splits (up to 400 players)...")
+        quarter_split_rows = compute_quarter_splits(season=season)
+        upsert_quarter_splits(conn, quarter_split_rows, updated_at=updated_at)
+        print(f"  quarter splits: {len(quarter_split_rows)} rows")
+    except Exception as _e:
+        print(f"quarter splits failed: {_e}")
+
+    opp_shot_zone_rows: list[dict[str, Any]] = []
+    try:
+        print("computing opponent shot zones...")
+        opp_shot_zone_rows = compute_opp_shot_zones(season=season)
+        upsert_opp_shot_zones(conn, opp_shot_zone_rows, updated_at=updated_at)
+        print(f"  opp shot zones: {len(opp_shot_zone_rows)} rows")
+    except Exception as _e:
+        print(f"opp shot zones failed: {_e}")
+
+    synergy_def_rows: list[dict[str, Any]] = []
+    try:
+        print("computing synergy team defense...")
+        synergy_def_rows = compute_synergy_team_defense(season=season)
+        upsert_synergy_defense(conn, synergy_def_rows, updated_at=updated_at)
+        print(f"  synergy defense: {len(synergy_def_rows)} rows")
+    except Exception as _e:
+        print(f"synergy team defense failed: {_e}")
+
     conn.close()
     return {
         "season": season,
@@ -860,6 +1967,16 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         "team_stats_rows": len(team_stats_rows),
         "foul_rate_rows": len(foul_rows),
         "rolling_dvp_rows": len(rolling_rows),
+        "adv_rows": len(adv_rows),
+        "clutch_rows": len(clutch_rows),
+        "hustle_rows": len(hustle_rows),
+        "shot_profile_rows": len(shot_profile_rows),
+        "play_type_rows": len(play_type_rows),
+        "on_off_rows": len(on_off_rows),
+        "shot_zone_rows": len(shot_zone_rows),
+        "quarter_split_rows": len(quarter_split_rows),
+        "opp_shot_zone_rows": len(opp_shot_zone_rows),
+        "synergy_def_rows": len(synergy_def_rows),
     }
 
 
