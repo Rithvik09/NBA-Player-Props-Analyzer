@@ -16,7 +16,7 @@ class TrainingDataCollector:
     Team/opponent context (pace, defensive rating, rest days, etc.) is fetched once per
     team per session from the current season and injected into all training samples.
     This matches the inference pipeline in prepare_features(), which also uses the
-    current season's team context.  The full 32-feature set is built here so the
+    current season's team context.  The full ~45-feature set is built here so the
     model trains on exactly what it will see at prediction time.
     """
 
@@ -212,8 +212,10 @@ class TrainingDataCollector:
         """
         Rolling-window training samples for one player/prop.
         Returns list of {features, result, line, prop_type} dicts.
-        Each sample's feature dict has the same ~32 keys that prepare_features()
-        builds at inference time.
+
+        Features built here exactly mirror what prepare_features() + analyze_prop_bet()
+        produce at inference time — including efficiency stats, location splits,
+        trend slope, and b2b flag — so the model trains on the full ~45-feature set.
         """
         col = self.PROP_COL_MAP.get(prop_type)
         if not col:
@@ -238,7 +240,29 @@ class TrainingDataCollector:
         if len(games_df) < self.MIN_TOTAL_GAMES:
             return []
 
-        stat_values = pd.to_numeric(games_df[col], errors='coerce').fillna(0).values.astype(float)
+        # --- coerce all numeric columns we'll use ---
+        for _c in [col, 'FG_PCT', 'FT_PCT', 'MIN', 'FGA', 'FTA', 'TOV']:
+            if _c in games_df.columns:
+                games_df[_c] = pd.to_numeric(games_df[_c], errors='coerce').fillna(0)
+
+        stat_values = games_df[col].values.astype(float)
+
+        # Pre-build efficiency arrays (parallel to stat_values)
+        fg_pct_vals  = games_df['FG_PCT'].values.astype(float) if 'FG_PCT' in games_df.columns else np.full(len(games_df), 0.45)
+        ft_pct_vals  = games_df['FT_PCT'].values.astype(float) if 'FT_PCT' in games_df.columns else np.full(len(games_df), 0.75)
+        min_vals     = games_df['MIN'].values.astype(float)    if 'MIN'    in games_df.columns else np.full(len(games_df), 24.0)
+        usage_vals   = (
+            games_df['FGA'].values.astype(float) +
+            0.44 * games_df['FTA'].values.astype(float) +
+            games_df['TOV'].values.astype(float)
+        ) if all(c in games_df.columns for c in ('FGA', 'FTA', 'TOV')) else np.full(len(games_df), 18.0)
+
+        # Rest-days array: actual gap between consecutive games
+        game_dates = games_df['GAME_DATE'].values  # numpy datetime64
+        rest_days_arr = np.full(len(games_df), 2.0)
+        for k in range(1, len(games_df)):
+            gap = (game_dates[k] - game_dates[k - 1]) / np.timedelta64(1, 'D')
+            rest_days_arr[k] = max(0.0, float(gap) - 1.0)   # days of rest = gap - 1
 
         # --- parse MATCHUP column ---
         team_abbrevs  = []
@@ -255,7 +279,7 @@ class TrainingDataCollector:
         # --- pre-fetch team context for every unique abbreviation ---
         unique_abbrevs = {a for a in team_abbrevs + opp_abbrevs if a}
         for abbrev in unique_abbrevs:
-            self._fetch_team_context(abbrev)   # populates cache
+            self._fetch_team_context(abbrev)
 
         samples = []
         for i in range(self.MIN_PRIOR_GAMES, len(games_df)):
@@ -275,45 +299,93 @@ class TrainingDataCollector:
             edge     = ((recent_avg - line) / line) if line > 0 else 0.0
             result   = float(stat_values[i])
 
-            # --- home / away features ---
-            is_home = is_home_flags[i]
-            prior_home = [stat_values[j] for j in range(i) if is_home_arr[j] == 1]
-            prior_away = [stat_values[j] for j in range(i) if is_home_arr[j] == 0]
+            # --- home / away location features ---
+            is_home    = is_home_flags[i]
+            home_idxs  = [j for j in range(i) if is_home_arr[j] == 1]
+            away_idxs  = [j for j in range(i) if is_home_arr[j] == 0]
+            home_vals  = stat_values[home_idxs]
+            away_vals  = stat_values[away_idxs]
 
-            if is_home == 1 and prior_home:
-                loc_src = prior_home[-5:] if len(prior_home) >= 5 else prior_home
+            home_avg_f   = float(np.mean(home_vals)) if len(home_vals) > 0 else recent_avg
+            away_avg_f   = float(np.mean(away_vals)) if len(away_vals) > 0 else recent_avg
+            home_games_n = len(home_idxs)
+            away_games_n = len(away_idxs)
+
+            if is_home == 1 and len(home_vals) > 0:
+                loc_src = home_vals[-5:] if len(home_vals) >= 5 else home_vals
                 location_avg = float(np.mean(loc_src))
-            elif is_home == 0 and prior_away:
-                loc_src = prior_away[-5:] if len(prior_away) >= 5 else prior_away
+            elif is_home == 0 and len(away_vals) > 0:
+                loc_src = away_vals[-5:] if len(away_vals) >= 5 else away_vals
                 location_avg = float(np.mean(loc_src))
             else:
                 location_avg = recent_avg
 
+            # --- efficiency features (from game log, no extra API calls) ---
+            prior_fg  = fg_pct_vals[:i]
+            prior_ft  = ft_pct_vals[:i]
+            prior_min = min_vals[:i]
+            prior_usg = usage_vals[:i]
+
+            avg_minutes    = float(np.mean(prior_min))
+            recent_minutes = float(np.mean(prior_min[-5:]))
+            fg_pct         = float(np.mean(prior_fg))
+            recent_fg_pct  = float(np.mean(prior_fg[-5:]))
+            ft_pct         = float(np.mean(prior_ft))
+            usage_rate     = float(np.mean(prior_usg))
+
+            # --- trend slope: polyfit on the last 5 stat values ---
+            if len(last5) >= 3:
+                _z = np.polyfit(range(len(last5)), last5, 1)
+                trend_slope = float(_z[0])
+            else:
+                trend_slope = 0.0
+
+            # --- rest days & b2b (exact from game dates) ---
+            rest_days_val = float(rest_days_arr[i])
+            b2b_flag      = int(rest_days_val <= 1)
+
             features = {
-                'recent_avg':   recent_avg,
-                'season_avg':   season_avg,
-                'stddev':       stddev,
-                'max_recent':   max_recent,
-                'min_recent':   min_recent,
-                'games_played': games_played,
-                'hit_rate':     hit_rate,
-                'edge':         edge,
-                'is_home':      float(is_home),
-                'location_avg': location_avg,
+                'recent_avg':    recent_avg,
+                'season_avg':    season_avg,
+                'stddev':        stddev,
+                'max_recent':    max_recent,
+                'min_recent':    min_recent,
+                'games_played':  games_played,
+                'hit_rate':      hit_rate,
+                'edge':          edge,
+                'is_home':       float(is_home),
+                'location_avg':  location_avg,
+                # location splits
+                'home_avg':      home_avg_f,
+                'away_avg':      away_avg_f,
+                'home_games':    home_games_n,
+                'away_games':    away_games_n,
+                # efficiency
+                'avg_minutes':    avg_minutes,
+                'recent_minutes': recent_minutes,
+                'fg_pct':         fg_pct,
+                'recent_fg_pct':  recent_fg_pct,
+                'ft_pct':         ft_pct,
+                'usage_rate':     usage_rate,
+                # momentum / schedule
+                'trend_slope': trend_slope,
+                'b2b_flag':    b2b_flag,
             }
 
-            # --- team context features ---
+            # --- team context (current-season proxy) ---
             team_ctx = self._team_context_cache.get(team_abbrevs[i]) if team_abbrevs[i] else None
             features.update(self._team_features(team_ctx, 'team_'))
+            # override rest_days with actual game-log value (more accurate than season avg)
+            features['rest_days'] = rest_days_val
 
-            # --- opponent context features ---
+            # --- opponent context (current-season proxy) ---
             opp_ctx = self._team_context_cache.get(opp_abbrevs[i]) if opp_abbrevs[i] else None
             features.update(self._team_features(opp_ctx, 'opp_'))
 
             # --- player matchup history vs this specific opponent ---
             opp = opp_abbrevs[i]
-            prior_vs_opp = [stat_values[j] for j in range(i) if opp_abbrevs[j] == opp]
-            if prior_vs_opp:
+            prior_vs_opp = stat_values[[j for j in range(i) if opp_abbrevs[j] == opp]]
+            if len(prior_vs_opp) > 0:
                 vs_team_avg          = float(np.mean(prior_vs_opp))
                 matchup_games        = len(prior_vs_opp)
                 matchup_success_rate = float(np.mean([1.0 if v > line else 0.0 for v in prior_vs_opp]))
@@ -326,11 +398,12 @@ class TrainingDataCollector:
                 'vs_team_avg':          vs_team_avg,
                 'matchup_games':        matchup_games,
                 'matchup_success_rate': matchup_success_rate,
-                # Position-level defensive stats can't be computed per historical game
-                # without a per-game LeagueDashPtDefend call; use neutral defaults.
-                'pos_pts_allowed': 0.0,
-                'pos_def_rating':  110.0,
-                # Injury risk is a real-time signal — not retroactively available.
+                # Position defence: current-season neutral proxy
+                # (per-game historical pos defence data would need one API call per game)
+                'pos_pts_allowed':  0.0,
+                'pos_def_rating':   110.0,
+                'effective_fg_pct': 0.47,
+                # Injury risk: real-time signal, not retroactively available
                 'injury_risk': 0.0,
             })
 

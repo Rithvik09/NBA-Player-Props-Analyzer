@@ -517,21 +517,50 @@ class EnhancedMLPredictor:
             return 0.1
 
     def prepare_features(self, player_stats, player_context, team_context, opponent_context):
-        """Build the feature dict for the ML models from all available context."""
+        """Build the feature dict for the ML models from all available context.
+
+        player_stats may contain extra efficiency/location keys populated by
+        analyze_prop_bet() before calling this method:
+          home_avg, away_avg, home_games, away_games,
+          avg_minutes, recent_minutes, fg_pct, recent_fg_pct, ft_pct,
+          usage_rate, trend_slope, b2b_flag
+        All are optional — missing ones fall back to neutral defaults.
+        """
         features = {}
 
-        # use only the last 5 games for max/min/stddev — matching the training data computation
+        # ---- core rolling stats (last-5 window, matches training) ----
         _all_vals = player_stats.get('values') or [0]
         _last5 = _all_vals[:5] if len(_all_vals) >= 5 else _all_vals
         features.update({
-            'recent_avg':  float(player_stats.get('last5_avg', 0)),
-            'season_avg':  float(player_stats.get('avg', 0)),
-            'max_recent':  float(max(_last5)),
-            'min_recent':  float(min(_last5)),
-            'stddev':      float(np.std(_last5)),
+            'recent_avg':   float(player_stats.get('last5_avg', 0)),
+            'season_avg':   float(player_stats.get('avg', 0)),
+            'max_recent':   float(max(_last5)),
+            'min_recent':   float(min(_last5)),
+            'stddev':       float(np.std(_last5)),
             'games_played': len(_all_vals),
         })
 
+        # ---- location splits (already in stat_data from _get_stat_dict) ----
+        features.update({
+            'home_avg':   float(player_stats.get('home_avg',   features['recent_avg'])),
+            'away_avg':   float(player_stats.get('away_avg',   features['recent_avg'])),
+            'home_games': int(player_stats.get('home_games',   0)),
+            'away_games': int(player_stats.get('away_games',   0)),
+        })
+
+        # ---- efficiency / usage (injected by analyze_prop_bet) ----
+        features.update({
+            'avg_minutes':   float(player_stats.get('avg_minutes',   24.0)),
+            'recent_minutes': float(player_stats.get('recent_minutes', 24.0)),
+            'fg_pct':        float(player_stats.get('fg_pct',         0.45)),
+            'recent_fg_pct': float(player_stats.get('recent_fg_pct',  0.45)),
+            'ft_pct':        float(player_stats.get('ft_pct',         0.75)),
+            'usage_rate':    float(player_stats.get('usage_rate',     18.0)),
+            'trend_slope':   float(player_stats.get('trend_slope',     0.0)),
+            'b2b_flag':      int(player_stats.get('b2b_flag',          0)),
+        })
+
+        # ---- player context (matchup history + position defence) ----
         if player_context:
             matchup_history = player_context.get('matchup_history') or {}
             position_matchup = player_context.get('position_matchup') or {}
@@ -539,44 +568,48 @@ class EnhancedMLPredictor:
             injury_risk_str = player_context.get('injury_history', {}).get('injury_risk', 'low')
 
             features.update({
-                'vs_team_avg': float(matchup_history.get('avg_points', 0)),
-                'matchup_games': int(matchup_history.get('games_played', 0)),
+                'vs_team_avg':          float(matchup_history.get('avg_points', 0)),
+                'matchup_games':        int(matchup_history.get('games_played', 0)),
                 'matchup_success_rate': float(matchup_history.get('success_rate', 0)),
-                'pos_pts_allowed': float(position_matchup.get('pts_allowed_per_game', 0)),
-                'pos_def_rating': float(position_matchup.get('defensive_rating', 0)),
-                'injury_risk': injury_risk_map.get(injury_risk_str, 0.0)
+                'pos_pts_allowed':      float(position_matchup.get('pts_allowed_per_game', 0)),
+                'pos_def_rating':       float(position_matchup.get('defensive_rating', 0)),
+                'effective_fg_pct':     float(position_matchup.get('effective_fg_pct', 0.47)),
+                'injury_risk':          injury_risk_map.get(injury_risk_str, 0.0),
             })
 
+        # ---- team context ----
         if team_context:
             features.update({
-                'team_pace': float(team_context.get('pace', 0)),
+                'team_pace':       float(team_context.get('pace', 0)),
                 'team_off_rating': float(team_context.get('offensive_rating', 0)),
                 'team_def_rating': float(team_context.get('defensive_rating', 0)),
-                'team_form': float(team_context.get('recent_form', {}).get('win_pct', 0)),
-                'rest_days': int(team_context.get('rest_days', 1)),
-                'team_injuries': float(team_context.get('injury_impact', 0))
+                'team_form':       float(team_context.get('recent_form', {}).get('win_pct', 0)),
+                'rest_days':       int(team_context.get('rest_days', 1)),
+                'team_injuries':   float(team_context.get('injury_impact', 0)),
             })
 
+        # ---- opponent context ----
         if opponent_context:
             features.update({
-                'opp_pace': float(opponent_context.get('pace', 0)),
+                'opp_pace':       float(opponent_context.get('pace', 0)),
                 'opp_def_rating': float(opponent_context.get('defensive_rating', 0)),
-                'opp_form': float(opponent_context.get('recent_form', {}).get('win_pct', 0)),
-                'opp_injuries': float(opponent_context.get('injury_impact', 0))
+                'opp_form':       float(opponent_context.get('recent_form', {}).get('win_pct', 0)),
+                'opp_injuries':   float(opponent_context.get('injury_impact', 0)),
             })
 
+        # ---- extended injury detail ----
         if team_context and 'injuries' in team_context:
             features.update({
-                'team_injury_impact': float(team_context['injury_impact']),
-                'team_key_players_out': int(team_context['injuries']['key_players_out']),
-                'team_total_players_out': int(team_context['injuries']['total_players_out'])
+                'team_injury_impact':     float(team_context['injury_impact']),
+                'team_key_players_out':   int(team_context['injuries']['key_players_out']),
+                'team_total_players_out': int(team_context['injuries']['total_players_out']),
             })
 
         if opponent_context and 'injuries' in opponent_context:
             features.update({
-                'opp_injury_impact': float(opponent_context['injury_impact']),
-                'opp_key_players_out': int(opponent_context['injuries']['key_players_out']),
-                'opp_total_players_out': int(opponent_context['injuries']['total_players_out'])
+                'opp_injury_impact':     float(opponent_context['injury_impact']),
+                'opp_key_players_out':   int(opponent_context['injuries']['key_players_out']),
+                'opp_total_players_out': int(opponent_context['injuries']['total_players_out']),
             })
 
         return features
