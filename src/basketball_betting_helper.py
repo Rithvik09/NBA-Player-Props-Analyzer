@@ -755,6 +755,20 @@ class BasketballBettingHelper:
                 if trend_key in stats['trends'] and stat_name in stats:
                     stats[stat_name]['direction'] = stats['trends'][trend_key]['direction']
 
+            # efficiency scalars — used as ML features
+            stats['efficiency'] = {
+                'avg_minutes':    float(pd.to_numeric(games_df['MIN'], errors='coerce').fillna(0).mean()),
+                'recent_minutes': float(pd.to_numeric(games_df['MIN'], errors='coerce').fillna(0).head(5).mean()),
+                'fg_pct':         float(pd.to_numeric(games_df['FG_PCT'], errors='coerce').fillna(0).mean()),
+                'recent_fg_pct':  float(pd.to_numeric(games_df['FG_PCT'], errors='coerce').fillna(0).head(5).mean()),
+                'ft_pct':         float(pd.to_numeric(games_df['FT_PCT'], errors='coerce').fillna(0).mean()),
+                'usage_rate':     float(
+                    (pd.to_numeric(games_df['FGA'], errors='coerce').fillna(0) +
+                     0.44 * pd.to_numeric(games_df['FTA'], errors='coerce').fillna(0) +
+                     pd.to_numeric(games_df['TOV'], errors='coerce').fillna(0)).mean()
+                ),
+            }
+
             return stats
             
         except Exception as e:
@@ -901,6 +915,33 @@ class BasketballBettingHelper:
             # use last5_avg to match training (data_collector computes edge from recent_avg = mean(last5))
             last5_avg_val = stat_data.get('last5_avg', stat_data.get('avg', 0))
             edge = ((last5_avg_val - line) / line) if line > 0 else 0
+
+            # ---- inject efficiency + trend scalars into stat_data so
+            #      prepare_features() picks them up automatically ----
+            efficiency = stats.get('efficiency', {})
+            stat_data = dict(stat_data)   # shallow copy — don't mutate the cached stats object
+            stat_data.update({
+                'avg_minutes':    efficiency.get('avg_minutes',    24.0),
+                'recent_minutes': efficiency.get('recent_minutes', 24.0),
+                'fg_pct':         efficiency.get('fg_pct',          0.45),
+                'recent_fg_pct':  efficiency.get('recent_fg_pct',   0.45),
+                'ft_pct':         efficiency.get('ft_pct',           0.75),
+                'usage_rate':     efficiency.get('usage_rate',       18.0),
+            })
+
+            # trend slope for this specific prop (already computed in get_player_stats)
+            _trend_key_map = {
+                'points': 'pts', 'assists': 'ast', 'rebounds': 'reb',
+                'steals': 'stl', 'blocks': 'blk', 'turnovers': 'tov', 'three_pointers': 'fg3m',
+            }
+            _tkey = _trend_key_map.get(prop_type)
+            stat_data['trend_slope'] = float(
+                stats.get('trends', {}).get(_tkey, {}).get('slope', 0.0)
+            ) if _tkey else 0.0
+
+            # b2b flag — derived from current team context rest_days
+            _rest = int(team_context.get('rest_days', 2)) if team_context else 2
+            stat_data['b2b_flag'] = int(_rest <= 1)
 
             features = self.ml_predictor.prepare_features(
                 stat_data, player_context, team_context, opponent_context
