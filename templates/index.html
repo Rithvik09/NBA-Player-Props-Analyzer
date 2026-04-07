@@ -45,6 +45,9 @@
                 <button onclick="showTab('accuracy')" id="tab-accuracy" class="tab-btn">
                     <span>📊</span> Accuracy
                 </button>
+                <button onclick="showTab('bias')" id="tab-bias" class="tab-btn">
+                    <span>🔬</span> Bias Report
+                </button>
             </div>
 
             <!-- ══ ANALYZER TAB ══ -->
@@ -317,6 +320,12 @@
             <!-- ══ ACCURACY TAB ══ -->
             <div id="tab-content-accuracy" class="hidden">
                 <div id="accuracyContainer">
+                    <p class="text-center py-8" style="color:#64748b">Loading…</p>
+                </div>
+            </div>
+
+            <div id="tab-content-bias" class="hidden">
+                <div id="biasContainer">
                     <p class="text-center py-8" style="color:#64748b">Loading…</p>
                 </div>
             </div>

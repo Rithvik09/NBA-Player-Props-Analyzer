@@ -8,10 +8,9 @@ class InjuryTracker:
     def __init__(self):
         self.injury_cache = {}
         self.cache_timestamps = {}
-        self.cache_timeout = 3600  # 1 hour cache timeout
-    
+        self.cache_timeout = 3600  # 1 hour
+
     def get_team_injuries(self, team_id):
-        """Get current injuries for a team"""
         max_retries = 3
         retry_count = 0
     
@@ -69,30 +68,28 @@ class InjuryTracker:
             except Exception as e:
                 retry_count += 1
                 if retry_count == max_retries:
-                    print(f"Error getting team injuries after {max_retries} retries: {e}")
+                    print(f"failed to get team injuries after {max_retries} retries: {e}")
                     return {
                         'active_injuries': [],
                         'total_impact': 0,
                         'key_players_out': 0,
                         'total_players_out': 0
                     }
-                print(f"Retry {retry_count}/{max_retries} after error: {e}")
+                print(f"retry {retry_count}/{max_retries}: {e}")
                 time.sleep(2 * retry_count)
 
     def _fetch_espn_injuries(self):
-        """Fetch current NBA injuries from ESPN"""
         try:
             url = "https://www.espn.com/nba/injuries"
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
-            
+
             response = requests.get(url, headers=headers, timeout=10)
             soup = BeautifulSoup(response.text, 'html.parser')
-            
+
             injuries = {}
-            
-            # Parse ESPN injury page
+
             for row in soup.find_all('tr', class_='Table__TR'):
                 cells = row.find_all('td')
                 if len(cells) >= 4:
@@ -110,28 +107,26 @@ class InjuryTracker:
             return injuries
             
         except Exception as e:
-            print(f"Error fetching ESPN injuries: {e}")
+            print(f"ESPN injury fetch failed: {e}")
             return {}
 
     def _calculate_player_impact(self, stats):
-        """Calculate player's impact score based on recent stats"""
+        """0–1 score based on mins/pts/reb/ast per game."""
         try:
-            # Basic impact calculation based on key statistics
             mpg = float(stats['MIN']) / float(stats['GP']) if float(stats['GP']) > 0 else 0
             ppg = float(stats['PTS']) / float(stats['GP']) if float(stats['GP']) > 0 else 0
             rpg = float(stats['REB']) / float(stats['GP']) if float(stats['GP']) > 0 else 0
             apg = float(stats['AST']) / float(stats['GP']) if float(stats['GP']) > 0 else 0
-            
-            # Weight different aspects of player's contribution
+
             impact_score = (
-                0.4 * (mpg / 48.0) +  # Minutes played
-                0.3 * (ppg / 30.0) +  # Scoring
-                0.15 * (rpg / 10.0) + # Rebounding
-                0.15 * (apg / 10.0)   # Playmaking
+                0.4 * (mpg / 48.0) +
+                0.3 * (ppg / 30.0) +
+                0.15 * (rpg / 10.0) +
+                0.15 * (apg / 10.0)
             )
-            
-            return min(max(impact_score, 0), 1)  # Normalize between 0 and 1
-            
+
+            return min(max(impact_score, 0), 1)
+
         except Exception as e:
-            print(f"Error calculating player impact: {e}")
-            return 0.1  # Default impact score
+            print(f"couldn't calculate impact: {e}")
+            return 0.1
