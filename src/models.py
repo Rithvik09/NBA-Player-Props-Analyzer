@@ -575,6 +575,46 @@ class EnhancedMLPredictor:
             'primary_defender_score01':  float(player_stats.get('primary_defender_score01', 0.0)),
         })
 
+        # ---- Referee tendencies ----
+        features.update({
+            'ref_foul_rate':     float(player_stats.get('ref_foul_rate', 0.0)),
+            'ref_home_bias':     float(player_stats.get('ref_home_bias', 0.5)),
+            'ref_pace_tendency': float(player_stats.get('ref_pace_tendency', 0.0)),
+        })
+        # ---- Rolling DVP deltas ----
+        features.update({
+            'dvp_pts_delta_last5':   float(player_stats.get('dvp_pts_delta_last5', 0.0)),
+            'dvp_pts_delta_last10':  float(player_stats.get('dvp_pts_delta_last10', 0.0)),
+            'dvp_reb_delta_last5':   float(player_stats.get('dvp_reb_delta_last5', 0.0)),
+            'dvp_ast_delta_last5':   float(player_stats.get('dvp_ast_delta_last5', 0.0)),
+            'dvp_fg3m_delta_last5':  float(player_stats.get('dvp_fg3m_delta_last5', 0.0)),
+        })
+        # ---- Opponent foul rates ----
+        features.update({
+            'opp_foul_rate_per48': float(player_stats.get('opp_foul_rate_per48', 20.0)),
+            'opp_foul_rate_last5': float(player_stats.get('opp_foul_rate_last5', 20.0)),
+        })
+        # ---- Injury trajectory ----
+        features.update({
+            'games_since_return':         float(player_stats.get('games_since_return', 0.0)),
+            'missed_games_before_return': float(player_stats.get('missed_games_before_return', 0.0)),
+        })
+        # ---- Calendar position ----
+        features.update({
+            'days_into_season':       float(player_stats.get('days_into_season', 90.0)),
+            'season_phase_numeric':   float(player_stats.get('season_phase_numeric', 0.5)),
+            'games_remaining_approx': float(player_stats.get('games_remaining_approx', 40.0)),
+        })
+        # ---- Defender health and lineup ----
+        features.update({
+            'primary_defender_active':  float(player_stats.get('primary_defender_active', 1.0)),
+            'opp_lineup_changes_last5': float(player_stats.get('opp_lineup_changes_last5', 0.0)),
+        })
+        # ---- Implied game total ----
+        features.update({
+            'implied_game_total': float(player_stats.get('implied_game_total', 220.0)),
+        })
+
         # ---- player context (matchup history + position defence) ----
         if player_context:
             matchup_history = player_context.get('matchup_history') or {}
