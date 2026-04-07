@@ -560,6 +560,21 @@ class EnhancedMLPredictor:
             'b2b_flag':      int(player_stats.get('b2b_flag',          0)),
         })
 
+        # ---- DVP (Defence vs Position) deltas + primary defender ----
+        # Injected by analyze_prop_bet() from PrecomputedStore.
+        # Zero defaults = league-average defence, consistent with training.
+        features.update({
+            'dvp_gp':                    int(player_stats.get('dvp_gp', 0)),
+            'dvp_pts_delta':             float(player_stats.get('dvp_pts_delta',  0.0)),
+            'dvp_reb_delta':             float(player_stats.get('dvp_reb_delta',  0.0)),
+            'dvp_ast_delta':             float(player_stats.get('dvp_ast_delta',  0.0)),
+            'dvp_fg3m_delta':            float(player_stats.get('dvp_fg3m_delta', 0.0)),
+            'dvp_stl_delta':             float(player_stats.get('dvp_stl_delta',  0.0)),
+            'dvp_blk_delta':             float(player_stats.get('dvp_blk_delta',  0.0)),
+            'dvp_tov_delta':             float(player_stats.get('dvp_tov_delta',  0.0)),
+            'primary_defender_score01':  float(player_stats.get('primary_defender_score01', 0.0)),
+        })
+
         # ---- player context (matchup history + position defence) ----
         if player_context:
             matchup_history = player_context.get('matchup_history') or {}

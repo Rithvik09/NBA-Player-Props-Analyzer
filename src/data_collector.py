@@ -7,6 +7,46 @@ import time
 from datetime import datetime
 
 
+def _dvp_position_keys(raw_pos: str):
+    """
+    Map a position string (e.g. 'PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'G-F' …)
+    to the tuple (dvp_pos, pos_group) used as keys in PrecomputedStore.
+
+    dvp_pos   – the single position used to look up dvp_by_position  (e.g. 'SG')
+    pos_group – the broad group used for team_special_defenders       ('G', 'F', or 'C')
+    """
+    p = raw_pos.upper().strip()
+    # Pure center
+    if p in ('C',):
+        return 'C', 'C'
+    # Pure guard
+    if p in ('PG', 'SG', 'G'):
+        return 'SG', 'G'
+    # Pure forward
+    if p in ('SF', 'PF', 'F'):
+        return 'SF', 'F'
+    # Hybrid: bias toward the primary token
+    if p.startswith('G') or p.endswith('G'):
+        return 'SG', 'G'
+    if 'C' in p:
+        return 'C', 'C'
+    if p.startswith('F') or p.endswith('F'):
+        return 'SF', 'F'
+    # Default
+    return 'SF', 'F'
+
+
+def _set_dvp_defaults(features: dict) -> None:
+    """
+    Zero-fill DVP features when precomputed data is unavailable.
+    Zero deltas = league-average defence, consistent with the inference fallback.
+    """
+    features['dvp_gp'] = 0
+    for _k in ('pts', 'reb', 'ast', 'fg3m', 'stl', 'blk', 'tov'):
+        features[f'dvp_{_k}_delta'] = 0.0
+    features['primary_defender_score01'] = 0.0
+
+
 class TrainingDataCollector:
     """
     Builds rolling-window training samples from NBA game logs.
@@ -208,7 +248,9 @@ class TrainingDataCollector:
     # Public API
     # ------------------------------------------------------------------
 
-    def collect_player_samples(self, player_id, prop_type, seasons=None):
+    def collect_player_samples(self, player_id, prop_type, seasons=None,
+                               dvp_map=None, dvp_pos_avgs=None, defenders_map=None,
+                               player_position=None):
         """
         Rolling-window training samples for one player/prop.
         Returns list of {features, result, line, prop_type} dicts.
@@ -398,14 +440,34 @@ class TrainingDataCollector:
                 'vs_team_avg':          vs_team_avg,
                 'matchup_games':        matchup_games,
                 'matchup_success_rate': matchup_success_rate,
-                # Position defence: current-season neutral proxy
-                # (per-game historical pos defence data would need one API call per game)
                 'pos_pts_allowed':  0.0,
                 'pos_def_rating':   110.0,
                 'effective_fg_pct': 0.47,
-                # Injury risk: real-time signal, not retroactively available
                 'injury_risk': 0.0,
             })
+
+            # ---- DVP (Defence vs Position) deltas + primary defender ----
+            # Uses current-season precomputed data passed in from retrain().
+            # Zero defaults = league-average defence (consistent with inference fallback).
+            if dvp_map is not None and player_position and opp_abbrevs[i]:
+                _dvp_pos, _pos_group = _dvp_position_keys(player_position)
+                _opp_id = self._get_team_id(opp_abbrevs[i])
+                if _opp_id:
+                    _dvp     = dvp_map.get((int(_opp_id), _dvp_pos), {})
+                    _dvp_avg = (dvp_pos_avgs or {}).get(_dvp_pos, {})
+                    features['dvp_gp'] = int(_dvp.get('gp', 0))
+                    for _k in ('pts', 'reb', 'ast', 'fg3m', 'stl', 'blk', 'tov'):
+                        features[f'dvp_{_k}_delta'] = (
+                            float(_dvp.get(_k, 0.0)) - float(_dvp_avg.get(_k, 0.0))
+                        )
+                    _defs = (defenders_map or {}).get((int(_opp_id), _pos_group), [])
+                    features['primary_defender_score01'] = float(
+                        (_defs[0] if _defs else {}).get('score01', 0.0) or 0.0
+                    )
+                else:
+                    _set_dvp_defaults(features)
+            else:
+                _set_dvp_defaults(features)
 
             samples.append({
                 'features':  features,
@@ -416,7 +478,8 @@ class TrainingDataCollector:
 
         return samples
 
-    def collect_bulk(self, player_ids, prop_types=None, seasons=None):
+    def collect_bulk(self, player_ids, prop_types=None, seasons=None,
+                     dvp_map=None, dvp_pos_avgs=None, defenders_map=None):
         """Collects training samples across multiple players and prop types."""
         if prop_types is None:
             prop_types = list(self.PROP_COL_MAP.keys())
@@ -426,10 +489,28 @@ class TrainingDataCollector:
         done  = 0
 
         for player_id in player_ids:
+            # Resolve player position once per player (used for DVP lookup)
+            player_pos = None
+            if dvp_map is not None:
+                try:
+                    from nba_api.stats.endpoints import commonplayerinfo
+                    info = commonplayerinfo.CommonPlayerInfo(player_id=player_id).get_data_frames()[0]
+                    time.sleep(0.4)
+                    if not info.empty:
+                        player_pos = str(info.iloc[0].get('POSITION', '') or '')
+                except Exception:
+                    player_pos = None
+
             for prop_type in prop_types:
                 done += 1
                 try:
-                    samples = self.collect_player_samples(player_id, prop_type, seasons)
+                    samples = self.collect_player_samples(
+                        player_id, prop_type, seasons,
+                        dvp_map=dvp_map,
+                        dvp_pos_avgs=dvp_pos_avgs,
+                        defenders_map=defenders_map,
+                        player_position=player_pos,
+                    )
                     all_samples.extend(samples)
                     print(f"[{done}/{total}] player {player_id} / {prop_type}: "
                           f"{len(samples)} samples  (total so far: {len(all_samples)})")
