@@ -80,15 +80,24 @@ def _compute_injury_trajectory(game_log):
         return 0.0, 0.0
 
 
+_defender_active_cache: dict = {}   # player_id -> (result: bool, fetched_at: float)
+_DEFENDER_CACHE_TTL = 1800           # 30 minutes
+
+
 def _check_defender_active(player_id):
     """
-    Check if a player (defender) has appeared in the last 10 days by looking
-    up their recent game log. Returns True if active, False if likely out.
+    Check if a player (defender) has appeared in the last 10 days.
+    Result is cached for 30 minutes so predictions don't each make an API call.
     """
+    import time as _time_mod
+    now = _time_mod.time()
+    cached = _defender_active_cache.get(player_id)
+    if cached is not None and (now - cached[1]) < _DEFENDER_CACHE_TTL:
+        return cached[0]
+
     try:
         from nba_api.stats.endpoints import playergamelog as _pgl
-        from datetime import datetime, timedelta
-        import time as _time
+        from datetime import datetime
 
         current_year = datetime.now().year
         current_month = datetime.now().month
@@ -96,19 +105,22 @@ def _check_defender_active(player_id):
         season = f"{latest_year}-{str(latest_year + 1)[2:]}"
 
         logs = _pgl.PlayerGameLog(player_id=player_id, season=season).get_data_frames()[0]
-        _time.sleep(0.4)
+        _time_mod.sleep(0.4)
 
         if logs.empty:
-            return False
-
-        most_recent = str(logs.iloc[0]['GAME_DATE'])
-        try:
-            game_date = datetime.strptime(most_recent[:10], '%Y-%m-%d')
-            return (datetime.now() - game_date).days <= 10
-        except Exception:
-            return True
+            result = False
+        else:
+            most_recent = str(logs.iloc[0]['GAME_DATE'])
+            try:
+                game_date = datetime.strptime(most_recent[:10], '%Y-%m-%d')
+                result = (datetime.now() - game_date).days <= 10
+            except Exception:
+                result = True
     except Exception:
-        return True
+        result = True
+
+    _defender_active_cache[player_id] = (result, now)
+    return result
 
 
 class BasketballBettingHelper:
@@ -1114,10 +1126,13 @@ class BasketballBettingHelper:
                 stat_data['opp_foul_rate_per48'] = float(_foul_data.get('foul_rate_season', 20.0))
                 stat_data['opp_foul_rate_last5'] = float(_foul_data.get('foul_rate_last5', 20.0))
 
-                # Implied game total: use team pace + opp pace as proxy
-                _team_pace = float((player_context or {}).get('team_pace', 100.0))
-                _opp_pace_val = float((player_context or {}).get('opp_pace', 100.0))
-                stat_data['implied_game_total'] = float((_team_pace + _opp_pace_val) / 2.0 * 2.0 * 0.95)
+                # Implied game total: avg possessions × scoring rate proxy
+                # Use team_context/opponent_context which carry current-season pace
+                _t_pace = float((team_context or {}).get('pace', 100.0))
+                _o_pace = float((opponent_context or {}).get('pace', 100.0))
+                _avg_pace = (_t_pace + _o_pace) / 2.0
+                # Each team uses ~avg_pace possessions; ~1.1 pts/possession baseline
+                stat_data['implied_game_total'] = float(_avg_pace * 2.0 * 1.1)
 
                 # Referee features
                 _ref_features = self._get_referee_features(game_id=None, precomputed=_pre)
@@ -1278,12 +1293,23 @@ class BasketballBettingHelper:
         # used to look up (opponent_team_id, dvp_pos) in PrecomputedStore
     }
 
+    # class-level cache: (date_str) -> features dict — refreshed once per calendar day
+    _ref_features_cache: dict = {}
+
     @staticmethod
     def _get_referee_features(game_id, precomputed):
         """
         Look up referee stats for today's game officials via ScoreboardV2.
+        Result is cached once per calendar day (officials don't change intra-day).
         Falls back to league-average defaults if officials not known yet.
         """
+        from datetime import date
+        today_str = str(date.today())
+        cached = BasketballBettingHelper._ref_features_cache.get(today_str)
+        if cached is not None:
+            return cached
+
+        result = {'ref_foul_rate': 0.0, 'ref_home_bias': 0.5, 'ref_pace_tendency': 0.0}
         try:
             from nba_api.stats.endpoints import scoreboardv2
             import time as _time
@@ -1301,9 +1327,7 @@ class BasketballBettingHelper:
                 raise ValueError("no officials data")
 
             refs_store = precomputed.get('refs', {})
-            foul_rates = []
-            home_biases = []
-            paces = []
+            foul_rates, home_biases, paces = [], [], []
 
             for _, row in officials_df.iterrows():
                 name_parts = []
@@ -1318,16 +1342,17 @@ class BasketballBettingHelper:
                     home_biases.append(float(ref_data.get('home_win_pct', 0.5)))
                     paces.append(float(ref_data.get('pace', 0.0)))
 
-            if not foul_rates:
-                raise ValueError("no matching refs found")
-
-            return {
-                'ref_foul_rate':     float(sum(foul_rates) / len(foul_rates)),
-                'ref_home_bias':     float(sum(home_biases) / len(home_biases)),
-                'ref_pace_tendency': float(sum(paces) / len(paces)),
-            }
+            if foul_rates:
+                result = {
+                    'ref_foul_rate':     float(sum(foul_rates) / len(foul_rates)),
+                    'ref_home_bias':     float(sum(home_biases) / len(home_biases)),
+                    'ref_pace_tendency': float(sum(paces) / len(paces)),
+                }
         except Exception:
-            return {'ref_foul_rate': 0.0, 'ref_home_bias': 0.5, 'ref_pace_tendency': 0.0}
+            pass
+
+        BasketballBettingHelper._ref_features_cache[today_str] = result
+        return result
 
     @staticmethod
     def _position_keys(raw_pos: str):
