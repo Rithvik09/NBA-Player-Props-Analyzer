@@ -113,6 +113,38 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS team_stats (
+            team_id INTEGER PRIMARY KEY,
+            pts_fb REAL,
+            pts_off_tov REAL,
+            opp_fga REAL,
+            opp_fg_pct REAL,
+            opp_fg3a REAL,
+            opp_fg3_pct REAL,
+            opp_tov REAL,
+            opp_stl REAL,
+            opp_blk REAL,
+            opp_pts_paint REAL,
+            opp_pts_fb REAL,
+            opp_pts_off_tov REAL,
+            opp_def_rating_last5 REAL,
+            opp_blk_last5 REAL,
+            opp_stl_last5 REAL,
+            lg_pts_fb REAL,
+            lg_pts_off_tov REAL,
+            lg_fga REAL,
+            lg_fg_pct REAL,
+            lg_fg3a REAL,
+            lg_tov REAL,
+            lg_stl REAL,
+            foul_rate_season REAL,
+            foul_rate_last5 REAL,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
     conn.commit()
 
 
@@ -466,6 +498,200 @@ def compute_team_foul_rates(season: str) -> list[dict[str, Any]]:
     return results
 
 
+def compute_team_stats(season: str) -> list[dict[str, Any]]:
+    """
+    Fetch team scoring + opponent defensive stats from LeagueDashTeamStats.
+    Replaces compute_team_foul_rates with a richer dataset.
+    Returns list of dicts keyed by team_id.
+    """
+    import pandas as pd
+
+    results: dict[int, dict[str, Any]] = {}
+
+    def safe_float(val, default=0.0):
+        try:
+            return float(val) if val is not None and str(val) != 'nan' else default
+        except Exception:
+            return default
+
+    # 1. Base stats (fouls) — full season
+    try:
+        df_base = leaguedashteamstats.LeagueDashTeamStats(
+            season=season, measure_type_detailed='Base'
+        ).get_data_frames()[0]
+        time.sleep(0.6)
+        for _, row in df_base.iterrows():
+            tid = int(row['TEAM_ID'])
+            gp = max(int(row.get('GP', 1) or 1), 1)
+            results[tid] = {
+                'foul_rate_season': safe_float(row.get('PF', 0)) / gp,
+            }
+    except Exception as e:
+        print(f"team_stats base fetch failed: {e}")
+
+    # 2. Scoring stats (pts_fb, pts_off_tov)
+    try:
+        df_scoring = leaguedashteamstats.LeagueDashTeamStats(
+            season=season, measure_type_detailed='Scoring'
+        ).get_data_frames()[0]
+        time.sleep(0.6)
+        for _, row in df_scoring.iterrows():
+            tid = int(row['TEAM_ID'])
+            gp = max(int(row.get('GP', 1) or 1), 1)
+            if tid not in results:
+                results[tid] = {}
+            results[tid]['pts_fb']      = safe_float(row.get('PTS_FB', 0)) / gp
+            results[tid]['pts_off_tov'] = safe_float(row.get('PTS_OFF_TOV', 0)) / gp
+    except Exception as e:
+        print(f"team_stats scoring fetch failed: {e}")
+
+    # 3. Opponent stats (full season)
+    try:
+        df_opp = leaguedashteamstats.LeagueDashTeamStats(
+            season=season, measure_type_detailed='Opponent'
+        ).get_data_frames()[0]
+        time.sleep(0.6)
+        for _, row in df_opp.iterrows():
+            tid = int(row['TEAM_ID'])
+            gp = max(int(row.get('GP', 1) or 1), 1)
+            if tid not in results:
+                results[tid] = {}
+            results[tid].update({
+                'opp_fga':         safe_float(row.get('OPP_FGA', 0)) / gp,
+                'opp_fg_pct':      safe_float(row.get('OPP_FG_PCT', 0.47)),
+                'opp_fg3a':        safe_float(row.get('OPP_FG3A', 0)) / gp,
+                'opp_fg3_pct':     safe_float(row.get('OPP_FG3_PCT', 0.36)),
+                'opp_tov':         safe_float(row.get('OPP_TOV', 0)) / gp,
+                'opp_stl':         safe_float(row.get('OPP_STL', 0)) / gp,
+                'opp_blk':         safe_float(row.get('OPP_BLK', 0)) / gp,
+                'opp_pts_paint':   safe_float(row.get('OPP_PTS_PAINT', 0)) / gp,
+                'opp_pts_fb':      safe_float(row.get('OPP_PTS_FB', 0)) / gp,
+                'opp_pts_off_tov': safe_float(row.get('OPP_PTS_OFF_TOV', 0)) / gp,
+            })
+    except Exception as e:
+        print(f"team_stats opponent fetch failed: {e}")
+
+    # 4. Opponent last-5 games (defensive trend)
+    try:
+        df_opp5 = leaguedashteamstats.LeagueDashTeamStats(
+            season=season, measure_type_detailed='Opponent', last_n_games=5
+        ).get_data_frames()[0]
+        time.sleep(0.6)
+        for _, row in df_opp5.iterrows():
+            tid = int(row['TEAM_ID'])
+            gp = max(int(row.get('GP', 1) or 1), 1)
+            if tid not in results:
+                results[tid] = {}
+            pts_allowed = safe_float(row.get('OPP_PTS', 0)) / gp
+            pace_proxy  = max(safe_float(row.get('OPP_FGA', 86)) / gp, 1.0)
+            results[tid]['opp_def_rating_last5'] = pts_allowed / (pace_proxy / 100.0) if pace_proxy > 0 else 110.0
+            results[tid]['opp_blk_last5'] = safe_float(row.get('OPP_BLK', 0)) / gp
+            results[tid]['opp_stl_last5'] = safe_float(row.get('OPP_STL', 0)) / gp
+    except Exception as e:
+        print(f"team_stats opp_last5 fetch failed: {e}")
+
+    # 5. Base last-5 games (foul rate trend)
+    try:
+        df_base5 = leaguedashteamstats.LeagueDashTeamStats(
+            season=season, measure_type_detailed='Base', last_n_games=5
+        ).get_data_frames()[0]
+        time.sleep(0.6)
+        for _, row in df_base5.iterrows():
+            tid = int(row['TEAM_ID'])
+            gp = max(int(row.get('GP', 1) or 1), 1)
+            if tid not in results:
+                results[tid] = {}
+            results[tid]['foul_rate_last5'] = safe_float(row.get('PF', 0)) / gp
+    except Exception as e:
+        print(f"team_stats base_last5 fetch failed: {e}")
+
+    # 6. League averages (average across all teams)
+    lg_avgs: dict[str, float] = {}
+    try:
+        keys_to_avg = ['pts_fb', 'pts_off_tov', 'opp_fga', 'opp_fg_pct', 'opp_fg3a', 'opp_tov', 'opp_stl']
+        for k in keys_to_avg:
+            vals = [v[k] for v in results.values() if k in v and v[k] is not None]
+            lg_avgs[f'lg_{k}'] = float(sum(vals) / len(vals)) if vals else 0.0
+        # Rename keys to match expected feature names
+        lg_avgs['lg_fga']      = lg_avgs.pop('lg_opp_fga',   lg_avgs.get('lg_opp_fga',   86.0))
+        lg_avgs['lg_fg_pct']   = lg_avgs.pop('lg_opp_fg_pct', lg_avgs.get('lg_opp_fg_pct', 0.47))
+        lg_avgs['lg_fg3a']     = lg_avgs.pop('lg_opp_fg3a',  lg_avgs.get('lg_opp_fg3a',  35.0))
+        lg_avgs['lg_tov']      = lg_avgs.pop('lg_opp_tov',   lg_avgs.get('lg_opp_tov',   14.0))
+        lg_avgs['lg_stl']      = lg_avgs.pop('lg_opp_stl',   lg_avgs.get('lg_opp_stl',    7.0))
+    except Exception:
+        pass
+
+    # Inject league averages into every team row
+    for tid in results:
+        results[tid].update(lg_avgs)
+
+    return [{'team_id': tid, **data} for tid, data in results.items()]
+
+
+def compute_team_foul_rates(season: str) -> list[dict[str, Any]]:
+    """
+    Backward-compatible alias that delegates to compute_team_stats.
+    Returns the subset of fields used by the old team_foul_rates table.
+    """
+    rows = compute_team_stats(season)
+    return [
+        {
+            'team_id':           r['team_id'],
+            'foul_rate_season':  r.get('foul_rate_season', 20.0),
+            'foul_rate_last5':   r.get('foul_rate_last5', 20.0),
+        }
+        for r in rows
+    ]
+
+
+def upsert_team_stats(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO team_stats (
+                team_id, pts_fb, pts_off_tov,
+                opp_fga, opp_fg_pct, opp_fg3a, opp_fg3_pct, opp_tov, opp_stl, opp_blk,
+                opp_pts_paint, opp_pts_fb, opp_pts_off_tov,
+                opp_def_rating_last5, opp_blk_last5, opp_stl_last5,
+                lg_pts_fb, lg_pts_off_tov, lg_fga, lg_fg_pct, lg_fg3a, lg_tov, lg_stl,
+                foul_rate_season, foul_rate_last5, updated_at
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
+            """,
+            (
+                int(r['team_id']),
+                float(r.get('pts_fb', 0.0) or 0.0),
+                float(r.get('pts_off_tov', 0.0) or 0.0),
+                float(r.get('opp_fga', 0.0) or 0.0),
+                float(r.get('opp_fg_pct', 0.47) or 0.47),
+                float(r.get('opp_fg3a', 0.0) or 0.0),
+                float(r.get('opp_fg3_pct', 0.36) or 0.36),
+                float(r.get('opp_tov', 0.0) or 0.0),
+                float(r.get('opp_stl', 0.0) or 0.0),
+                float(r.get('opp_blk', 0.0) or 0.0),
+                float(r.get('opp_pts_paint', 0.0) or 0.0),
+                float(r.get('opp_pts_fb', 0.0) or 0.0),
+                float(r.get('opp_pts_off_tov', 0.0) or 0.0),
+                float(r.get('opp_def_rating_last5', 110.0) or 110.0),
+                float(r.get('opp_blk_last5', 0.0) or 0.0),
+                float(r.get('opp_stl_last5', 0.0) or 0.0),
+                float(r.get('lg_pts_fb', 0.0) or 0.0),
+                float(r.get('lg_pts_off_tov', 0.0) or 0.0),
+                float(r.get('lg_fga', 0.0) or 0.0),
+                float(r.get('lg_fg_pct', 0.47) or 0.47),
+                float(r.get('lg_fg3a', 0.0) or 0.0),
+                float(r.get('lg_tov', 0.0) or 0.0),
+                float(r.get('lg_stl', 0.0) or 0.0),
+                float(r.get('foul_rate_season', 0.0) or 0.0),
+                float(r.get('foul_rate_last5', 0.0) or 0.0),
+                int(updated_at),
+            ),
+        )
+    conn.commit()
+
+
 def compute_rolling_dvp(season: str) -> list[dict[str, Any]]:
     """
     Compute team-level opponent stats for last 5 and last 10 games using
@@ -608,7 +834,17 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
     ref_rows = scrape_ref_stats()
     upsert_ref_stats(conn, ref_rows, updated_at=updated_at)
 
-    foul_rows = compute_team_foul_rates(season=season)
+    team_stats_rows = compute_team_stats(season=season)
+    upsert_team_stats(conn, team_stats_rows, updated_at=updated_at)
+    # Also keep the legacy team_foul_rates table populated for backward compat
+    foul_rows = [
+        {
+            'team_id':          r['team_id'],
+            'foul_rate_season': r.get('foul_rate_season', 20.0),
+            'foul_rate_last5':  r.get('foul_rate_last5', 20.0),
+        }
+        for r in team_stats_rows
+    ]
     upsert_team_foul_rates(conn, foul_rows, updated_at=updated_at)
 
     rolling_rows = compute_rolling_dvp(season=season)
@@ -621,6 +857,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         "dvp_rows": len(dvp),
         "defender_rows": len(defenders),
         "ref_rows": len(ref_rows),
+        "team_stats_rows": len(team_stats_rows),
         "foul_rate_rows": len(foul_rows),
         "rolling_dvp_rows": len(rolling_rows),
     }

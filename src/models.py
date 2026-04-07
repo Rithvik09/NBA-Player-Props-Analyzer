@@ -560,6 +560,83 @@ class EnhancedMLPredictor:
             'b2b_flag':      int(player_stats.get('b2b_flag',          0)),
         })
 
+        # ---- extended game-log derived features ----
+        _vals = player_stats.get('values') or [0]
+        _last5_ext = _vals[:5] if len(_vals) >= 5 else _vals
+        _last10_ext = _vals[:10] if len(_vals) >= 10 else _vals
+        _last3_ext = _vals[:3] if len(_vals) >= 3 else _vals
+        _seas_avg_ext = float(np.mean(_vals)) if _vals else 0.0
+        _seas_std_ext = float(np.std(_vals)) if len(_vals) > 1 else 1.0
+
+        def _slope_ext(arr):
+            if len(arr) < 2:
+                return 0.0
+            try:
+                return float(np.polyfit(range(len(arr)), arr, 1)[0])
+            except Exception:
+                return 0.0
+
+        features.update({
+            'fg3_pct_recent':    float(player_stats.get('fg3_pct_recent', 0.33)),
+            'fga_per_game':      float(player_stats.get('fga_per_game', 15.0)),
+            'fg3a_per_game':     float(player_stats.get('fg3a_per_game', 5.0)),
+            'fta_per_game':      float(player_stats.get('fta_per_game', 4.0)),
+            'oreb_per_game':     float(player_stats.get('oreb_per_game', 1.0)),
+            'dreb_per_game':     float(player_stats.get('dreb_per_game', 3.0)),
+            'plus_minus_avg':    float(player_stats.get('plus_minus_avg', 0.0)),
+            'fouls_per_game':    float(player_stats.get('fouls_per_game', 2.0)),
+            'win_rate_last10':   float(player_stats.get('win_rate_last10', 0.5)),
+            'points_per_shot':   float(player_stats.get('points_per_shot',
+                                      float(features.get('recent_avg', 0.0)) / max(float(player_stats.get('fga_per_game', 15.0)), 1.0))),
+            'ast_to_tov_ratio':  float(player_stats.get('ast_to_tov_ratio', 1.5)),
+            'reb_rate_per_36':   float(player_stats.get('reb_rate_per_36', 0.0)),
+            'scoring_efficiency_trend': float(player_stats.get('scoring_efficiency_trend', 0.0)),
+            'usage_trend':       float(player_stats.get('usage_trend', 0.0)),
+            'minutes_volatility': float(player_stats.get('minutes_volatility', 3.0)),
+            'blowout_game_pct':  float(player_stats.get('blowout_game_pct', 0.2)),
+            'close_game_pct':    float(player_stats.get('close_game_pct', 0.3)),
+            'consistency_score': float(player_stats.get('consistency_score',
+                                      max(0.0, 1.0 - (_seas_std_ext / max(_seas_avg_ext, 0.1))))),
+            'ceiling_game_frequency': float(player_stats.get('ceiling_game_frequency', 0.1)),
+            'recent_variance_spike':  float(player_stats.get('recent_variance_spike', 0.0)),
+            'last_3_games_trend':  float(player_stats.get('last_3_games_trend', _slope_ext(list(reversed(_last3_ext))))),
+            'last_5_games_trend':  float(player_stats.get('last_5_games_trend', _slope_ext(list(reversed(_last5_ext))))),
+            'last_10_games_trend': float(player_stats.get('last_10_games_trend', _slope_ext(list(reversed(_last10_ext))))),
+            'games_above_season_avg_last5': float(player_stats.get('games_above_season_avg_last5',
+                                                  float(sum(1 for v in _last5_ext if v > _seas_avg_ext)))),
+            'days_since_last_game':  float(player_stats.get('days_since_last_game', 2.0)),
+            'games_in_last_7_days':  float(player_stats.get('games_in_last_7_days', 3.0)),
+        })
+
+        # ---- team style + opponent baseline (from PrecomputedStore team_stats) ----
+        features.update({
+            'team_pts_fb':              float(player_stats.get('team_pts_fb', 12.0)),
+            'opp_pts_fb_allowed':       float(player_stats.get('opp_pts_fb_allowed', 12.0)),
+            'team_pts_off_tov':         float(player_stats.get('team_pts_off_tov', 16.0)),
+            'opp_pts_off_tov_allowed':  float(player_stats.get('opp_pts_off_tov_allowed', 16.0)),
+            'opp_pts_paint':            float(player_stats.get('opp_pts_paint', 44.0)),
+            'opp_fga':                  float(player_stats.get('opp_fga', 86.0)),
+            'opp_fg_pct':               float(player_stats.get('opp_fg_pct', 0.47)),
+            'opp_fg3a':                 float(player_stats.get('opp_fg3a', 35.0)),
+            'opp_fg3_pct':              float(player_stats.get('opp_fg3_pct', 0.36)),
+            'opp_tov':                  float(player_stats.get('opp_tov', 14.0)),
+            'opp_stl':                  float(player_stats.get('opp_stl', 7.0)),
+            'opp_blk':                  float(player_stats.get('opp_blk', 5.0)),
+            'opp_off_rating':           float(player_stats.get('opp_off_rating', 110.0)),
+            'opp_def_rating_last5':     float(player_stats.get('opp_def_rating_last5', 110.0)),
+            'opp_blocks_per_game_last5': float(player_stats.get('opp_blocks_per_game_last5', 5.0)),
+            'opp_steals_per_game_last5': float(player_stats.get('opp_steals_per_game_last5', 7.0)),
+            'lg_pts_fb':                float(player_stats.get('lg_pts_fb', 12.0)),
+            'lg_opp_pts_fb':            float(player_stats.get('lg_opp_pts_fb', 12.0)),
+            'lg_pts_off_tov':           float(player_stats.get('lg_pts_off_tov', 16.0)),
+            'lg_opp_pts_off_tov':       float(player_stats.get('lg_opp_pts_off_tov', 16.0)),
+            'lg_fga':                   float(player_stats.get('lg_fga', 86.0)),
+            'lg_fg_pct':                float(player_stats.get('lg_fg_pct', 0.47)),
+            'lg_fg3a':                  float(player_stats.get('lg_fg3a', 35.0)),
+            'lg_tov':                   float(player_stats.get('lg_tov', 14.0)),
+            'lg_stl':                   float(player_stats.get('lg_stl', 7.0)),
+        })
+
         # ---- DVP (Defence vs Position) deltas + primary defender ----
         # Injected by analyze_prop_bet() from PrecomputedStore.
         # Zero defaults = league-average defence, consistent with training.
