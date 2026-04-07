@@ -692,6 +692,129 @@ class EnhancedMLPredictor:
             'implied_game_total': float(player_stats.get('implied_game_total', 220.0)),
         })
 
+        # ---- advanced player stats (official NBA advanced measure) ----
+        features.update({
+            'usg_pct_official':   float(player_stats.get('usg_pct_official', 0.18)),
+            'ts_pct_official':    float(player_stats.get('ts_pct_official', 0.55)),
+            'efg_pct_official':   float(player_stats.get('efg_pct_official', 0.50)),
+            'ast_pct_official':   float(player_stats.get('ast_pct_official', 0.15)),
+            'oreb_pct_official':  float(player_stats.get('oreb_pct_official', 0.05)),
+            'dreb_pct_official':  float(player_stats.get('dreb_pct_official', 0.15)),
+            'reb_pct_official':   float(player_stats.get('reb_pct_official', 0.10)),
+            'pie':                float(player_stats.get('pie', 0.10)),
+            'player_off_rating':  float(player_stats.get('player_off_rating', 110.0)),
+            'player_def_rating':  float(player_stats.get('player_def_rating', 110.0)),
+            'player_pace':        float(player_stats.get('player_pace', 100.0)),
+            'net_rating_player':  float(player_stats.get('net_rating_player', 0.0)),
+        })
+        # ---- bio ----
+        features.update({
+            'player_age':           float(player_stats.get('player_age', 26.0)),
+            'player_height_inches': float(player_stats.get('player_height_inches', 78.0)),
+            'player_weight':        float(player_stats.get('player_weight', 220.0)),
+            'years_experience':     float(player_stats.get('years_experience', 5.0)),
+        })
+        # ---- clutch ----
+        features.update({
+            'clutch_pts_per_game':  float(player_stats.get('clutch_pts_per_game', 0.0)),
+            'clutch_fg_pct':        float(player_stats.get('clutch_fg_pct', 0.45)),
+            'clutch_fg3_pct':       float(player_stats.get('clutch_fg3_pct', 0.33)),
+            'clutch_fta_per_game':  float(player_stats.get('clutch_fta_per_game', 0.0)),
+            'clutch_plus_minus':    float(player_stats.get('clutch_plus_minus', 0.0)),
+            'clutch_min_per_game':  float(player_stats.get('clutch_min_per_game', 0.0)),
+            'clutch_games':         float(player_stats.get('clutch_games', 0)),
+        })
+        # ---- hustle ----
+        features.update({
+            'contested_shots_per_game': float(player_stats.get('contested_shots_per_game', 3.0)),
+            'deflections_per_game':     float(player_stats.get('deflections_per_game', 1.0)),
+            'charges_drawn_per_game':   float(player_stats.get('charges_drawn_per_game', 0.1)),
+            'screen_assists_per_game':  float(player_stats.get('screen_assists_per_game', 0.5)),
+        })
+        # ---- shot profile ----
+        features.update({
+            'open_shot_fg_pct':    float(player_stats.get('open_shot_fg_pct', 0.50)),
+            'open_shot_frequency': float(player_stats.get('open_shot_frequency', 0.30)),
+            'tight_shot_fg_pct':   float(player_stats.get('tight_shot_fg_pct', 0.38)),
+            'tight_shot_frequency': float(player_stats.get('tight_shot_frequency', 0.15)),
+            'catch_shoot_fg_pct':  float(player_stats.get('catch_shoot_fg_pct', 0.40)),
+            'catch_shoot_frequency': float(player_stats.get('catch_shoot_frequency', 0.25)),
+            'pullup_fg_pct':       float(player_stats.get('pullup_fg_pct', 0.40)),
+            'pullup_frequency':    float(player_stats.get('pullup_frequency', 0.20)),
+        })
+        # ---- synergy play types ----
+        features.update({
+            'iso_poss_pct':      float(player_stats.get('iso_poss_pct', 0.0)),
+            'iso_ppp':           float(player_stats.get('iso_ppp', 0.9)),
+            'pnr_bh_poss_pct':   float(player_stats.get('pnr_bh_poss_pct', 0.0)),
+            'pnr_bh_ppp':        float(player_stats.get('pnr_bh_ppp', 0.9)),
+            'pnr_roll_poss_pct': float(player_stats.get('pnr_roll_poss_pct', 0.0)),
+            'pnr_roll_ppp':      float(player_stats.get('pnr_roll_ppp', 0.9)),
+            'spotup_poss_pct':   float(player_stats.get('spotup_poss_pct', 0.0)),
+            'spotup_ppp':        float(player_stats.get('spotup_ppp', 1.0)),
+            'transition_poss_pct': float(player_stats.get('transition_poss_pct', 0.0)),
+            'transition_ppp':    float(player_stats.get('transition_ppp', 1.1)),
+            'postup_poss_pct':   float(player_stats.get('postup_poss_pct', 0.0)),
+            'cut_poss_pct':      float(player_stats.get('cut_poss_pct', 0.0)),
+        })
+        # ---- on/off ----
+        features.update({
+            'on_court_net_rating':  float(player_stats.get('on_court_net_rating', 0.0)),
+            'off_court_net_rating': float(player_stats.get('off_court_net_rating', 0.0)),
+            'on_off_differential':  float(player_stats.get('on_off_differential', 0.0)),
+        })
+        # ---- shot zones ----
+        features.update({
+            'rim_fga_pct':         float(player_stats.get('rim_fga_pct', 0.25)),
+            'rim_fg_pct':          float(player_stats.get('rim_fg_pct', 0.62)),
+            'paint_fga_pct':       float(player_stats.get('paint_fga_pct', 0.30)),
+            'paint_fg_pct':        float(player_stats.get('paint_fg_pct', 0.55)),
+            'midrange_fga_pct':    float(player_stats.get('midrange_fga_pct', 0.20)),
+            'midrange_fg_pct':     float(player_stats.get('midrange_fg_pct', 0.42)),
+            'corner3_fga_pct':     float(player_stats.get('corner3_fga_pct', 0.10)),
+            'corner3_fg_pct':      float(player_stats.get('corner3_fg_pct', 0.38)),
+            'above_break3_fga_pct': float(player_stats.get('above_break3_fga_pct', 0.25)),
+            'above_break3_fg_pct': float(player_stats.get('above_break3_fg_pct', 0.35)),
+        })
+        # ---- quarter splits ----
+        features.update({
+            'q1_avg':       float(player_stats.get('q1_avg', 0.0)),
+            'q2_avg':       float(player_stats.get('q2_avg', 0.0)),
+            'q3_avg':       float(player_stats.get('q3_avg', 0.0)),
+            'q4_avg':       float(player_stats.get('q4_avg', 0.0)),
+            'q4_min_per_game': float(player_stats.get('q4_min_per_game', 0.0)),
+        })
+        # ---- opponent shot zone defense ----
+        features.update({
+            'opp_rim_fg_pct_allowed':         float(player_stats.get('opp_rim_fg_pct_allowed', 0.62)),
+            'opp_paint_fg_pct_allowed':       float(player_stats.get('opp_paint_fg_pct_allowed', 0.55)),
+            'opp_midrange_fg_pct_allowed':    float(player_stats.get('opp_midrange_fg_pct_allowed', 0.42)),
+            'opp_corner3_fg_pct_allowed':     float(player_stats.get('opp_corner3_fg_pct_allowed', 0.38)),
+            'opp_above_break3_fg_pct_allowed': float(player_stats.get('opp_above_break3_fg_pct_allowed', 0.35)),
+        })
+        # ---- shot quality matchup (player zone FG% minus opponent zone FG% allowed) ----
+        features.update({
+            'rim_shot_quality_matchup':         features['rim_fg_pct'] - features['opp_rim_fg_pct_allowed'],
+            'midrange_shot_quality_matchup':    features['midrange_fg_pct'] - features['opp_midrange_fg_pct_allowed'],
+            'corner3_shot_quality_matchup':     features['corner3_fg_pct'] - features['opp_corner3_fg_pct_allowed'],
+            'above_break3_shot_quality_matchup': features['above_break3_fg_pct'] - features['opp_above_break3_fg_pct_allowed'],
+        })
+        # ---- synergy team defense ----
+        features.update({
+            'opp_pnr_ppp_allowed':        float(player_stats.get('opp_pnr_ppp_allowed', 0.9)),
+            'opp_iso_ppp_allowed':        float(player_stats.get('opp_iso_ppp_allowed', 0.9)),
+            'opp_spotup_ppp_allowed':     float(player_stats.get('opp_spotup_ppp_allowed', 1.0)),
+            'opp_transition_ppp_allowed': float(player_stats.get('opp_transition_ppp_allowed', 1.1)),
+            'opp_postup_ppp_allowed':     float(player_stats.get('opp_postup_ppp_allowed', 0.9)),
+        })
+        # ---- synergy matchup advantage (player PPP - opponent PPP allowed, positive = player has edge) ----
+        features.update({
+            'pnr_matchup_advantage':        features['pnr_bh_ppp'] - features['opp_pnr_ppp_allowed'],
+            'iso_matchup_advantage':        features['iso_ppp'] - features['opp_iso_ppp_allowed'],
+            'spotup_matchup_advantage':     features['spotup_ppp'] - features['opp_spotup_ppp_allowed'],
+            'transition_matchup_advantage': features['transition_ppp'] - features['opp_transition_ppp_allowed'],
+        })
+
         # ---- player context (matchup history + position defence) ----
         if player_context:
             matchup_history = player_context.get('matchup_history') or {}
