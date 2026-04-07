@@ -469,6 +469,57 @@ class TrainingDataCollector:
             else:
                 _set_dvp_defaults(features)
 
+            # ---- Calendar position features (derived from game date) ----
+            try:
+                from datetime import date as _date
+                _game_dt = game_dates[i]  # numpy datetime64
+                _game_py_date = pd.Timestamp(_game_dt).date()
+                _year = _game_py_date.year if _game_py_date.month >= 10 else _game_py_date.year - 1
+                _season_start = _date(_year, 10, 18)
+                _season_end   = _date(_year + 1, 4, 15)
+                _total_days   = max((_season_end - _season_start).days, 1)
+                _elapsed      = max((_game_py_date - _season_start).days, 0)
+                _phase        = min(1.0, _elapsed / _total_days)
+                features['days_into_season']       = float(_elapsed)
+                features['season_phase_numeric']   = float(_phase)
+                features['games_remaining_approx'] = float(max(0.0, 82.0 * (1.0 - _phase)))
+            except Exception:
+                features.setdefault('days_into_season', 90.0)
+                features.setdefault('season_phase_numeric', 0.5)
+                features.setdefault('games_remaining_approx', 40.0)
+
+            # ---- Return-from-injury trajectory (from game log gaps) ----
+            try:
+                _games_since_return = 0
+                _missed_before = 0.0
+                _found_gap = False
+                for _ri in range(i - 1, max(0, i - 20), -1):
+                    _gap_days = float((game_dates[_ri + 1] - game_dates[_ri]) / np.timedelta64(1, 'D'))
+                    if _gap_days > 5 and not _found_gap:
+                        _missed_before = max(0.0, (_gap_days - 2) / 2.0)
+                        _found_gap = True
+                        break
+                    elif not _found_gap:
+                        _games_since_return += 1
+                features['games_since_return']         = float(_games_since_return)
+                features['missed_games_before_return'] = float(_missed_before)
+            except Exception:
+                features.setdefault('games_since_return', 0.0)
+                features.setdefault('missed_games_before_return', 0.0)
+
+            # ---- Features that need precomputed data (zero-fill if unavailable) ----
+            for _k in ('ref_foul_rate', 'ref_home_bias', 'ref_pace_tendency',
+                       'dvp_pts_delta_last5', 'dvp_pts_delta_last10',
+                       'dvp_reb_delta_last5', 'dvp_ast_delta_last5', 'dvp_fg3m_delta_last5',
+                       'opp_foul_rate_per48', 'opp_foul_rate_last5',
+                       'primary_defender_active', 'opp_lineup_changes_last5'):
+                features.setdefault(_k, 0.0)
+            features.setdefault('ref_home_bias', 0.5)
+            features.setdefault('opp_foul_rate_per48', 20.0)
+            features.setdefault('opp_foul_rate_last5', 20.0)
+            features.setdefault('primary_defender_active', 1.0)
+            features.setdefault('implied_game_total', 220.0)
+
             samples.append({
                 'features':  features,
                 'result':    result,

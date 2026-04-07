@@ -13,6 +13,104 @@ from .ml_features import build_feature_vector, build_classifier_vector
 from .precomputed_store import PrecomputedStore
 
 
+def _compute_calendar_features(ref_date=None):
+    """
+    Compute season-phase features from current date.
+    NBA season typically runs October through April (~82 games = ~200 days).
+    """
+    from datetime import date
+    today = ref_date or date.today()
+    year = today.year if today.month >= 10 else today.year - 1
+    season_start = date(year, 10, 18)
+    season_end   = date(year + 1, 4, 15)
+    total_days   = max((season_end - season_start).days, 1)
+    elapsed_days = max((today - season_start).days, 0)
+
+    phase = min(1.0, elapsed_days / total_days)
+    games_remaining = max(0.0, 82.0 * (1.0 - phase))
+
+    return {
+        'days_into_season':       float(elapsed_days),
+        'season_phase_numeric':   float(phase),
+        'games_remaining_approx': float(games_remaining),
+    }
+
+
+def _compute_injury_trajectory(game_log):
+    """
+    Given a list of recent game dicts (ordered most-recent first), estimate:
+    - games_since_return: how many games since last injury gap
+    - missed_games_before_return: estimated games missed in last gap
+    Returns (games_since_return, missed_games_before_return).
+    """
+    if not game_log or len(game_log) < 2:
+        return 0.0, 0.0
+
+    try:
+        from datetime import datetime
+        dates = []
+        for g in game_log:
+            d = g.get('GAME_DATE') or g.get('game_date') or ''
+            if d:
+                try:
+                    dates.append(datetime.strptime(str(d)[:10], '%Y-%m-%d'))
+                except Exception:
+                    pass
+
+        if len(dates) < 2:
+            return 0.0, 0.0
+
+        dates = sorted(dates, reverse=True)
+
+        games_since_return = 0
+        missed_games = 0.0
+        found_gap = False
+
+        for i in range(len(dates) - 1):
+            gap = (dates[i] - dates[i + 1]).days
+            if gap > 5 and not found_gap:
+                missed_games = max(0.0, (gap - 2) / 2.0)
+                found_gap = True
+                break
+            elif not found_gap:
+                games_since_return += 1
+
+        return float(games_since_return), float(missed_games)
+    except Exception:
+        return 0.0, 0.0
+
+
+def _check_defender_active(player_id):
+    """
+    Check if a player (defender) has appeared in the last 10 days by looking
+    up their recent game log. Returns True if active, False if likely out.
+    """
+    try:
+        from nba_api.stats.endpoints import playergamelog as _pgl
+        from datetime import datetime, timedelta
+        import time as _time
+
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+        latest_year = current_year - 1 if 1 <= current_month <= 7 else current_year
+        season = f"{latest_year}-{str(latest_year + 1)[2:]}"
+
+        logs = _pgl.PlayerGameLog(player_id=player_id, season=season).get_data_frames()[0]
+        _time.sleep(0.4)
+
+        if logs.empty:
+            return False
+
+        most_recent = str(logs.iloc[0]['GAME_DATE'])
+        try:
+            game_date = datetime.strptime(most_recent[:10], '%Y-%m-%d')
+            return (datetime.now() - game_date).days <= 10
+        except Exception:
+            return True
+    except Exception:
+        return True
+
+
 class BasketballBettingHelper:
     def __init__(self, db_name='basketball_data.db'):
         self.db_name = db_name
@@ -973,6 +1071,9 @@ class BasketballBettingHelper:
 
             # ---- DVP (Defense vs Position) + primary defender ----
             # Inject into stat_data so prepare_features() picks them up
+            _pre  = {}
+            _dvp  = {}
+            _defs = []
             try:
                 _pre  = self._precomputed.refresh()
                 _pos  = str((player_context or {}).get('position', '') or '')
@@ -995,6 +1096,75 @@ class BasketballBettingHelper:
                     stat_data.setdefault(f'dvp_{_k}_delta', 0.0)
                 stat_data.setdefault('dvp_gp', 0)
                 stat_data.setdefault('primary_defender_score01', 0.0)
+
+            # ---- NEW FEATURES: referee, rolling DVP, foul rates, injury trajectory, calendar ----
+            try:
+                _opp_id_int = int(opponent_team_id) if opponent_team_id else None
+                if _opp_id_int:
+                    _dvp_roll = _pre.get('dvp_rolling', {})
+                    for _w, _key_suffix in ((5, 'last5'), (10, 'last10')):
+                        _roll = _dvp_roll.get((_opp_id_int, _w), {})
+                        for _stat in ('pts', 'reb', 'ast', 'fg3m'):
+                            _roll_val = float(_roll.get(_stat, _dvp.get(_stat, 0.0)))
+                            _season_val = float(_dvp.get(_stat, 0.0))
+                            stat_data[f'dvp_{_stat}_delta_{_key_suffix}'] = _roll_val - _season_val
+
+                # Opponent foul rates
+                _foul_data = _pre.get('team_foul', {}).get(_opp_id_int, {}) if _opp_id_int else {}
+                stat_data['opp_foul_rate_per48'] = float(_foul_data.get('foul_rate_season', 20.0))
+                stat_data['opp_foul_rate_last5'] = float(_foul_data.get('foul_rate_last5', 20.0))
+
+                # Implied game total: use team pace + opp pace as proxy
+                _team_pace = float((player_context or {}).get('team_pace', 100.0))
+                _opp_pace_val = float((player_context or {}).get('opp_pace', 100.0))
+                stat_data['implied_game_total'] = float((_team_pace + _opp_pace_val) / 2.0 * 2.0 * 0.95)
+
+                # Referee features
+                _ref_features = self._get_referee_features(game_id=None, precomputed=_pre)
+                stat_data.update(_ref_features)
+
+            except Exception as _new_feat_err:
+                for _k in ('dvp_pts_delta_last5', 'dvp_pts_delta_last10', 'dvp_reb_delta_last5',
+                           'dvp_ast_delta_last5', 'dvp_fg3m_delta_last5'):
+                    stat_data.setdefault(_k, 0.0)
+                stat_data.setdefault('opp_foul_rate_per48', 20.0)
+                stat_data.setdefault('opp_foul_rate_last5', 20.0)
+                stat_data.setdefault('implied_game_total', 220.0)
+                stat_data.setdefault('ref_foul_rate', 0.0)
+                stat_data.setdefault('ref_home_bias', 0.5)
+                stat_data.setdefault('ref_pace_tendency', 0.0)
+
+            # Injury trajectory (derived from game log stats, always computable)
+            try:
+                _game_log = stat_data.get('game_log', []) or []
+                _games_since_return, _missed_before = _compute_injury_trajectory(_game_log)
+                stat_data['games_since_return'] = float(_games_since_return)
+                stat_data['missed_games_before_return'] = float(_missed_before)
+            except Exception:
+                stat_data.setdefault('games_since_return', 0.0)
+                stat_data.setdefault('missed_games_before_return', 0.0)
+
+            # Calendar position (always computable from date)
+            try:
+                _cal = _compute_calendar_features()
+                stat_data.update(_cal)
+            except Exception:
+                stat_data.setdefault('days_into_season', 90.0)
+                stat_data.setdefault('season_phase_numeric', 0.5)
+                stat_data.setdefault('games_remaining_approx', 40.0)
+
+            # Defender health (check if primary defender appeared in recent games)
+            try:
+                if _defs and _defs[0].get('player_id'):
+                    _def_pid = int(_defs[0]['player_id'])
+                    _def_active = _check_defender_active(_def_pid)
+                    stat_data['primary_defender_active'] = 1.0 if _def_active else 0.0
+                else:
+                    stat_data.setdefault('primary_defender_active', 1.0)
+                stat_data.setdefault('opp_lineup_changes_last5', 0.0)
+            except Exception:
+                stat_data.setdefault('primary_defender_active', 1.0)
+                stat_data.setdefault('opp_lineup_changes_last5', 0.0)
 
             features = self.ml_predictor.prepare_features(
                 stat_data, player_context, team_context, opponent_context
@@ -1107,6 +1277,57 @@ class BasketballBettingHelper:
         # raw POSITION string from CommonPlayerInfo → DVP position key + G/F/C group
         # used to look up (opponent_team_id, dvp_pos) in PrecomputedStore
     }
+
+    @staticmethod
+    def _get_referee_features(game_id, precomputed):
+        """
+        Look up referee stats for today's game officials via ScoreboardV2.
+        Falls back to league-average defaults if officials not known yet.
+        """
+        try:
+            from nba_api.stats.endpoints import scoreboardv2
+            import time as _time
+            sb = scoreboardv2.ScoreboardV2()
+            _time.sleep(0.5)
+            dfs = sb.get_data_frames()
+            officials_df = None
+            for df in dfs:
+                cols = [c.lower() for c in df.columns]
+                if any('official' in c or 'first_name' in c for c in cols):
+                    officials_df = df
+                    break
+
+            if officials_df is None or officials_df.empty:
+                raise ValueError("no officials data")
+
+            refs_store = precomputed.get('refs', {})
+            foul_rates = []
+            home_biases = []
+            paces = []
+
+            for _, row in officials_df.iterrows():
+                name_parts = []
+                for col in officials_df.columns:
+                    if 'name' in col.lower() or 'first' in col.lower() or 'last' in col.lower():
+                        name_parts.append(str(row[col]).strip())
+                ref_name = ' '.join(p for p in name_parts if p and p != 'nan').lower()
+
+                ref_data = refs_store.get(ref_name, {})
+                if ref_data:
+                    foul_rates.append(float(ref_data.get('foul_rate', 0.0)))
+                    home_biases.append(float(ref_data.get('home_win_pct', 0.5)))
+                    paces.append(float(ref_data.get('pace', 0.0)))
+
+            if not foul_rates:
+                raise ValueError("no matching refs found")
+
+            return {
+                'ref_foul_rate':     float(sum(foul_rates) / len(foul_rates)),
+                'ref_home_bias':     float(sum(home_biases) / len(home_biases)),
+                'ref_pace_tendency': float(sum(paces) / len(paces)),
+            }
+        except Exception:
+            return {'ref_foul_rate': 0.0, 'ref_home_bias': 0.5, 'ref_pace_tendency': 0.0}
 
     @staticmethod
     def _position_keys(raw_pos: str):

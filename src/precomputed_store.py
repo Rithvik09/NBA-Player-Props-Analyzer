@@ -33,6 +33,11 @@ class PrecomputedStore:
         defenders = {}  # (team_id, pos_group) -> list[dict] ordered by rank
         defenders_meta = {'updated_at': None}
 
+        refs: dict[str, dict] = {}
+        refs_meta: dict[str, Any] = {'updated_at': None}
+        team_foul: dict[int, dict] = {}
+        dvp_rolling: dict[tuple, dict] = {}
+
         try:
             conn = self._get_db()
             cur = conn.cursor()
@@ -107,6 +112,56 @@ class PrecomputedStore:
                     max_ts = int(updated_at) if max_ts is None else max(max_ts, int(updated_at))
             defenders_meta['updated_at'] = max_ts
 
+            # --- referee stats ---
+            try:
+                cur.execute(
+                    "SELECT ref_name, games, foul_rate, home_win_pct, pace FROM referee_stats"
+                )
+                ref_rows = cur.fetchall()
+                ref_max_ts = None
+                for (ref_name, games, foul_rate, home_win_pct, pace) in ref_rows:
+                    refs[str(ref_name).lower()] = {
+                        'games':        int(games) if games is not None else 0,
+                        'foul_rate':    float(foul_rate) if foul_rate is not None else 0.0,
+                        'home_win_pct': float(home_win_pct) if home_win_pct is not None else 0.5,
+                        'pace':         float(pace) if pace is not None else 0.0,
+                    }
+                # updated_at is not selected here but refs_meta can stay None safely
+            except Exception:
+                pass
+
+            # --- team foul rates ---
+            try:
+                cur.execute(
+                    "SELECT team_id, foul_rate_season, foul_rate_last5 FROM team_foul_rates"
+                )
+                for (team_id, foul_rate_season, foul_rate_last5) in cur.fetchall():
+                    team_foul[int(team_id)] = {
+                        'foul_rate_season': float(foul_rate_season) if foul_rate_season is not None else 20.0,
+                        'foul_rate_last5':  float(foul_rate_last5)  if foul_rate_last5  is not None else 20.0,
+                    }
+            except Exception:
+                pass
+
+            # --- rolling DVP ---
+            try:
+                cur.execute(
+                    "SELECT team_id, window, pts, reb, ast, fg3m, stl, blk, tov, gp FROM dvp_rolling"
+                )
+                for (team_id, window, pts, reb, ast, fg3m, stl, blk, tov, gp) in cur.fetchall():
+                    dvp_rolling[(int(team_id), int(window))] = {
+                        'pts':  float(pts)  if pts  is not None else 0.0,
+                        'reb':  float(reb)  if reb  is not None else 0.0,
+                        'ast':  float(ast)  if ast  is not None else 0.0,
+                        'fg3m': float(fg3m) if fg3m is not None else 0.0,
+                        'stl':  float(stl)  if stl  is not None else 0.0,
+                        'blk':  float(blk)  if blk  is not None else 0.0,
+                        'tov':  float(tov)  if tov  is not None else 0.0,
+                        'gp':   int(gp)     if gp   is not None else 0,
+                    }
+            except Exception:
+                pass
+
             conn.close()
 
         except Exception:
@@ -119,6 +174,10 @@ class PrecomputedStore:
             'dvp_pos_avgs': dvp_pos_avgs,
             'defenders': defenders,
             'defenders_meta': defenders_meta,
+            'refs': refs,
+            'refs_meta': refs_meta,
+            'team_foul': team_foul,
+            'dvp_rolling': dvp_rolling,
         }
         self._cache = payload
         self._cache_at = now

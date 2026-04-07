@@ -333,6 +333,31 @@ NUMERIC_FEATURE_KEYS: list[str] = [
     "pct_pts_in_paint",  # Percentage of points from paint
     "pct_pts_off_tov",  # Percentage of points off turnovers
     "pct_pts_fb",  # Percentage of points from fast breaks
+    # New: Referee tendencies (precomputed daily from Basketball-Reference)
+    "ref_foul_rate",
+    "ref_home_bias",
+    "ref_pace_tendency",
+    # New: Rolling DVP — recent opponent defensive form vs. season average
+    "dvp_pts_delta_last5",
+    "dvp_pts_delta_last10",
+    "dvp_reb_delta_last5",
+    "dvp_ast_delta_last5",
+    "dvp_fg3m_delta_last5",
+    # New: Opponent foul tendency (affects FTA and scoring)
+    "opp_foul_rate_per48",
+    "opp_foul_rate_last5",
+    # New: Return-from-injury trajectory
+    "games_since_return",
+    "missed_games_before_return",
+    # New: Calendar / season-phase position
+    "days_into_season",
+    "season_phase_numeric",
+    "games_remaining_approx",
+    # New: Defender health and lineup stability
+    "primary_defender_active",
+    "opp_lineup_changes_last5",
+    # New: Market-implied game environment
+    "implied_game_total",
 ]
 
 CLASSIFIER_EXTRA_KEYS: list[str] = [
