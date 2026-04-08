@@ -815,6 +815,68 @@ class EnhancedMLPredictor:
             'transition_matchup_advantage': features['transition_ppp'] - features['opp_transition_ppp_allowed'],
         })
 
+        # ---- Group 1: Player Tracking Stats ----
+        features.update({
+            'tracking_avg_speed':          float(player_stats.get('tracking_avg_speed', 4.5)),
+            'tracking_avg_speed_off':      float(player_stats.get('tracking_avg_speed_off', 4.8)),
+            'tracking_avg_speed_def':      float(player_stats.get('tracking_avg_speed_def', 4.2)),
+            'tracking_dist_miles':         float(player_stats.get('tracking_dist_miles', 2.5)),
+            'tracking_dist_miles_off':     float(player_stats.get('tracking_dist_miles_off', 1.3)),
+            'tracking_dist_miles_def':     float(player_stats.get('tracking_dist_miles_def', 1.2)),
+            'tracking_touches_pg':         float(player_stats.get('tracking_touches_pg', 50.0)),
+            'tracking_time_of_poss_pg':    float(player_stats.get('tracking_time_of_poss_pg', 2.5)),
+            'tracking_avg_drib_per_touch': float(player_stats.get('tracking_avg_drib_per_touch', 1.5)),
+            'tracking_passes_made_pg':     float(player_stats.get('tracking_passes_made_pg', 30.0)),
+            'tracking_potential_ast_pg':   float(player_stats.get('tracking_potential_ast_pg', 5.0)),
+            'tracking_secondary_ast_pg':   float(player_stats.get('tracking_secondary_ast_pg', 1.0)),
+        })
+        # ---- Group 2: Team Standings / Game Importance ----
+        features.update({
+            'team_win_pct':                    float(player_stats.get('team_win_pct', 0.5)),
+            'team_conf_rank':                  float(player_stats.get('team_conf_rank', 8.0)),
+            'team_games_back':                 float(player_stats.get('team_games_back', 5.0)),
+            'team_current_streak':             float(player_stats.get('team_current_streak', 0.0)),
+            'team_l10_wins':                   float(player_stats.get('team_l10_wins', 5.0)),
+            'team_home_win_pct':               float(player_stats.get('team_home_win_pct', 0.5)),
+            'opp_win_pct_standings':           float(player_stats.get('opp_win_pct_standings', 0.5)),
+            'opp_conf_rank':                   float(player_stats.get('opp_conf_rank', 8.0)),
+            'opp_games_back':                  float(player_stats.get('opp_games_back', 5.0)),
+            'opp_current_streak_standings':    float(player_stats.get('opp_current_streak_standings', 0.0)),
+            'opp_l10_wins':                    float(player_stats.get('opp_l10_wins', 5.0)),
+            'opp_road_win_pct':                float(player_stats.get('opp_road_win_pct', 0.5)),
+            'win_pct_diff':                    float(player_stats.get('win_pct_diff', 0.0)),
+            'is_playoff_race_game':            float(player_stats.get('is_playoff_race_game', 0.0)),
+        })
+        # ---- Group 3: Scoring Breakdown by Method ----
+        features.update({
+            'pct_pts_3pt':      float(player_stats.get('pct_pts_3pt', 0.25)),
+            'pct_pts_paint':    float(player_stats.get('pct_pts_paint', 0.30)),
+            'pct_pts_ft':       float(player_stats.get('pct_pts_ft', 0.15)),
+            'pct_pts_midrange': float(player_stats.get('pct_pts_midrange', 0.20)),
+            'pct_uast_fgm':     float(player_stats.get('pct_uast_fgm', 0.40)),
+        })
+        # ---- Group 4: Win/Loss Performance Splits ----
+        features.update({
+            'stat_in_wins':               float(player_stats.get('stat_in_wins', 0.0)),
+            'stat_in_losses':             float(player_stats.get('stat_in_losses', 0.0)),
+            'win_loss_performance_split': float(player_stats.get('win_loss_performance_split', 0.0)),
+            'over_rate_in_wins':          float(player_stats.get('over_rate_in_wins', 0.5)),
+        })
+        # ---- Group 5: Opponent Rest & Schedule Context ----
+        features.update({
+            'opp_days_rest':   float(player_stats.get('opp_days_rest', 2.0)),
+            'opp_b2b':         float(player_stats.get('opp_b2b', 0.0)),
+            'rest_advantage':  float(player_stats.get('rest_advantage', 0.0)),
+        })
+        # ---- Group 6: Additional Derived Features ----
+        features.update({
+            'ast_pct_to_usg_ratio':      float(player_stats.get('ast_pct_to_usg_ratio', 0.83)),
+            'defensive_burden':          float(player_stats.get('defensive_burden', 58.0)),
+            'shot_profile_fit':          float(player_stats.get('shot_profile_fit', 0.09)),
+            'pace_adjusted_projection':  float(player_stats.get('pace_adjusted_projection', 0.0)),
+            'form_momentum':             float(player_stats.get('form_momentum', 0.0)),
+        })
+
         # ---- player context (matchup history + position defence) ----
         if player_context:
             matchup_history = player_context.get('matchup_history') or {}

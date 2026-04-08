@@ -701,6 +701,79 @@ class TrainingDataCollector:
             for _k, _dv in _new_defaults.items():
                 features.setdefault(_k, _dv)
 
+            # ---- Zero-fill for new feature groups (Groups 1-6) ----
+            _group_defaults = {
+                # Group 1: Player Tracking Stats
+                'tracking_avg_speed': 4.5, 'tracking_avg_speed_off': 4.8,
+                'tracking_avg_speed_def': 4.2, 'tracking_dist_miles': 2.5,
+                'tracking_dist_miles_off': 1.3, 'tracking_dist_miles_def': 1.2,
+                'tracking_touches_pg': 50.0, 'tracking_time_of_poss_pg': 2.5,
+                'tracking_avg_drib_per_touch': 1.5, 'tracking_passes_made_pg': 30.0,
+                'tracking_potential_ast_pg': 5.0, 'tracking_secondary_ast_pg': 1.0,
+                # Group 2: Team Standings
+                'team_win_pct': 0.5, 'team_conf_rank': 8.0, 'team_games_back': 5.0,
+                'team_current_streak': 0.0, 'team_l10_wins': 5.0, 'team_home_win_pct': 0.5,
+                'opp_win_pct_standings': 0.5, 'opp_conf_rank': 8.0, 'opp_games_back': 5.0,
+                'opp_current_streak_standings': 0.0, 'opp_l10_wins': 5.0,
+                'opp_road_win_pct': 0.5, 'win_pct_diff': 0.0, 'is_playoff_race_game': 0.0,
+                # Group 3: Scoring Breakdown
+                'pct_pts_3pt': 0.25, 'pct_pts_paint': 0.30, 'pct_pts_ft': 0.15,
+                'pct_pts_midrange': 0.20, 'pct_uast_fgm': 0.40,
+                # Group 4: Win/Loss Splits (computed inline)
+                'stat_in_wins': 0.0, 'stat_in_losses': 0.0,
+                'win_loss_performance_split': 0.0, 'over_rate_in_wins': 0.5,
+                # Group 5: Opponent Rest
+                'opp_days_rest': 2.0, 'opp_b2b': 0.0, 'rest_advantage': 0.0,
+                # Group 6: Derived Features
+                'ast_pct_to_usg_ratio': 0.83, 'defensive_burden': 58.0,
+                'shot_profile_fit': 0.09, 'pace_adjusted_projection': 0.0,
+                'form_momentum': 0.0,
+            }
+            for _k, _dv in _group_defaults.items():
+                features.setdefault(_k, _dv)
+
+            # Compute Group 4 Win/Loss splits from wl_vals
+            try:
+                _seas_avg_wl = float(np.mean(prior)) if len(prior) > 0 else 0.0
+                _win_idxs  = [j for j in range(i) if wl_vals[j] == 1.0]
+                _loss_idxs = [j for j in range(i) if wl_vals[j] == 0.0]
+                _win_stat_vals  = stat_values[_win_idxs]
+                _loss_stat_vals = stat_values[_loss_idxs]
+                _stat_in_wins   = float(np.mean(_win_stat_vals))  if len(_win_stat_vals)  > 0 else _seas_avg_wl
+                _stat_in_losses = float(np.mean(_loss_stat_vals)) if len(_loss_stat_vals) > 0 else _seas_avg_wl
+                features['stat_in_wins']   = _stat_in_wins
+                features['stat_in_losses'] = _stat_in_losses
+                features['win_loss_performance_split'] = _stat_in_wins - _stat_in_losses
+                # over_rate_in_wins: fraction of wins where stat > line (use rolling line)
+                _line_val = float(np.mean(prior[-10:])) if len(prior) >= 10 else _seas_avg_wl
+                features['over_rate_in_wins'] = float(np.mean([1.0 if v > _line_val else 0.0 for v in _win_stat_vals])) if len(_win_stat_vals) > 0 else 0.5
+            except Exception:
+                pass  # keep the zero-fill defaults
+
+            # Compute Group 6 Derived Features from already-available data
+            try:
+                _ast_pct_v2   = float(features.get('ast_pct_official', 0.15))
+                _usg_pct_v2   = float(features.get('usg_pct_official', 0.18))
+                features['ast_pct_to_usg_ratio'] = _ast_pct_v2 / max(_usg_pct_v2, 0.01)
+
+                _opp_def_v2   = float(features.get('opp_def_rating_last5', 110.0))
+                _opp_fgp_v2   = float(features.get('opp_fg_pct', 0.47))
+                features['defensive_burden'] = _opp_def_v2 * (1.0 - _opp_fgp_v2)
+
+                _pct3_v2      = float(features.get('pct_pts_3pt', 0.25))
+                _ab3_v2       = float(features.get('opp_above_break3_fg_pct_allowed', 0.35))
+                features['shot_profile_fit'] = _pct3_v2 * _ab3_v2
+
+                _igt_v2       = float(features.get('implied_game_total', 220.0))
+                _rec_avg_v2   = float(np.mean(prior[-5:])) if len(prior) >= 5 else float(np.mean(prior))
+                features['pace_adjusted_projection'] = _rec_avg_v2 * (_igt_v2 / 220.0)
+
+                _l3t_v2       = float(features.get('last_3_games_trend', 0.0))
+                _l5t_v2       = float(features.get('last_5_games_trend', 0.0))
+                features['form_momentum'] = (_l3t_v2 * 3.0 + _l5t_v2 * 2.0) / 5.0
+            except Exception:
+                pass  # keep defaults
+
             samples.append({
                 'features':  features,
                 'result':    result,
