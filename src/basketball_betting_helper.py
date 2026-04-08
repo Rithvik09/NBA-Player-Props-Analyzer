@@ -1217,7 +1217,7 @@ class BasketballBettingHelper:
                 # League averages (stored per-row; use _opp_stats as source)
                 _lg = _opp_stats
                 stat_data['lg_pts_fb']          = float(_lg.get('lg_pts_fb', 12.0))
-                stat_data['lg_opp_pts_fb']      = float(_lg.get('lg_pts_off_tov', 16.0))
+                stat_data['lg_opp_pts_fb']      = float(_lg.get('lg_pts_fb', 12.0))
                 stat_data['lg_pts_off_tov']     = float(_lg.get('lg_pts_off_tov', 16.0))
                 stat_data['lg_opp_pts_off_tov'] = float(_lg.get('lg_pts_off_tov', 16.0))
                 stat_data['lg_fga']             = float(_lg.get('lg_fga', 86.0))
@@ -1332,7 +1332,7 @@ class BasketballBettingHelper:
                     ('opp_midrange_fg_pct_allowed', 0.42), ('opp_corner3_fg_pct_allowed', 0.38),
                     ('opp_above_break3_fg_pct_allowed', 0.35),
                 ]:
-                    _zone_inner_key = _k.replace('opp_', '').replace('_allowed', '')
+                    _zone_inner_key = _k.replace('opp_', '', 1)   # 'opp_rim_fg_pct_allowed' → 'rim_fg_pct_allowed'
                     stat_data[_k] = float(_osz.get(_zone_inner_key, _dk))
 
                 # Synergy team defense
@@ -1342,7 +1342,7 @@ class BasketballBettingHelper:
                     ('opp_spotup_ppp_allowed', 1.0), ('opp_transition_ppp_allowed', 1.1),
                     ('opp_postup_ppp_allowed', 0.9),
                 ]:
-                    stat_data[_k] = float(_sd.get(_k, _dk))
+                    stat_data[_k] = float(_sd.get(_k.replace('opp_', '', 1), _dk))  # 'opp_pnr_ppp_allowed' → 'pnr_ppp_allowed'
 
             except Exception as _player_feat_err:
                 # Safe defaults — never crash prediction on new feature failures
