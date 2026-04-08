@@ -643,6 +643,26 @@ class TrainingDataCollector:
             features.setdefault('primary_defender_active', 1.0)
             features.setdefault('implied_game_total', 220.0)
 
+            # ---- Team-style + opponent baseline defaults (match models.py prepare_features defaults)
+            # These are current-season precomputed values unavailable for historical training,
+            # so every training sample gets the same league-average defaults. GB will learn near-zero
+            # weight for them; at inference the real values serve as a contextual adjustment.
+            _team_opp_defaults = {
+                'team_pts_fb': 12.0, 'opp_pts_fb_allowed': 12.0,
+                'team_pts_off_tov': 16.0, 'opp_pts_off_tov_allowed': 16.0,
+                'opp_pts_paint': 44.0, 'opp_fga': 86.0, 'opp_fg_pct': 0.47,
+                'opp_fg3a': 35.0, 'opp_fg3_pct': 0.36, 'opp_tov': 14.0,
+                'opp_stl': 7.0, 'opp_blk': 5.0, 'opp_off_rating': 110.0,
+                'opp_def_rating_last5': 110.0, 'opp_blocks_per_game_last5': 5.0,
+                'opp_steals_per_game_last5': 7.0,
+                'lg_pts_fb': 12.0, 'lg_opp_pts_fb': 12.0,
+                'lg_pts_off_tov': 16.0, 'lg_opp_pts_off_tov': 16.0,
+                'lg_fga': 86.0, 'lg_fg_pct': 0.47, 'lg_fg3a': 35.0,
+                'lg_tov': 14.0, 'lg_stl': 7.0,
+            }
+            for _k, _dv in _team_opp_defaults.items():
+                features.setdefault(_k, _dv)
+
             # Zero-fill new player-specific precomputed features (not available historically)
             _new_defaults = {
                 'usg_pct_official': 0.18, 'ts_pct_official': 0.55, 'efg_pct_official': 0.50,
