@@ -29,6 +29,8 @@ from nba_api.stats.endpoints import (
     playerdashboardbyshootingsplits,
     playerdashboardbygamesplits,
     commonallplayers,
+    leaguedashplayertracking,
+    leaguestandingsv3,
 )
 from nba_api.stats.static import teams
 
@@ -273,6 +275,43 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
             transition_ppp_allowed REAL,
             postup_ppp_allowed REAL,
             updated_at INTEGER NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS player_tracking_stats (
+            player_id INTEGER PRIMARY KEY,
+            avg_speed REAL, avg_speed_off REAL, avg_speed_def REAL,
+            dist_miles REAL, dist_miles_off REAL, dist_miles_def REAL,
+            touches_pg REAL, time_of_poss_pg REAL, avg_drib_per_touch REAL,
+            paint_touches_pg REAL, elbow_touches_pg REAL,
+            passes_made_pg REAL, potential_ast_pg REAL, secondary_ast_pg REAL,
+            updated_at INTEGER
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS team_standings (
+            team_id INTEGER PRIMARY KEY,
+            win_pct REAL, wins INTEGER, losses INTEGER,
+            conf_rank INTEGER, games_back REAL,
+            home_win_pct REAL, road_win_pct REAL,
+            current_streak INTEGER,
+            l10_wins INTEGER,
+            pts_pg REAL, opp_pts_pg REAL,
+            updated_at INTEGER
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS player_scoring_breakdown (
+            player_id INTEGER PRIMARY KEY,
+            pct_pts_3pt REAL, pct_pts_paint REAL, pct_pts_ft REAL,
+            pct_pts_midrange REAL, pct_uast_fgm REAL, pct_ast_fgm REAL,
+            updated_at INTEGER
         )
         """
     )
@@ -1830,6 +1869,305 @@ def upsert_synergy_defense(conn: sqlite3.Connection, rows: list[dict[str, Any]],
     conn.commit()
 
 
+def compute_player_tracking(season: str = '2024-25') -> list[dict[str, Any]]:
+    """Fetch player tracking stats: speed/distance, possessions, and passing."""
+    def _sf(val, default=0.0):
+        try:
+            return float(val) if val is not None and str(val) not in ('nan', '') else default
+        except Exception:
+            return default
+
+    player_data: dict[int, dict[str, Any]] = {}
+
+    # 1. SpeedDistance
+    try:
+        df = leaguedashplayertracking.LeagueDashPlayerTracking(
+            season=season,
+            pt_measure_type='SpeedDistance',
+            per_mode_simple='PerGame',
+        ).get_data_frames()[0]
+        time.sleep(0.6)
+        for _, row in df.iterrows():
+            pid = int(row['PLAYER_ID'])
+            if pid not in player_data:
+                player_data[pid] = {}
+            player_data[pid].update({
+                'avg_speed':     _sf(row.get('AVG_SPEED', 0.0)),
+                'avg_speed_off': _sf(row.get('AVG_SPEED_OFF', 0.0)),
+                'avg_speed_def': _sf(row.get('AVG_SPEED_DEF', 0.0)),
+                'dist_miles':    _sf(row.get('DIST_MILES', 0.0)),
+                'dist_miles_off': _sf(row.get('DIST_MILES_OFF', 0.0)),
+                'dist_miles_def': _sf(row.get('DIST_MILES_DEF', 0.0)),
+            })
+    except Exception as e:
+        print(f"compute_player_tracking: SpeedDistance fetch failed: {e}")
+
+    time.sleep(0.6)
+
+    # 2. Possessions
+    try:
+        df = leaguedashplayertracking.LeagueDashPlayerTracking(
+            season=season,
+            pt_measure_type='Possessions',
+            per_mode_simple='PerGame',
+        ).get_data_frames()[0]
+        time.sleep(0.6)
+        for _, row in df.iterrows():
+            pid = int(row['PLAYER_ID'])
+            if pid not in player_data:
+                player_data[pid] = {}
+            player_data[pid].update({
+                'touches_pg':          _sf(row.get('TOUCHES', 0.0)),
+                'time_of_poss_pg':     _sf(row.get('TIME_OF_POSS', 0.0)),
+                'avg_drib_per_touch':  _sf(row.get('AVG_DRIB_PER_TOUCH', 0.0)),
+                'paint_touches_pg':    _sf(row.get('PAINT_TOUCHES', 0.0)),
+                'elbow_touches_pg':    _sf(row.get('ELBOW_TOUCHES', 0.0)),
+            })
+    except Exception as e:
+        print(f"compute_player_tracking: Possessions fetch failed: {e}")
+
+    time.sleep(0.6)
+
+    # 3. Passing
+    try:
+        df = leaguedashplayertracking.LeagueDashPlayerTracking(
+            season=season,
+            pt_measure_type='Passing',
+            per_mode_simple='PerGame',
+        ).get_data_frames()[0]
+        time.sleep(0.6)
+        for _, row in df.iterrows():
+            pid = int(row['PLAYER_ID'])
+            if pid not in player_data:
+                player_data[pid] = {}
+            player_data[pid].update({
+                'passes_made_pg':     _sf(row.get('PASSES_MADE', 0.0)),
+                'potential_ast_pg':   _sf(row.get('POTENTIAL_AST', 0.0)),
+                'secondary_ast_pg':   _sf(row.get('SECONDARY_AST', 0.0)),
+            })
+    except Exception as e:
+        print(f"compute_player_tracking: Passing fetch failed: {e}")
+
+    results: list[dict[str, Any]] = []
+    for pid, data in player_data.items():
+        results.append({
+            'player_id':        pid,
+            'avg_speed':        data.get('avg_speed', 0.0),
+            'avg_speed_off':    data.get('avg_speed_off', 0.0),
+            'avg_speed_def':    data.get('avg_speed_def', 0.0),
+            'dist_miles':       data.get('dist_miles', 0.0),
+            'dist_miles_off':   data.get('dist_miles_off', 0.0),
+            'dist_miles_def':   data.get('dist_miles_def', 0.0),
+            'touches_pg':       data.get('touches_pg', 0.0),
+            'time_of_poss_pg':  data.get('time_of_poss_pg', 0.0),
+            'avg_drib_per_touch': data.get('avg_drib_per_touch', 0.0),
+            'paint_touches_pg': data.get('paint_touches_pg', 0.0),
+            'elbow_touches_pg': data.get('elbow_touches_pg', 0.0),
+            'passes_made_pg':   data.get('passes_made_pg', 0.0),
+            'potential_ast_pg': data.get('potential_ast_pg', 0.0),
+            'secondary_ast_pg': data.get('secondary_ast_pg', 0.0),
+        })
+    return results
+
+
+def upsert_player_tracking(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO player_tracking_stats
+              (player_id, avg_speed, avg_speed_off, avg_speed_def,
+               dist_miles, dist_miles_off, dist_miles_def,
+               touches_pg, time_of_poss_pg, avg_drib_per_touch,
+               paint_touches_pg, elbow_touches_pg,
+               passes_made_pg, potential_ast_pg, secondary_ast_pg, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(r['player_id']),
+                float(r.get('avg_speed', 0.0)), float(r.get('avg_speed_off', 0.0)),
+                float(r.get('avg_speed_def', 0.0)), float(r.get('dist_miles', 0.0)),
+                float(r.get('dist_miles_off', 0.0)), float(r.get('dist_miles_def', 0.0)),
+                float(r.get('touches_pg', 0.0)), float(r.get('time_of_poss_pg', 0.0)),
+                float(r.get('avg_drib_per_touch', 0.0)), float(r.get('paint_touches_pg', 0.0)),
+                float(r.get('elbow_touches_pg', 0.0)), float(r.get('passes_made_pg', 0.0)),
+                float(r.get('potential_ast_pg', 0.0)), float(r.get('secondary_ast_pg', 0.0)),
+                int(updated_at),
+            ),
+        )
+    conn.commit()
+
+
+def compute_team_standings(season: str = '2024-25') -> list[dict[str, Any]]:
+    """Fetch team standings with win%, streak, L10, and home/road splits."""
+    def _sf(val, default=0.0):
+        try:
+            return float(val) if val is not None and str(val) not in ('nan', '') else default
+        except Exception:
+            return default
+
+    def _parse_record(record_str, idx=0):
+        """Parse 'W-L' record string, return wins or losses by idx."""
+        try:
+            parts = str(record_str).split('-')
+            return int(parts[idx])
+        except Exception:
+            return 0
+
+    try:
+        df = leaguestandingsv3.LeagueStandingsV3(season=season).get_data_frames()[0]
+        time.sleep(0.6)
+    except Exception as e:
+        print(f"compute_team_standings: fetch failed: {e}")
+        return []
+
+    results: list[dict[str, Any]] = []
+    for _, row in df.iterrows():
+        try:
+            team_id = int(row.get('TeamID', 0) or 0)
+            if team_id == 0:
+                continue
+
+            win_pct = _sf(row.get('WinPCT', 0.5))
+            wins = int(_sf(row.get('WINS', 0)))
+            losses = int(_sf(row.get('LOSSES', 0)))
+
+            # Conference rank
+            conf_rank = int(_sf(row.get('ConferenceRank', row.get('PlayoffRank', 15)), 15))
+
+            # Games back
+            games_back = _sf(row.get('GamesBehind', row.get('ConferenceGamesBack', 0.0)))
+
+            # Home/road records
+            home_rec = str(row.get('HOME', row.get('HomeRecord', '0-0')) or '0-0')
+            road_rec = str(row.get('ROAD', row.get('RoadRecord', '0-0')) or '0-0')
+            home_w = _parse_record(home_rec, 0)
+            home_l = _parse_record(home_rec, 1)
+            road_w = _parse_record(road_rec, 0)
+            road_l = _parse_record(road_rec, 1)
+            home_win_pct = float(home_w) / max(home_w + home_l, 1)
+            road_win_pct = float(road_w) / max(road_w + road_l, 1)
+
+            # Current streak (positive = wins, negative = losses)
+            streak_val = row.get('CurrentStreak', row.get('strCurrentStreak', 0))
+            try:
+                current_streak = int(float(str(streak_val).replace('W', '').replace('L', '-').strip()))
+            except Exception:
+                current_streak = 0
+
+            # L10 record
+            l10_rec = str(row.get('L10', row.get('Last10', '5-5')) or '5-5')
+            l10_wins = _parse_record(l10_rec, 0)
+
+            # Pts pg / opp pts pg
+            pts_pg = _sf(row.get('PointsPG', row.get('PtsPG', 0.0)))
+            opp_pts_pg = _sf(row.get('OppPointsPG', row.get('OppPtsPG', 0.0)))
+
+            results.append({
+                'team_id':        team_id,
+                'win_pct':        win_pct,
+                'wins':           wins,
+                'losses':         losses,
+                'conf_rank':      conf_rank,
+                'games_back':     games_back,
+                'home_win_pct':   home_win_pct,
+                'road_win_pct':   road_win_pct,
+                'current_streak': current_streak,
+                'l10_wins':       l10_wins,
+                'pts_pg':         pts_pg,
+                'opp_pts_pg':     opp_pts_pg,
+            })
+        except Exception as e:
+            print(f"compute_team_standings: row error: {e}")
+            continue
+
+    return results
+
+
+def upsert_team_standings(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO team_standings
+              (team_id, win_pct, wins, losses, conf_rank, games_back,
+               home_win_pct, road_win_pct, current_streak, l10_wins,
+               pts_pg, opp_pts_pg, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(r['team_id']),
+                float(r.get('win_pct', 0.5)), int(r.get('wins', 0)), int(r.get('losses', 0)),
+                int(r.get('conf_rank', 15)), float(r.get('games_back', 0.0)),
+                float(r.get('home_win_pct', 0.5)), float(r.get('road_win_pct', 0.5)),
+                int(r.get('current_streak', 0)), int(r.get('l10_wins', 5)),
+                float(r.get('pts_pg', 0.0)), float(r.get('opp_pts_pg', 0.0)),
+                int(updated_at),
+            ),
+        )
+    conn.commit()
+
+
+def compute_player_scoring_breakdown(season: str = '2024-25') -> list[dict[str, Any]]:
+    """Fetch player scoring breakdown by method (3PT%, paint%, FT%, etc.)."""
+    def _sf(val, default=0.0):
+        try:
+            return float(val) if val is not None and str(val) not in ('nan', '') else default
+        except Exception:
+            return default
+
+    try:
+        df = leaguedashplayerstats.LeagueDashPlayerStats(
+            season=season,
+            measure_type_detailed_defense='Scoring',
+            per_mode_detailed='PerGame',
+        ).get_data_frames()[0]
+        time.sleep(0.6)
+    except Exception as e:
+        print(f"compute_player_scoring_breakdown: fetch failed: {e}")
+        return []
+
+    results: list[dict[str, Any]] = []
+    for _, row in df.iterrows():
+        try:
+            pid = int(row['PLAYER_ID'])
+            results.append({
+                'player_id':       pid,
+                'pct_pts_3pt':     _sf(row.get('PCT_PTS_3PT', 0.0)),
+                'pct_pts_paint':   _sf(row.get('PCT_PTS_PAINT', 0.0)),
+                'pct_pts_ft':      _sf(row.get('PCT_PTS_FT', 0.0)),
+                'pct_pts_midrange': _sf(row.get('PCT_PTS_MID_RANGE', 0.0)),
+                'pct_uast_fgm':    _sf(row.get('PCT_UAST_2PM', row.get('PCT_UAST_FGM', 0.0))),
+                'pct_ast_fgm':     _sf(row.get('PCT_AST_FGM', 0.0)),
+            })
+        except Exception as e:
+            print(f"compute_player_scoring_breakdown: row error: {e}")
+            continue
+
+    return results
+
+
+def upsert_player_scoring_breakdown(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO player_scoring_breakdown
+              (player_id, pct_pts_3pt, pct_pts_paint, pct_pts_ft,
+               pct_pts_midrange, pct_uast_fgm, pct_ast_fgm, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(r['player_id']),
+                float(r.get('pct_pts_3pt', 0.0)), float(r.get('pct_pts_paint', 0.0)),
+                float(r.get('pct_pts_ft', 0.0)), float(r.get('pct_pts_midrange', 0.0)),
+                float(r.get('pct_uast_fgm', 0.0)), float(r.get('pct_ast_fgm', 0.0)),
+                int(updated_at),
+            ),
+        )
+    conn.commit()
+
+
 def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any]:
     """
     Runs full update and returns summary.
@@ -1957,6 +2295,34 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
     except Exception as _e:
         print(f"synergy team defense failed: {_e}")
 
+    # ---- New feature group jobs ----
+    tracking_rows: list[dict[str, Any]] = []
+    try:
+        print("computing player tracking stats...")
+        tracking_rows = compute_player_tracking(season=season)
+        upsert_player_tracking(conn, tracking_rows, updated_at=updated_at)
+        print(f"  player tracking: {len(tracking_rows)} rows")
+    except Exception as _e:
+        print(f"player tracking failed: {_e}")
+
+    standings_rows: list[dict[str, Any]] = []
+    try:
+        print("computing team standings...")
+        standings_rows = compute_team_standings(season=season)
+        upsert_team_standings(conn, standings_rows, updated_at=updated_at)
+        print(f"  team standings: {len(standings_rows)} rows")
+    except Exception as _e:
+        print(f"team standings failed: {_e}")
+
+    scoring_breakdown_rows: list[dict[str, Any]] = []
+    try:
+        print("computing player scoring breakdown...")
+        scoring_breakdown_rows = compute_player_scoring_breakdown(season=season)
+        upsert_player_scoring_breakdown(conn, scoring_breakdown_rows, updated_at=updated_at)
+        print(f"  scoring breakdown: {len(scoring_breakdown_rows)} rows")
+    except Exception as _e:
+        print(f"player scoring breakdown failed: {_e}")
+
     conn.close()
     return {
         "season": season,
@@ -1977,6 +2343,9 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         "quarter_split_rows": len(quarter_split_rows),
         "opp_shot_zone_rows": len(opp_shot_zone_rows),
         "synergy_def_rows": len(synergy_def_rows),
+        "tracking_rows": len(tracking_rows),
+        "standings_rows": len(standings_rows),
+        "scoring_breakdown_rows": len(scoring_breakdown_rows),
     }
 
 

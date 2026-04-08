@@ -472,6 +472,89 @@ class PrecomputedStore:
         except Exception:
             pass
 
+        player_tracking: dict[int, dict] = {}
+        try:
+            cur.execute(
+                """
+                SELECT player_id, avg_speed, avg_speed_off, avg_speed_def,
+                       dist_miles, dist_miles_off, dist_miles_def,
+                       touches_pg, time_of_poss_pg, avg_drib_per_touch,
+                       paint_touches_pg, elbow_touches_pg,
+                       passes_made_pg, potential_ast_pg, secondary_ast_pg
+                FROM player_tracking_stats
+                """
+            )
+            for row in cur.fetchall():
+                (pid, spd, spd_off, spd_def, dist, dist_off, dist_def,
+                 touches, top, drib, paint_t, elbow_t, passes, pot_ast, sec_ast) = row
+                player_tracking[int(pid)] = {
+                    'tracking_avg_speed':         float(spd)     if spd     is not None else 4.5,
+                    'tracking_avg_speed_off':     float(spd_off) if spd_off is not None else 4.8,
+                    'tracking_avg_speed_def':     float(spd_def) if spd_def is not None else 4.2,
+                    'tracking_dist_miles':        float(dist)    if dist    is not None else 2.5,
+                    'tracking_dist_miles_off':    float(dist_off) if dist_off is not None else 1.3,
+                    'tracking_dist_miles_def':    float(dist_def) if dist_def is not None else 1.2,
+                    'tracking_touches_pg':        float(touches) if touches  is not None else 50.0,
+                    'tracking_time_of_poss_pg':   float(top)     if top      is not None else 2.5,
+                    'tracking_avg_drib_per_touch': float(drib)   if drib     is not None else 1.5,
+                    'tracking_passes_made_pg':    float(passes)  if passes   is not None else 30.0,
+                    'tracking_potential_ast_pg':  float(pot_ast) if pot_ast  is not None else 5.0,
+                    'tracking_secondary_ast_pg':  float(sec_ast) if sec_ast  is not None else 1.0,
+                }
+        except Exception:
+            pass
+
+        team_standings: dict[int, dict] = {}
+        try:
+            cur.execute(
+                """
+                SELECT team_id, win_pct, wins, losses, conf_rank, games_back,
+                       home_win_pct, road_win_pct, current_streak, l10_wins,
+                       pts_pg, opp_pts_pg
+                FROM team_standings
+                """
+            )
+            for row in cur.fetchall():
+                (tid, win_pct, wins, losses, conf_rank, games_back,
+                 home_wp, road_wp, streak, l10w, pts_pg, opp_pts_pg) = row
+                team_standings[int(tid)] = {
+                    'win_pct':        float(win_pct)    if win_pct    is not None else 0.5,
+                    'wins':           int(wins)         if wins       is not None else 41,
+                    'losses':         int(losses)       if losses     is not None else 41,
+                    'conf_rank':      int(conf_rank)    if conf_rank  is not None else 8,
+                    'games_back':     float(games_back) if games_back is not None else 5.0,
+                    'home_win_pct':   float(home_wp)    if home_wp    is not None else 0.5,
+                    'road_win_pct':   float(road_wp)    if road_wp    is not None else 0.5,
+                    'current_streak': int(streak)       if streak     is not None else 0,
+                    'l10_wins':       int(l10w)         if l10w       is not None else 5,
+                    'pts_pg':         float(pts_pg)     if pts_pg     is not None else 112.0,
+                    'opp_pts_pg':     float(opp_pts_pg) if opp_pts_pg is not None else 112.0,
+                }
+        except Exception:
+            pass
+
+        player_scoring_breakdown: dict[int, dict] = {}
+        try:
+            cur.execute(
+                """
+                SELECT player_id, pct_pts_3pt, pct_pts_paint, pct_pts_ft,
+                       pct_pts_midrange, pct_uast_fgm, pct_ast_fgm
+                FROM player_scoring_breakdown
+                """
+            )
+            for row in cur.fetchall():
+                (pid, p3, ppaint, pft, pmid, puast, past) = row
+                player_scoring_breakdown[int(pid)] = {
+                    'pct_pts_3pt':      float(p3)     if p3     is not None else 0.25,
+                    'pct_pts_paint':    float(ppaint) if ppaint is not None else 0.30,
+                    'pct_pts_ft':       float(pft)    if pft    is not None else 0.15,
+                    'pct_pts_midrange': float(pmid)   if pmid   is not None else 0.20,
+                    'pct_uast_fgm':     float(puast)  if puast  is not None else 0.40,
+                    'pct_ast_fgm':      float(past)   if past   is not None else 0.60,
+                }
+        except Exception:
+            pass
+
         payload = {
             'dvp': dvp,
             'dvp_meta': dvp_meta,
@@ -494,6 +577,9 @@ class PrecomputedStore:
             'player_quarter_splits': player_quarter_splits,
             'team_opp_shot_zones': team_opp_shot_zones,
             'team_synergy_defense': team_synergy_defense,
+            'player_tracking': player_tracking,
+            'team_standings': team_standings,
+            'player_scoring_breakdown': player_scoring_breakdown,
         }
         self._cache = payload
         self._cache_at = now
