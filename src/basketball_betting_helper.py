@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from nba_api.stats.endpoints import playergamelog, CommonPlayerInfo
+from nba_api.stats.endpoints import playergamelog, CommonPlayerInfo, TeamGameLog
 from nba_api.stats.static import players
 import sqlite3
 import time
@@ -1379,6 +1379,187 @@ class BasketballBettingHelper:
                 for _k, _d in _new_player_defaults.items():
                     stat_data.setdefault(_k, _d)
 
+            # ---- GROUP 1: Player Tracking Stats ----
+            try:
+                _pid_int2 = int(player_id)
+                _tracking = _pre.get('player_tracking', {}).get(_pid_int2, {})
+                for _k, _dk in [
+                    ('tracking_avg_speed', 4.5), ('tracking_avg_speed_off', 4.8),
+                    ('tracking_avg_speed_def', 4.2), ('tracking_dist_miles', 2.5),
+                    ('tracking_dist_miles_off', 1.3), ('tracking_dist_miles_def', 1.2),
+                    ('tracking_touches_pg', 50.0), ('tracking_time_of_poss_pg', 2.5),
+                    ('tracking_avg_drib_per_touch', 1.5), ('tracking_passes_made_pg', 30.0),
+                    ('tracking_potential_ast_pg', 5.0), ('tracking_secondary_ast_pg', 1.0),
+                ]:
+                    stat_data[_k] = float(_tracking.get(_k, _dk))
+            except Exception:
+                for _k, _dk in [
+                    ('tracking_avg_speed', 4.5), ('tracking_avg_speed_off', 4.8),
+                    ('tracking_avg_speed_def', 4.2), ('tracking_dist_miles', 2.5),
+                    ('tracking_dist_miles_off', 1.3), ('tracking_dist_miles_def', 1.2),
+                    ('tracking_touches_pg', 50.0), ('tracking_time_of_poss_pg', 2.5),
+                    ('tracking_avg_drib_per_touch', 1.5), ('tracking_passes_made_pg', 30.0),
+                    ('tracking_potential_ast_pg', 5.0), ('tracking_secondary_ast_pg', 1.0),
+                ]:
+                    stat_data.setdefault(_k, _dk)
+
+            # ---- GROUP 2: Team Standings / Game Importance ----
+            try:
+                _tid_int = int(team_id) if team_id else None
+                _opp_tid_int = int(opponent_team_id) if opponent_team_id else None
+                _standings = _pre.get('team_standings', {})
+                _my_std = _standings.get(_tid_int, {}) if _tid_int else {}
+                _opp_std = _standings.get(_opp_tid_int, {}) if _opp_tid_int else {}
+
+                stat_data['team_win_pct']        = float(_my_std.get('win_pct', 0.5))
+                stat_data['team_conf_rank']       = float(_my_std.get('conf_rank', 8))
+                stat_data['team_games_back']      = float(_my_std.get('games_back', 5.0))
+                stat_data['team_current_streak']  = float(_my_std.get('current_streak', 0))
+                stat_data['team_l10_wins']        = float(_my_std.get('l10_wins', 5))
+                stat_data['team_home_win_pct']    = float(_my_std.get('home_win_pct', 0.5))
+                stat_data['opp_win_pct_standings']     = float(_opp_std.get('win_pct', 0.5))
+                stat_data['opp_conf_rank']             = float(_opp_std.get('conf_rank', 8))
+                stat_data['opp_games_back']            = float(_opp_std.get('games_back', 5.0))
+                stat_data['opp_current_streak_standings'] = float(_opp_std.get('current_streak', 0))
+                stat_data['opp_l10_wins']              = float(_opp_std.get('l10_wins', 5))
+                stat_data['opp_road_win_pct']          = float(_opp_std.get('road_win_pct', 0.5))
+                _wpct_diff = stat_data['team_win_pct'] - stat_data['opp_win_pct_standings']
+                stat_data['win_pct_diff'] = float(_wpct_diff)
+                _my_gb   = abs(float(_my_std.get('games_back', 10.0)))
+                _opp_gb  = abs(float(_opp_std.get('games_back', 10.0)))
+                stat_data['is_playoff_race_game'] = 1.0 if (_my_gb < 5.0 or _opp_gb < 5.0) else 0.0
+            except Exception:
+                for _k, _dk in [
+                    ('team_win_pct', 0.5), ('team_conf_rank', 8.0), ('team_games_back', 5.0),
+                    ('team_current_streak', 0.0), ('team_l10_wins', 5.0), ('team_home_win_pct', 0.5),
+                    ('opp_win_pct_standings', 0.5), ('opp_conf_rank', 8.0), ('opp_games_back', 5.0),
+                    ('opp_current_streak_standings', 0.0), ('opp_l10_wins', 5.0),
+                    ('opp_road_win_pct', 0.5), ('win_pct_diff', 0.0), ('is_playoff_race_game', 0.0),
+                ]:
+                    stat_data.setdefault(_k, _dk)
+
+            # ---- GROUP 3: Scoring Breakdown by Method ----
+            try:
+                _pid_int3 = int(player_id)
+                _sb = _pre.get('player_scoring_breakdown', {}).get(_pid_int3, {})
+                for _k, _dk in [
+                    ('pct_pts_3pt', 0.25), ('pct_pts_paint', 0.30), ('pct_pts_ft', 0.15),
+                    ('pct_pts_midrange', 0.20), ('pct_uast_fgm', 0.40),
+                ]:
+                    stat_data[_k] = float(_sb.get(_k, _dk))
+            except Exception:
+                for _k, _dk in [
+                    ('pct_pts_3pt', 0.25), ('pct_pts_paint', 0.30), ('pct_pts_ft', 0.15),
+                    ('pct_pts_midrange', 0.20), ('pct_uast_fgm', 0.40),
+                ]:
+                    stat_data.setdefault(_k, _dk)
+
+            # ---- GROUP 4: Win/Loss Performance Splits (from game log values + WL) ----
+            try:
+                _vals_wl = list(stat_data.get('values') or [])
+                # Fetch WL alongside game log to compute win/loss splits
+                # We pull it fresh from get_player_stats which already has all_games_df
+                # Instead compute from scratch via a fresh game log fetch for current season
+                _season_avg_val = float(stat_data.get('avg', 0.0) or 0.0)
+                try:
+                    _gl_wl_df = playergamelog.PlayerGameLog(
+                        player_id=player_id, season=self.current_season
+                    ).get_data_frames()[0]
+                    time.sleep(0.6)
+                    _PROP_COL = {
+                        'points': 'PTS', 'assists': 'AST', 'rebounds': 'REB',
+                        'steals': 'STL', 'blocks': 'BLK', 'turnovers': 'TOV',
+                        'three_pointers': 'FG3M',
+                    }.get(prop_type, 'PTS')
+                    if _PROP_COL in _gl_wl_df.columns and 'WL' in _gl_wl_df.columns:
+                        _win_mask  = _gl_wl_df['WL'] == 'W'
+                        _loss_mask = _gl_wl_df['WL'] == 'L'
+                        _win_vals  = pd.to_numeric(_gl_wl_df.loc[_win_mask, _PROP_COL], errors='coerce').dropna().tolist()
+                        _loss_vals = pd.to_numeric(_gl_wl_df.loc[_loss_mask, _PROP_COL], errors='coerce').dropna().tolist()
+                        _stat_in_wins   = float(np.mean(_win_vals))  if _win_vals  else _season_avg_val
+                        _stat_in_losses = float(np.mean(_loss_vals)) if _loss_vals else _season_avg_val
+                        _wl_split = _stat_in_wins - _stat_in_losses
+                        _over_rate_wins = float(np.mean([1.0 if v > line else 0.0 for v in _win_vals])) if _win_vals else 0.5
+                    else:
+                        _stat_in_wins = _stat_in_losses = _season_avg_val
+                        _wl_split = 0.0
+                        _over_rate_wins = 0.5
+                except Exception:
+                    _stat_in_wins = _stat_in_losses = _season_avg_val
+                    _wl_split = 0.0
+                    _over_rate_wins = 0.5
+                stat_data['stat_in_wins']            = _stat_in_wins
+                stat_data['stat_in_losses']          = _stat_in_losses
+                stat_data['win_loss_performance_split'] = _wl_split
+                stat_data['over_rate_in_wins']       = _over_rate_wins
+            except Exception:
+                stat_data.setdefault('stat_in_wins', float(stat_data.get('avg', 0.0) or 0.0))
+                stat_data.setdefault('stat_in_losses', float(stat_data.get('avg', 0.0) or 0.0))
+                stat_data.setdefault('win_loss_performance_split', 0.0)
+                stat_data.setdefault('over_rate_in_wins', 0.5)
+
+            # ---- GROUP 5: Opponent Rest & Schedule Context ----
+            try:
+                from datetime import date as _date_cls
+                _today_str = str(_date_cls.today())
+                _opp_cache_key = (int(opponent_team_id), _today_str)
+                _opp_rest = BasketballBettingHelper._opp_gamelog_cache.get(_opp_cache_key)
+                if _opp_rest is None:
+                    try:
+                        _opp_gl = TeamGameLog(
+                            team_id=int(opponent_team_id),
+                            season=self.current_season,
+                        ).get_data_frames()[0]
+                        time.sleep(0.6)
+                        if not _opp_gl.empty:
+                            _opp_gl['GAME_DATE'] = pd.to_datetime(_opp_gl['GAME_DATE'])
+                            _opp_gl = _opp_gl.sort_values('GAME_DATE', ascending=False)
+                            _opp_last_date = _opp_gl.iloc[0]['GAME_DATE'].date()
+                            _opp_days_rest_val = (_date_cls.today() - _opp_last_date).days - 1
+                        else:
+                            _opp_days_rest_val = 2
+                    except Exception:
+                        _opp_days_rest_val = 2
+                    BasketballBettingHelper._opp_gamelog_cache[_opp_cache_key] = _opp_days_rest_val
+                    _opp_rest = _opp_days_rest_val
+
+                _player_rest = int(_rest)  # already computed above as _rest
+                stat_data['opp_days_rest']   = float(max(0, _opp_rest))
+                stat_data['opp_b2b']         = 1.0 if _opp_rest <= 1 else 0.0
+                stat_data['rest_advantage']  = float(_player_rest - _opp_rest)
+            except Exception:
+                stat_data.setdefault('opp_days_rest', 2.0)
+                stat_data.setdefault('opp_b2b', 0.0)
+                stat_data.setdefault('rest_advantage', 0.0)
+
+            # ---- GROUP 6: Additional Derived Features ----
+            try:
+                _ast_pct_off  = float(stat_data.get('ast_pct_official', 0.15))
+                _usg_pct_off  = float(stat_data.get('usg_pct_official', 0.18))
+                stat_data['ast_pct_to_usg_ratio'] = _ast_pct_off / max(_usg_pct_off, 0.01)
+
+                _opp_def_r5   = float(stat_data.get('opp_def_rating_last5', 110.0))
+                _opp_fg_pct_v = float(stat_data.get('opp_fg_pct', 0.47))
+                stat_data['defensive_burden'] = _opp_def_r5 * (1.0 - _opp_fg_pct_v)
+
+                _pct_3pt_v    = float(stat_data.get('pct_pts_3pt', 0.25))
+                _ab3_pct_allow = float(stat_data.get('opp_above_break3_fg_pct_allowed', 0.35))
+                stat_data['shot_profile_fit'] = _pct_3pt_v * _ab3_pct_allow
+
+                _recent_avg_v = float(stat_data.get('last5_avg', stat_data.get('avg', 0.0) or 0.0))
+                _igt = float(stat_data.get('implied_game_total', 220.0))
+                stat_data['pace_adjusted_projection'] = _recent_avg_v * (_igt / 220.0)
+
+                _l3t = float(stat_data.get('last_3_games_trend', 0.0))
+                _l5t = float(stat_data.get('last_5_games_trend', 0.0))
+                stat_data['form_momentum'] = (_l3t * 3.0 + _l5t * 2.0) / 5.0
+            except Exception:
+                stat_data.setdefault('ast_pct_to_usg_ratio', 0.83)
+                stat_data.setdefault('defensive_burden', 58.0)
+                stat_data.setdefault('shot_profile_fit', 0.09)
+                stat_data.setdefault('pace_adjusted_projection', 0.0)
+                stat_data.setdefault('form_momentum', 0.0)
+
             # Injury trajectory (derived from game log stats, always computable)
             try:
                 _game_log = stat_data.get('game_log', []) or []
@@ -1525,6 +1706,8 @@ class BasketballBettingHelper:
 
     # class-level cache: (date_str) -> features dict — refreshed once per calendar day
     _ref_features_cache: dict = {}
+    # opponent game log cache: (team_id, date_str) -> last_game_date or None
+    _opp_gamelog_cache: dict = {}
 
     @staticmethod
     def _get_referee_features(game_id, precomputed):
