@@ -1406,6 +1406,7 @@ def compute_shot_zone_breakdown(season: str, player_ids: list[int] | None = None
                 player_id=pid,
                 season=season,
                 per_mode_detailed='PerGame',
+                timeout=10,
             ).get_data_frames()
             time.sleep(1.2)
 
@@ -1515,6 +1516,7 @@ def compute_quarter_splits(season: str, player_ids: list[int] | None = None) -> 
                 player_id=pid,
                 season=season,
                 per_mode_detailed='PerGame',
+                timeout=10,
             ).get_data_frames()
             time.sleep(1.2)
 
@@ -2223,7 +2225,7 @@ def compute_player_vs_opponent(season: str = '2024-25', max_players: int = 400) 
 
     for pid in player_ids:
         try:
-            df = playergamelog.PlayerGameLog(player_id=pid, season=season).get_data_frames()[0]
+            df = playergamelog.PlayerGameLog(player_id=pid, season=season, timeout=10).get_data_frames()[0]
             time.sleep(1.2)
             if df.empty:
                 continue
@@ -2398,6 +2400,7 @@ def compute_player_yoy(season: str = '2024-25', max_players: int = 400) -> list[
                 player_id=pid,
                 season=season,
                 per_mode_detailed='PerGame',
+                timeout=10,
             ).get_data_frames()
             time.sleep(1.2)
 
