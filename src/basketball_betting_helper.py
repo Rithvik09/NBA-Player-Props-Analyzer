@@ -1560,6 +1560,55 @@ class BasketballBettingHelper:
                 stat_data.setdefault('pace_adjusted_projection', 0.0)
                 stat_data.setdefault('form_momentum', 0.0)
 
+            # ---- GROUP B: Player vs Opponent Historical Splits ----
+            try:
+                _pid_b = int(player_id)
+                _opp_b = int(opponent_team_id) if opponent_team_id else None
+                _pvo = _pre.get('player_vs_opponent', {}).get((_pid_b, _opp_b), {}) if _opp_b else {}
+                stat_data['historical_avg_vs_opp']    = float(_pvo.get('historical_avg_vs_opp', 0.0))
+                stat_data['historical_fg_pct_vs_opp'] = float(_pvo.get('historical_fg_pct_vs_opp', 0.45))
+                stat_data['historical_ts_pct_vs_opp'] = float(_pvo.get('historical_ts_pct_vs_opp', 0.55))
+                stat_data['historical_games_vs_opp']  = float(_pvo.get('historical_games_vs_opp', 0))
+                stat_data['historical_min_vs_opp']    = float(_pvo.get('historical_min_vs_opp', 30.0))
+            except Exception:
+                stat_data.setdefault('historical_avg_vs_opp', 0.0)
+                stat_data.setdefault('historical_fg_pct_vs_opp', 0.45)
+                stat_data.setdefault('historical_ts_pct_vs_opp', 0.55)
+                stat_data.setdefault('historical_games_vs_opp', 0)
+                stat_data.setdefault('historical_min_vs_opp', 30.0)
+
+            # ---- GROUP C: Team Rest Splits (opponent context when tired vs rested) ----
+            try:
+                _opp_c = int(opponent_team_id) if opponent_team_id else None
+                _trs = _pre.get('team_rest_splits', {}).get(_opp_c, {}) if _opp_c else {}
+                stat_data['opp_b2b_def_rating']        = float(_trs.get('opp_b2b_def_rating', 112.0))
+                stat_data['opp_b2b_pace']              = float(_trs.get('opp_b2b_pace', 100.0))
+                stat_data['opp_b2b_pts_allowed']       = float(_trs.get('opp_b2b_pts_allowed', 115.0))
+                stat_data['opp_rested_def_rating']     = float(_trs.get('opp_rested_def_rating', 110.0))
+                stat_data['opp_rested_pace']           = float(_trs.get('opp_rested_pace', 100.0))
+                stat_data['opp_rest_def_rating_delta'] = float(_trs.get('opp_rest_def_rating_delta', 2.0))
+            except Exception:
+                stat_data.setdefault('opp_b2b_def_rating', 112.0)
+                stat_data.setdefault('opp_b2b_pace', 100.0)
+                stat_data.setdefault('opp_b2b_pts_allowed', 115.0)
+                stat_data.setdefault('opp_rested_def_rating', 110.0)
+                stat_data.setdefault('opp_rested_pace', 100.0)
+                stat_data.setdefault('opp_rest_def_rating_delta', 2.0)
+
+            # ---- GROUP D: Player Year-Over-Year Trajectory ----
+            try:
+                _pid_d = int(player_id)
+                _yoy = _pre.get('player_yoy_stats', {}).get(_pid_d, {})
+                stat_data['yoy_pts_change']    = float(_yoy.get('yoy_pts_change', 0.0))
+                stat_data['yoy_ts_change']     = float(_yoy.get('yoy_ts_change', 0.0))
+                stat_data['yoy_usage_change']  = float(_yoy.get('yoy_usage_change', 0.0))
+                stat_data['seasons_in_league'] = float(_yoy.get('seasons_in_league', 5))
+            except Exception:
+                stat_data.setdefault('yoy_pts_change', 0.0)
+                stat_data.setdefault('yoy_ts_change', 0.0)
+                stat_data.setdefault('yoy_usage_change', 0.0)
+                stat_data.setdefault('seasons_in_league', 5)
+
             # Injury trajectory (derived from game log stats, always computable)
             try:
                 _game_log = stat_data.get('game_log', []) or []
