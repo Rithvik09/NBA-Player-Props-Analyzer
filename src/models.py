@@ -946,6 +946,14 @@ class EnhancedMLPredictor:
                 'rest_days':       int(team_context.get('rest_days', 1)),
                 'team_injuries':   float(team_context.get('injury_impact', 0)),
             })
+        # Ensure these keys always exist at inference with sensible defaults
+        # matching the training zero-fill values in data_collector._group_defaults
+        features.setdefault('team_pace', 100.0)
+        features.setdefault('team_off_rating', 110.0)
+        features.setdefault('team_def_rating', 110.0)
+        features.setdefault('team_form', 0.5)
+        features.setdefault('rest_days', 2)
+        features.setdefault('team_injuries', 0.0)
 
         # ---- opponent context ----
         if opponent_context:
@@ -955,6 +963,11 @@ class EnhancedMLPredictor:
                 'opp_form':       float(opponent_context.get('recent_form', {}).get('win_pct', 0)),
                 'opp_injuries':   float(opponent_context.get('injury_impact', 0)),
             })
+        # Same guard for opponent context keys
+        features.setdefault('opp_pace', 100.0)
+        features.setdefault('opp_def_rating', 110.0)
+        features.setdefault('opp_form', 0.5)
+        features.setdefault('opp_injuries', 0.0)
 
         # ---- extended injury detail ----
         if team_context and 'injuries' in team_context:
