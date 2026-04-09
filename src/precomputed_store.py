@@ -217,8 +217,6 @@ class PrecomputedStore:
             except Exception:
                 pass
 
-            conn.close()
-
         except Exception:
             # Tables may not exist yet; return empty structures.
             pass
@@ -617,6 +615,11 @@ class PrecomputedStore:
                     'yoy_usage_change':  float(usg_ch)  if usg_ch  is not None else 0.0,
                     'seasons_in_league': int(seasons)   if seasons is not None else 5,
                 }
+        except Exception:
+            pass
+
+        try:
+            conn.close()
         except Exception:
             pass
 
