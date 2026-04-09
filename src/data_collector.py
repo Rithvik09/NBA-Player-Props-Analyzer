@@ -702,7 +702,7 @@ class TrainingDataCollector:
                 'pace_adjusted_variance': 2.0,
                 'clutch_efficiency_delta': 0.0,
                 'rim_volume_quality': 0.25,
-                'play_specialization_score': 0.2,
+                'play_specialization_score': 0.0,
                 'best_play_type_ppp': 0.9,
                 'ts_vs_zone_expected': 0.0,
                 'usage_stability': 0.5,
