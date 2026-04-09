@@ -315,6 +315,45 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS player_vs_opponent (
+            player_id INTEGER,
+            opponent_team_id INTEGER,
+            gp INTEGER,
+            avg_stat_pts REAL,
+            fg_pct REAL,
+            ts_pct REAL,
+            avg_min REAL,
+            PRIMARY KEY (player_id, opponent_team_id)
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS team_rest_splits (
+            team_id INTEGER PRIMARY KEY,
+            b2b_def_rating REAL,
+            b2b_pace REAL,
+            b2b_pts_allowed REAL,
+            rested_def_rating REAL,
+            rested_pace REAL,
+            updated_at INTEGER
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS player_yoy_stats (
+            player_id INTEGER PRIMARY KEY,
+            yoy_pts_change REAL,
+            yoy_ts_change REAL,
+            yoy_usage_change REAL,
+            seasons_in_league INTEGER,
+            updated_at INTEGER
+        )
+        """
+    )
     conn.commit()
 
 
@@ -2168,6 +2207,313 @@ def upsert_player_scoring_breakdown(conn: sqlite3.Connection, rows: list[dict[st
     conn.commit()
 
 
+def compute_player_vs_opponent(season: str = '2024-25', max_players: int = 400) -> list[dict[str, Any]]:
+    """Fetch each player's splits vs each opponent team."""
+    from nba_api.stats.endpoints import playerdashboardbyopponent
+
+    player_ids = _get_active_player_ids(max_players)
+    results: list[dict[str, Any]] = []
+
+    def _sf(val, default=0.0):
+        try:
+            return float(val) if val is not None and str(val) not in ('nan', '') else default
+        except Exception:
+            return default
+
+    for pid in player_ids:
+        try:
+            frames = playerdashboardbyopponent.PlayerDashboardByOpponent(
+                player_id=pid,
+                season=season,
+                per_mode_overall='PerGame',
+            ).get_data_frames()
+            time.sleep(0.6)
+
+            opp_df = None
+            for frame in frames:
+                if frame.empty:
+                    continue
+                cols_upper = [c.upper() for c in frame.columns]
+                if 'OPPONENT_TEAM_ID' in cols_upper or 'VS_PLAYER_ID' in cols_upper:
+                    opp_df = frame
+                    break
+                # try index 2 as suggested
+            if opp_df is None and len(frames) > 2:
+                opp_df = frames[2] if not frames[2].empty else None
+
+            if opp_df is None or opp_df.empty:
+                continue
+
+            # Find opponent team id column
+            opp_tid_col = None
+            for c in opp_df.columns:
+                if 'OPPONENT_TEAM_ID' in c.upper() or ('OPP' in c.upper() and 'ID' in c.upper()):
+                    opp_tid_col = c
+                    break
+
+            if opp_tid_col is None:
+                continue
+
+            for _, row in opp_df.iterrows():
+                try:
+                    opp_tid = int(row[opp_tid_col])
+                    if opp_tid == 0:
+                        continue
+                    gp = int(_sf(row.get('GP', 0)))
+                    pts = _sf(row.get('PTS', 0.0))
+                    fg_pct = _sf(row.get('FG_PCT', 0.45))
+                    # TS% = PTS / (2 * (FGA + 0.44 * FTA))
+                    fga = _sf(row.get('FGA', 10.0))
+                    fta = _sf(row.get('FTA', 3.0))
+                    denom = 2.0 * (fga + 0.44 * fta)
+                    ts_pct = (pts / denom) if denom > 0 else 0.55
+                    avg_min = _sf(row.get('MIN', 30.0))
+                    results.append({
+                        'player_id': pid,
+                        'opponent_team_id': opp_tid,
+                        'gp': gp,
+                        'avg_stat_pts': pts,
+                        'fg_pct': fg_pct,
+                        'ts_pct': ts_pct,
+                        'avg_min': avg_min,
+                    })
+                except Exception:
+                    continue
+        except Exception as e:
+            print(f"compute_player_vs_opponent: player {pid} failed: {e}")
+            time.sleep(0.6)
+
+    return results
+
+
+def upsert_player_vs_opponent(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO player_vs_opponent
+              (player_id, opponent_team_id, gp, avg_stat_pts, fg_pct, ts_pct, avg_min)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(r['player_id']),
+                int(r['opponent_team_id']),
+                int(r.get('gp', 0)),
+                float(r.get('avg_stat_pts', 0.0)),
+                float(r.get('fg_pct', 0.45)),
+                float(r.get('ts_pct', 0.55)),
+                float(r.get('avg_min', 30.0)),
+            ),
+        )
+    conn.commit()
+
+
+def compute_team_rest_splits(season: str = '2024-25') -> list[dict[str, Any]]:
+    """Fetch how each team performs on B2B vs rested (for opponent context)."""
+    from nba_api.stats.endpoints import teamdashboardbygeneralsplits
+
+    all_teams = teams.get_teams()
+    results: list[dict[str, Any]] = []
+
+    def _sf(val, default=0.0):
+        try:
+            return float(val) if val is not None and str(val) not in ('nan', '') else default
+        except Exception:
+            return default
+
+    for t in all_teams:
+        tid = int(t['id'])
+        try:
+            frames = teamdashboardbygeneralsplits.TeamDashboardByGeneralSplits(
+                team_id=tid,
+                season=season,
+                per_mode_overall='PerGame',
+            ).get_data_frames()
+            time.sleep(0.6)
+
+            rest_df = None
+            for frame in frames:
+                if frame.empty:
+                    continue
+                if 'GROUP_SET' in frame.columns:
+                    gsets = [str(v).upper() for v in frame['GROUP_SET'].unique()]
+                    if any('REST' in g for g in gsets):
+                        rest_df = frame
+                        break
+                if 'GROUP_VALUE' in frame.columns:
+                    gvals = [str(v).upper() for v in frame['GROUP_VALUE'].unique()]
+                    if any('REST' in g for g in gvals):
+                        rest_df = frame
+                        break
+
+            if rest_df is None or rest_df.empty:
+                continue
+
+            # filter for rest-day rows
+            gv_col = 'GROUP_VALUE' if 'GROUP_VALUE' in rest_df.columns else rest_df.columns[1]
+            b2b_rows = rest_df[rest_df[gv_col].astype(str).str.upper().str.contains('REST DAYS 0|REST DAYS 1|0 REST|1 REST|BACK TO BACK|B2B', na=False)]
+            rested_rows = rest_df[rest_df[gv_col].astype(str).str.upper().str.contains('REST DAYS 2|REST DAYS 3|2\+ REST|3\+ REST', na=False)]
+
+            def _avg_rows(df_sub, col, default):
+                vals = []
+                for _, row in df_sub.iterrows():
+                    v = _sf(row.get(col), default)
+                    if v != default or col in row:
+                        vals.append(v)
+                return float(sum(vals) / len(vals)) if vals else default
+
+            b2b_def  = _avg_rows(b2b_rows, 'DEF_RATING', 112.0)
+            b2b_pace = _avg_rows(b2b_rows, 'PACE', 100.0)
+            b2b_pts  = _avg_rows(b2b_rows, 'OPP_PTS', 115.0)
+            if b2b_pts == 115.0:
+                b2b_pts = _avg_rows(b2b_rows, 'PTS', 115.0)  # fallback to own pts
+
+            rest_def  = _avg_rows(rested_rows, 'DEF_RATING', 110.0)
+            rest_pace = _avg_rows(rested_rows, 'PACE', 100.0)
+
+            results.append({
+                'team_id': tid,
+                'b2b_def_rating': b2b_def,
+                'b2b_pace': b2b_pace,
+                'b2b_pts_allowed': b2b_pts,
+                'rested_def_rating': rest_def,
+                'rested_pace': rest_pace,
+            })
+        except Exception as e:
+            print(f"compute_team_rest_splits: team {tid} failed: {e}")
+            time.sleep(0.6)
+
+    return results
+
+
+def upsert_team_rest_splits(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO team_rest_splits
+              (team_id, b2b_def_rating, b2b_pace, b2b_pts_allowed,
+               rested_def_rating, rested_pace, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(r['team_id']),
+                float(r.get('b2b_def_rating', 112.0)),
+                float(r.get('b2b_pace', 100.0)),
+                float(r.get('b2b_pts_allowed', 115.0)),
+                float(r.get('rested_def_rating', 110.0)),
+                float(r.get('rested_pace', 100.0)),
+                int(updated_at),
+            ),
+        )
+    conn.commit()
+
+
+def compute_player_yoy(season: str = '2024-25', max_players: int = 400) -> list[dict[str, Any]]:
+    """Fetch year-over-year scoring trajectory for each player."""
+    from nba_api.stats.endpoints import playerdashboardbyyearoveryear
+
+    player_ids = _get_active_player_ids(max_players)
+    results: list[dict[str, Any]] = []
+
+    def _sf(val, default=0.0):
+        try:
+            return float(val) if val is not None and str(val) not in ('nan', '') else default
+        except Exception:
+            return default
+
+    for pid in player_ids:
+        try:
+            frames = playerdashboardbyyearoveryear.PlayerDashboardByYearOverYear(
+                player_id=pid,
+                season=season,
+                per_mode_overall='PerGame',
+            ).get_data_frames()
+            time.sleep(0.6)
+
+            yoy_df = None
+            for frame in frames:
+                if frame.empty:
+                    continue
+                cols_upper = [c.upper() for c in frame.columns]
+                if 'SEASON_ID' in cols_upper and 'PTS' in cols_upper:
+                    yoy_df = frame
+                    break
+
+            if yoy_df is None or yoy_df.empty:
+                continue
+
+            # Sort by SEASON_ID descending (most recent first)
+            season_col = None
+            for c in yoy_df.columns:
+                if 'SEASON_ID' in c.upper() or c.upper() == 'SEASON':
+                    season_col = c
+                    break
+            if season_col is None:
+                continue
+
+            yoy_df = yoy_df.sort_values(season_col, ascending=False).reset_index(drop=True)
+            seasons_count = len(yoy_df)
+
+            if seasons_count < 2:
+                # Only one season — zero change
+                yoy_pts_change = 0.0
+                yoy_ts_change = 0.0
+                yoy_usage_change = 0.0
+            else:
+                curr = yoy_df.iloc[0]
+                prev = yoy_df.iloc[1]
+                yoy_pts_change = _sf(curr.get('PTS', 0.0)) - _sf(prev.get('PTS', 0.0))
+
+                def _ts(row):
+                    pts = _sf(row.get('PTS', 0.0))
+                    fga = _sf(row.get('FGA', 10.0))
+                    fta = _sf(row.get('FTA', 3.0))
+                    denom = 2.0 * (fga + 0.44 * fta)
+                    return (pts / denom) if denom > 0 else 0.55
+
+                yoy_ts_change = _ts(curr) - _ts(prev)
+
+                curr_usg = _sf(curr.get('USG_PCT', curr.get('FGA', 10.0)))
+                prev_usg = _sf(prev.get('USG_PCT', prev.get('FGA', 10.0)))
+                yoy_usage_change = curr_usg - prev_usg
+
+            results.append({
+                'player_id': pid,
+                'yoy_pts_change': yoy_pts_change,
+                'yoy_ts_change': yoy_ts_change,
+                'yoy_usage_change': yoy_usage_change,
+                'seasons_in_league': seasons_count,
+            })
+        except Exception as e:
+            print(f"compute_player_yoy: player {pid} failed: {e}")
+            time.sleep(0.6)
+
+    return results
+
+
+def upsert_player_yoy(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO player_yoy_stats
+              (player_id, yoy_pts_change, yoy_ts_change, yoy_usage_change,
+               seasons_in_league, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(r['player_id']),
+                float(r.get('yoy_pts_change', 0.0)),
+                float(r.get('yoy_ts_change', 0.0)),
+                float(r.get('yoy_usage_change', 0.0)),
+                int(r.get('seasons_in_league', 1)),
+                int(updated_at),
+            ),
+        )
+    conn.commit()
+
+
 def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any]:
     """
     Runs full update and returns summary.
@@ -2323,6 +2669,33 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
     except Exception as _e:
         print(f"player scoring breakdown failed: {_e}")
 
+    player_vs_opp_rows: list[dict[str, Any]] = []
+    try:
+        print("computing player vs opponent splits (up to 400 players)...")
+        player_vs_opp_rows = compute_player_vs_opponent(season=season)
+        upsert_player_vs_opponent(conn, player_vs_opp_rows)
+        print(f"  player vs opponent: {len(player_vs_opp_rows)} rows")
+    except Exception as _e:
+        print(f"player vs opponent failed: {_e}")
+
+    team_rest_rows: list[dict[str, Any]] = []
+    try:
+        print("computing team rest splits (30 teams)...")
+        team_rest_rows = compute_team_rest_splits(season=season)
+        upsert_team_rest_splits(conn, team_rest_rows, updated_at=updated_at)
+        print(f"  team rest splits: {len(team_rest_rows)} rows")
+    except Exception as _e:
+        print(f"team rest splits failed: {_e}")
+
+    player_yoy_rows: list[dict[str, Any]] = []
+    try:
+        print("computing player year-over-year stats (up to 400 players)...")
+        player_yoy_rows = compute_player_yoy(season=season)
+        upsert_player_yoy(conn, player_yoy_rows, updated_at=updated_at)
+        print(f"  player yoy: {len(player_yoy_rows)} rows")
+    except Exception as _e:
+        print(f"player yoy stats failed: {_e}")
+
     conn.close()
     return {
         "season": season,
@@ -2346,6 +2719,9 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         "tracking_rows": len(tracking_rows),
         "standings_rows": len(standings_rows),
         "scoring_breakdown_rows": len(scoring_breakdown_rows),
+        "player_vs_opp_rows": len(player_vs_opp_rows),
+        "team_rest_rows": len(team_rest_rows),
+        "player_yoy_rows": len(player_yoy_rows),
     }
 
 
