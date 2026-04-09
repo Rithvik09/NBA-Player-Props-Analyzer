@@ -749,7 +749,7 @@ class TrainingDataCollector:
                 'opp_road_win_pct': 0.5, 'win_pct_diff': 0.0, 'is_playoff_race_game': 0.0,
                 # Group 3: Scoring Breakdown
                 'pct_pts_3pt': 0.25, 'pct_pts_paint': 0.30, 'pct_pts_ft': 0.15,
-                'pct_pts_midrange': 0.20, 'pct_uast_fgm': 0.40,
+                'pct_pts_midrange': 0.20, 'pct_uast_fgm': 0.40, 'pct_ast_fgm': 0.60,
                 # Group 4: Win/Loss Splits (computed inline)
                 'stat_in_wins': 0.0, 'stat_in_losses': 0.0,
                 'win_loss_performance_split': 0.0, 'over_rate_in_wins': 0.5,

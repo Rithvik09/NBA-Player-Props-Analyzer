@@ -854,6 +854,7 @@ class EnhancedMLPredictor:
             'pct_pts_ft':       float(player_stats.get('pct_pts_ft', 0.15)),
             'pct_pts_midrange': float(player_stats.get('pct_pts_midrange', 0.20)),
             'pct_uast_fgm':     float(player_stats.get('pct_uast_fgm', 0.40)),
+            'pct_ast_fgm':      float(player_stats.get('pct_ast_fgm', 0.60)),
         })
         # ---- Group 4: Win/Loss Performance Splits ----
         features.update({
@@ -884,7 +885,7 @@ class EnhancedMLPredictor:
             'clutch_efficiency_delta': float(player_stats.get('clutch_pts_per_game', 0.0)) / max(float(player_stats.get('season_avg', 1.0)), 0.1) - 1.0,
             'rim_volume_quality': float(player_stats.get('rim_fga_pct', 0.25)) * max(float(player_stats.get('rim_shot_quality_matchup', 0.0)) + 1.0, 0.1),
             'play_specialization_score': max(float(player_stats.get('iso_poss_pct', 0.0)), float(player_stats.get('pnr_bh_poss_pct', 0.0)), float(player_stats.get('spotup_poss_pct', 0.0)), float(player_stats.get('transition_poss_pct', 0.0)), float(player_stats.get('postup_poss_pct', 0.0))),
-            'best_play_type_ppp': max(float(player_stats.get('iso_ppp', 0.0)), float(player_stats.get('pnr_bh_ppp', 0.0)), float(player_stats.get('spotup_ppp', 0.0)), float(player_stats.get('transition_ppp', 0.0))),
+            'best_play_type_ppp': max(float(player_stats.get('iso_ppp', 0.9)), float(player_stats.get('pnr_bh_ppp', 0.9)), float(player_stats.get('spotup_ppp', 0.9)), float(player_stats.get('transition_ppp', 0.9))),
             'ts_vs_zone_expected': float(player_stats.get('ts_pct_official', 0.55)) - (
                 float(player_stats.get('rim_fga_pct', 0.25)) * 0.67 +
                 float(player_stats.get('paint_fga_pct', 0.30)) * 0.55 +
