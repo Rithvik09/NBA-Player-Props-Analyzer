@@ -877,6 +877,47 @@ class EnhancedMLPredictor:
             'form_momentum':             float(player_stats.get('form_momentum', 0.0)),
         })
 
+        # ---- Group A: Derived Efficiency Features (computed from existing player_stats keys) ----
+        features.update({
+            'touch_efficiency': min(float(player_stats.get('tracking_passes_made_pg', 0.0)) / max(float(player_stats.get('tracking_touches_pg', 1.0)), 1.0), 1.0),
+            'pace_adjusted_variance': float(player_stats.get('stddev', 2.0)) * (100.0 / max(float(player_stats.get('team_pace', 100.0)), 80.0)),
+            'clutch_efficiency_delta': float(player_stats.get('clutch_pts_per_game', 0.0)) / max(float(player_stats.get('season_avg', 1.0)), 0.1) - 1.0,
+            'rim_volume_quality': float(player_stats.get('rim_fga_pct', 0.25)) * max(float(player_stats.get('rim_shot_quality_matchup', 0.0)) + 1.0, 0.1),
+            'play_specialization_score': max(float(player_stats.get('iso_poss_pct', 0.0)), float(player_stats.get('pnr_bh_poss_pct', 0.0)), float(player_stats.get('spotup_poss_pct', 0.0)), float(player_stats.get('transition_poss_pct', 0.0)), float(player_stats.get('postup_poss_pct', 0.0))),
+            'best_play_type_ppp': max(float(player_stats.get('iso_ppp', 0.0)), float(player_stats.get('pnr_bh_ppp', 0.0)), float(player_stats.get('spotup_ppp', 0.0)), float(player_stats.get('transition_ppp', 0.0))),
+            'ts_vs_zone_expected': float(player_stats.get('ts_pct_official', 0.55)) - (
+                float(player_stats.get('rim_fga_pct', 0.25)) * 0.67 +
+                float(player_stats.get('paint_fga_pct', 0.30)) * 0.55 +
+                float(player_stats.get('midrange_fga_pct', 0.20)) * 0.42 +
+                float(player_stats.get('corner3_fga_pct', 0.10)) * 0.38 +
+                float(player_stats.get('above_break3_fga_pct', 0.25)) * 0.36
+            ),
+            'usage_stability': max(0.0, 1.0 - min(abs(float(player_stats.get('usage_trend', 0.0))), 0.05) / 0.05),
+            'recent_form_confidence': min(float(player_stats.get('games_played', 5)), 20.0) / 20.0,
+            'def_toughness_composite': (float(player_stats.get('opp_def_rating_last5', 110.0)) / 100.0) * (1.0 - float(player_stats.get('opp_fg_pct', 0.47))),
+            'load_efficiency_ratio': float(player_stats.get('points_per_shot', 1.0)) / max(float(player_stats.get('fga_per_game', 10.0)) / max(float(player_stats.get('avg_minutes', 30.0)), 1.0), 0.1),
+            'tracking_dist_per_touch': float(player_stats.get('tracking_dist_miles', 2.5)) / max(float(player_stats.get('tracking_touches_pg', 50.0)), 1.0),
+        })
+
+        # ---- Groups B/C/D: Historical vs Opponent, Team Rest Splits, YoY Stats ----
+        features.update({
+            'historical_avg_vs_opp':       float(player_stats.get('historical_avg_vs_opp', 0.0)),
+            'historical_fg_pct_vs_opp':    float(player_stats.get('historical_fg_pct_vs_opp', 0.45)),
+            'historical_ts_pct_vs_opp':    float(player_stats.get('historical_ts_pct_vs_opp', 0.55)),
+            'historical_games_vs_opp':     float(player_stats.get('historical_games_vs_opp', 0)),
+            'historical_min_vs_opp':       float(player_stats.get('historical_min_vs_opp', 30.0)),
+            'opp_b2b_def_rating':          float(player_stats.get('opp_b2b_def_rating', 112.0)),
+            'opp_b2b_pace':                float(player_stats.get('opp_b2b_pace', 100.0)),
+            'opp_b2b_pts_allowed':         float(player_stats.get('opp_b2b_pts_allowed', 115.0)),
+            'opp_rested_def_rating':       float(player_stats.get('opp_rested_def_rating', 110.0)),
+            'opp_rested_pace':             float(player_stats.get('opp_rested_pace', 100.0)),
+            'opp_rest_def_rating_delta':   float(player_stats.get('opp_rest_def_rating_delta', 2.0)),
+            'yoy_pts_change':              float(player_stats.get('yoy_pts_change', 0.0)),
+            'yoy_ts_change':               float(player_stats.get('yoy_ts_change', 0.0)),
+            'yoy_usage_change':            float(player_stats.get('yoy_usage_change', 0.0)),
+            'seasons_in_league':           float(player_stats.get('seasons_in_league', 5)),
+        })
+
         # ---- player context (matchup history + position defence) ----
         if player_context:
             matchup_history = player_context.get('matchup_history') or {}
