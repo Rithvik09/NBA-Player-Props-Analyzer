@@ -1508,6 +1508,11 @@ def compute_quarter_splits(season: str, player_ids: list[int] | None = None) -> 
         '2ND': 'q2_avg',
         '3RD': 'q3_avg',
         '4TH': 'q4_avg',
+        # Numeric period labels (e.g. "1", "2", "3", "4") from Period split frame
+        '1': 'q1_avg',
+        '2': 'q2_avg',
+        '3': 'q3_avg',
+        '4': 'q4_avg',
     }
 
     for pid in player_ids:
@@ -1526,8 +1531,12 @@ def compute_quarter_splits(season: str, player_ids: list[int] | None = None) -> 
                     continue
                 cols_upper = [c.upper() for c in frame.columns]
                 if 'GROUP_VALUE' in cols_upper:
-                    gvs = [str(v).upper() for v in frame.get('GROUP_VALUE', [])]
-                    if any('QTR' in g or 'PERIOD' in g or '1ST' in g for g in gvs):
+                    gvs = [str(v).strip().upper() for v in frame.get('GROUP_VALUE', [])]
+                    # Match period/quarter frames by GROUP_SET or by GROUP_VALUE content
+                    group_set = str(frame['GROUP_SET'].iloc[0]).upper() if 'GROUP_SET' in frame.columns and len(frame) > 0 else ''
+                    if ('PERIOD' in group_set or
+                            any('QTR' in g or 'PERIOD' in g or '1ST' in g for g in gvs) or
+                            set(gvs) & {'1', '2', '3', '4'}):
                         period_df = frame
                         break
 
@@ -2165,6 +2174,7 @@ def compute_player_scoring_breakdown(season: str = '2024-25') -> list[dict[str, 
             season=season,
             measure_type_detailed_defense='Scoring',
             per_mode_detailed='PerGame',
+            timeout=15,
         ).get_data_frames()[0]
         time.sleep(1.2)
     except Exception as e:
