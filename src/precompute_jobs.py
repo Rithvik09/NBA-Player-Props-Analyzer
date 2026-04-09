@@ -668,7 +668,7 @@ def compute_team_foul_rates(season: str) -> list[dict[str, Any]]:
     """
     try:
         season_df = leaguedashteamstats.LeagueDashTeamStats(
-            season=season, measure_type_detailed="Base"
+            season=season, measure_type_detailed_defense="Base"
         ).get_data_frames()[0]
         time.sleep(1.0)
     except Exception:
@@ -676,7 +676,7 @@ def compute_team_foul_rates(season: str) -> list[dict[str, Any]]:
 
     try:
         last5_df = leaguedashteamstats.LeagueDashTeamStats(
-            season=season, measure_type_detailed="Base", last_n_games=5
+            season=season, measure_type_detailed_defense="Base", last_n_games=5
         ).get_data_frames()[0]
         time.sleep(1.0)
     except Exception:
@@ -726,7 +726,7 @@ def compute_team_stats(season: str) -> list[dict[str, Any]]:
     # 1. Base stats (fouls) — full season
     try:
         df_base = leaguedashteamstats.LeagueDashTeamStats(
-            season=season, measure_type_detailed='Base'
+            season=season, measure_type_detailed_defense='Base'
         ).get_data_frames()[0]
         time.sleep(1.2)
         for _, row in df_base.iterrows():
@@ -741,7 +741,7 @@ def compute_team_stats(season: str) -> list[dict[str, Any]]:
     # 2. Scoring stats (pts_fb, pts_off_tov)
     try:
         df_scoring = leaguedashteamstats.LeagueDashTeamStats(
-            season=season, measure_type_detailed='Scoring'
+            season=season, measure_type_detailed_defense='Scoring'
         ).get_data_frames()[0]
         time.sleep(1.2)
         for _, row in df_scoring.iterrows():
@@ -757,7 +757,7 @@ def compute_team_stats(season: str) -> list[dict[str, Any]]:
     # 3. Opponent stats (full season)
     try:
         df_opp = leaguedashteamstats.LeagueDashTeamStats(
-            season=season, measure_type_detailed='Opponent'
+            season=season, measure_type_detailed_defense='Opponent'
         ).get_data_frames()[0]
         time.sleep(1.2)
         for _, row in df_opp.iterrows():
@@ -783,7 +783,7 @@ def compute_team_stats(season: str) -> list[dict[str, Any]]:
     # 4. Opponent last-5 games (defensive trend)
     try:
         df_opp5 = leaguedashteamstats.LeagueDashTeamStats(
-            season=season, measure_type_detailed='Opponent', last_n_games=5
+            season=season, measure_type_detailed_defense='Opponent', last_n_games=5
         ).get_data_frames()[0]
         time.sleep(1.2)
         for _, row in df_opp5.iterrows():
@@ -802,7 +802,7 @@ def compute_team_stats(season: str) -> list[dict[str, Any]]:
     # 5. Base last-5 games (foul rate trend)
     try:
         df_base5 = leaguedashteamstats.LeagueDashTeamStats(
-            season=season, measure_type_detailed='Base', last_n_games=5
+            season=season, measure_type_detailed_defense='Base', last_n_games=5
         ).get_data_frames()[0]
         time.sleep(1.2)
         for _, row in df_base5.iterrows():
@@ -915,7 +915,7 @@ def compute_rolling_dvp(season: str) -> list[dict[str, Any]]:
         try:
             kwargs: dict[str, Any] = {
                 "season": season,
-                "measure_type_detailed": "Opponent",
+                "measure_type_detailed_defense": "Opponent",
             }
             if window > 0:
                 kwargs["last_n_games"] = window
@@ -1037,7 +1037,7 @@ def compute_advanced_player_stats(season: str) -> list[dict[str, Any]]:
     try:
         adv_df = leaguedashplayerstats.LeagueDashPlayerStats(
             season=season,
-            measure_type_detailed='Advanced',
+            measure_type_detailed_defense='Advanced',
             per_mode_detailed='PerGame',
         ).get_data_frames()[0]
         time.sleep(1.0)
