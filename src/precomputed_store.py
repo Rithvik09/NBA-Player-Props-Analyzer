@@ -497,6 +497,8 @@ class PrecomputedStore:
                     'tracking_touches_pg':        float(touches) if touches  is not None else 50.0,
                     'tracking_time_of_poss_pg':   float(top)     if top      is not None else 2.5,
                     'tracking_avg_drib_per_touch': float(drib)   if drib     is not None else 1.5,
+                    'tracking_paint_touches_pg':  float(paint_t) if paint_t  is not None else 2.0,
+                    'tracking_elbow_touches_pg':  float(elbow_t) if elbow_t  is not None else 1.5,
                     'tracking_passes_made_pg':    float(passes)  if passes   is not None else 30.0,
                     'tracking_potential_ast_pg':  float(pot_ast) if pot_ast  is not None else 5.0,
                     'tracking_secondary_ast_pg':  float(sec_ast) if sec_ast  is not None else 1.0,

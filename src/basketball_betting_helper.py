@@ -1444,13 +1444,13 @@ class BasketballBettingHelper:
                 _sb = _pre.get('player_scoring_breakdown', {}).get(_pid_int3, {})
                 for _k, _dk in [
                     ('pct_pts_3pt', 0.25), ('pct_pts_paint', 0.30), ('pct_pts_ft', 0.15),
-                    ('pct_pts_midrange', 0.20), ('pct_uast_fgm', 0.40),
+                    ('pct_pts_midrange', 0.20), ('pct_uast_fgm', 0.40), ('pct_ast_fgm', 0.60),
                 ]:
                     stat_data[_k] = float(_sb.get(_k, _dk))
             except Exception:
                 for _k, _dk in [
                     ('pct_pts_3pt', 0.25), ('pct_pts_paint', 0.30), ('pct_pts_ft', 0.15),
-                    ('pct_pts_midrange', 0.20), ('pct_uast_fgm', 0.40),
+                    ('pct_pts_midrange', 0.20), ('pct_uast_fgm', 0.40), ('pct_ast_fgm', 0.60),
                 ]:
                     stat_data.setdefault(_k, _dk)
 

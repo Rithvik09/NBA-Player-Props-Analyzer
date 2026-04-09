@@ -29,7 +29,7 @@ from nba_api.stats.endpoints import (
     playerdashboardbyshootingsplits,
     playerdashboardbygamesplits,
     commonallplayers,
-    leaguedashplayertracking,
+    leaguedashptstats,
     leaguestandingsv3,
 )
 from nba_api.stats.static import teams
@@ -1920,7 +1920,8 @@ def compute_player_tracking(season: str = '2024-25') -> list[dict[str, Any]]:
 
     # 1. SpeedDistance
     try:
-        df = leaguedashplayertracking.LeagueDashPlayerTracking(
+        df = leaguedashptstats.LeagueDashPtStats(
+            player_or_team='Player',
             season=season,
             pt_measure_type='SpeedDistance',
             per_mode_simple='PerGame',
@@ -1945,7 +1946,8 @@ def compute_player_tracking(season: str = '2024-25') -> list[dict[str, Any]]:
 
     # 2. Possessions
     try:
-        df = leaguedashplayertracking.LeagueDashPlayerTracking(
+        df = leaguedashptstats.LeagueDashPtStats(
+            player_or_team='Player',
             season=season,
             pt_measure_type='Possessions',
             per_mode_simple='PerGame',
@@ -1969,7 +1971,8 @@ def compute_player_tracking(season: str = '2024-25') -> list[dict[str, Any]]:
 
     # 3. Passing
     try:
-        df = leaguedashplayertracking.LeagueDashPlayerTracking(
+        df = leaguedashptstats.LeagueDashPtStats(
+            player_or_team='Player',
             season=season,
             pt_measure_type='Passing',
             per_mode_simple='PerGame',
@@ -2208,77 +2211,44 @@ def upsert_player_scoring_breakdown(conn: sqlite3.Connection, rows: list[dict[st
 
 
 def compute_player_vs_opponent(season: str = '2024-25', max_players: int = 400) -> list[dict[str, Any]]:
-    """Fetch each player's splits vs each opponent team."""
-    from nba_api.stats.endpoints import playerdashboardbyopponent
+    """Fetch each player's historical splits vs each opponent team via game log aggregation."""
+    from nba_api.stats.endpoints import playergamelog
+
+    # Build team abbreviation -> team_id map
+    all_nba_teams = teams.get_teams()
+    abbrev_to_id = {t['abbreviation']: t['id'] for t in all_nba_teams}
 
     player_ids = _get_active_player_ids(max_players)
     results: list[dict[str, Any]] = []
 
-    def _sf(val, default=0.0):
-        try:
-            return float(val) if val is not None and str(val) not in ('nan', '') else default
-        except Exception:
-            return default
-
     for pid in player_ids:
         try:
-            frames = playerdashboardbyopponent.PlayerDashboardByOpponent(
-                player_id=pid,
-                season=season,
-                per_mode_overall='PerGame',
-            ).get_data_frames()
+            df = playergamelog.PlayerGameLog(player_id=pid, season=season).get_data_frames()[0]
             time.sleep(0.6)
-
-            opp_df = None
-            for frame in frames:
-                if frame.empty:
-                    continue
-                cols_upper = [c.upper() for c in frame.columns]
-                if 'OPPONENT_TEAM_ID' in cols_upper or 'VS_PLAYER_ID' in cols_upper:
-                    opp_df = frame
-                    break
-                # try index 2 as suggested
-            if opp_df is None and len(frames) > 2:
-                opp_df = frames[2] if not frames[2].empty else None
-
-            if opp_df is None or opp_df.empty:
+            if df.empty:
                 continue
 
-            # Find opponent team id column
-            opp_tid_col = None
-            for c in opp_df.columns:
-                if 'OPPONENT_TEAM_ID' in c.upper() or ('OPP' in c.upper() and 'ID' in c.upper()):
-                    opp_tid_col = c
-                    break
+            # MATCHUP format: "TOR vs. BOS" or "TOR @ BOS" — opponent is last token
+            df = df.copy()
+            df['OPP_ABBREV'] = df['MATCHUP'].apply(lambda m: str(m).split()[-1])
 
-            if opp_tid_col is None:
-                continue
-
-            for _, row in opp_df.iterrows():
-                try:
-                    opp_tid = int(row[opp_tid_col])
-                    if opp_tid == 0:
-                        continue
-                    gp = int(_sf(row.get('GP', 0)))
-                    pts = _sf(row.get('PTS', 0.0))
-                    fg_pct = _sf(row.get('FG_PCT', 0.45))
-                    # TS% = PTS / (2 * (FGA + 0.44 * FTA))
-                    fga = _sf(row.get('FGA', 10.0))
-                    fta = _sf(row.get('FTA', 3.0))
-                    denom = 2.0 * (fga + 0.44 * fta)
-                    ts_pct = (pts / denom) if denom > 0 else 0.55
-                    avg_min = _sf(row.get('MIN', 30.0))
-                    results.append({
-                        'player_id': pid,
-                        'opponent_team_id': opp_tid,
-                        'gp': gp,
-                        'avg_stat_pts': pts,
-                        'fg_pct': fg_pct,
-                        'ts_pct': ts_pct,
-                        'avg_min': avg_min,
-                    })
-                except Exception:
+            for opp_abbrev, group in df.groupby('OPP_ABBREV'):
+                opp_id = abbrev_to_id.get(opp_abbrev, 0)
+                if opp_id == 0:
                     continue
+                gp  = len(group)
+                pts = float(group['PTS'].mean()) if 'PTS' in group.columns else 0.0
+                fg_pct = float(group['FG_PCT'].mean()) if 'FG_PCT' in group.columns else 0.45
+                fga = float(group['FGA'].mean()) if 'FGA' in group.columns else 10.0
+                fta = float(group['FTA'].mean()) if 'FTA' in group.columns else 3.0
+                denom  = 2.0 * (fga + 0.44 * fta)
+                ts_pct = pts / denom if denom > 0 else 0.55
+                avg_min = float(group['MIN'].mean()) if 'MIN' in group.columns else 30.0
+                results.append({
+                    'player_id': pid, 'opponent_team_id': opp_id,
+                    'gp': gp, 'avg_stat_pts': pts, 'fg_pct': fg_pct,
+                    'ts_pct': ts_pct, 'avg_min': avg_min,
+                })
         except Exception as e:
             print(f"compute_player_vs_opponent: player {pid} failed: {e}")
             time.sleep(0.6)
