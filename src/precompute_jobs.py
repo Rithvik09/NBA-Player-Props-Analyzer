@@ -1521,7 +1521,7 @@ def compute_quarter_splits(season: str, player_ids: list[int] | None = None) -> 
                 player_id=pid,
                 season=season,
                 per_mode_detailed='PerGame',
-                timeout=10,
+                timeout=20,
             ).get_data_frames()
             time.sleep(1.2)
 
