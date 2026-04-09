@@ -697,6 +697,37 @@ class TrainingDataCollector:
                 'opp_postup_ppp_allowed': 0.9, 'pnr_matchup_advantage': 0.0,
                 'iso_matchup_advantage': 0.0, 'spotup_matchup_advantage': 0.0,
                 'transition_matchup_advantage': 0.0,
+                # Group A: Derived Efficiency Features
+                'touch_efficiency': 0.5,
+                'pace_adjusted_variance': 2.0,
+                'clutch_efficiency_delta': 0.0,
+                'rim_volume_quality': 0.25,
+                'play_specialization_score': 0.2,
+                'best_play_type_ppp': 0.9,
+                'ts_vs_zone_expected': 0.0,
+                'usage_stability': 0.5,
+                'recent_form_confidence': 0.75,
+                'def_toughness_composite': 0.55,
+                'load_efficiency_ratio': 1.0,
+                'tracking_dist_per_touch': 0.05,
+                # Group B: Historical vs Opponent
+                'historical_avg_vs_opp': 0.0,
+                'historical_fg_pct_vs_opp': 0.45,
+                'historical_ts_pct_vs_opp': 0.55,
+                'historical_games_vs_opp': 0,
+                'historical_min_vs_opp': 30.0,
+                # Group C: Team Rest Splits
+                'opp_b2b_def_rating': 112.0,
+                'opp_b2b_pace': 100.0,
+                'opp_b2b_pts_allowed': 115.0,
+                'opp_rested_def_rating': 110.0,
+                'opp_rested_pace': 100.0,
+                'opp_rest_def_rating_delta': 2.0,
+                # Group D: YoY Stats
+                'yoy_pts_change': 0.0,
+                'yoy_ts_change': 0.0,
+                'yoy_usage_change': 0.0,
+                'seasons_in_league': 5,
             }
             for _k, _dv in _new_defaults.items():
                 features.setdefault(_k, _dv)
