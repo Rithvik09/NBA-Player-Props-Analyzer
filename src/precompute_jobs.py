@@ -2410,7 +2410,7 @@ def compute_player_yoy(season: str = '2024-25', max_players: int = 400) -> list[
                 player_id=pid,
                 season=season,
                 per_mode_detailed='PerGame',
-                timeout=10,
+                timeout=20,
             ).get_data_frames()
             time.sleep(1.2)
 
