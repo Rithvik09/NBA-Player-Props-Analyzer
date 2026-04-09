@@ -249,8 +249,8 @@ def build_training_examples(
             ceiling_games = (hist["PTS"] >= ceiling_threshold).sum() if "PTS" in hist.columns else 0
             ceiling_game_frequency = ceiling_games / max(len(hist), 1)
 
-            team_ctx = predictor.get_team_context(team_id, include_injuries=False, season=season)
-            opp_ctx = predictor.get_team_context(opp_id, include_injuries=False, season=season)
+            team_ctx = predictor.get_team_context(team_id)
+            opp_ctx = predictor.get_team_context(opp_id)
 
             team_style = (team_ctx or {}).get("style", {}) or {}
             opp_style = (opp_ctx or {}).get("style", {}) or {}
