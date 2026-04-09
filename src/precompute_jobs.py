@@ -1405,7 +1405,7 @@ def compute_shot_zone_breakdown(season: str, player_ids: list[int] | None = None
             frames = playerdashboardbyshootingsplits.PlayerDashboardByShootingSplits(
                 player_id=pid,
                 season=season,
-                per_mode_overall='PerGame',
+                per_mode_detailed='PerGame',
             ).get_data_frames()
             time.sleep(0.6)
 
@@ -1514,7 +1514,7 @@ def compute_quarter_splits(season: str, player_ids: list[int] | None = None) -> 
             frames = playerdashboardbygamesplits.PlayerDashboardByGameSplits(
                 player_id=pid,
                 season=season,
-                per_mode_overall='PerGame',
+                per_mode_detailed='PerGame',
             ).get_data_frames()
             time.sleep(0.6)
 
@@ -2297,7 +2297,7 @@ def compute_team_rest_splits(season: str = '2024-25') -> list[dict[str, Any]]:
             frames = teamdashboardbygeneralsplits.TeamDashboardByGeneralSplits(
                 team_id=tid,
                 season=season,
-                per_mode_overall='PerGame',
+                per_mode_detailed='PerGame',
             ).get_data_frames()
             time.sleep(0.6)
 
@@ -2397,7 +2397,7 @@ def compute_player_yoy(season: str = '2024-25', max_players: int = 400) -> list[
             frames = playerdashboardbyyearoveryear.PlayerDashboardByYearOverYear(
                 player_id=pid,
                 season=season,
-                per_mode_overall='PerGame',
+                per_mode_detailed='PerGame',
             ).get_data_frames()
             time.sleep(0.6)
 
