@@ -449,7 +449,7 @@ def _pos_group(position: str | None) -> str:
 def compute_special_defenders(season: str) -> list[dict[str, Any]]:
     d = leaguedashplayerstats.LeagueDashPlayerStats(season=season, measure_type_detailed_defense="Defense")
     df = d.get_data_frames()[0]
-    time.sleep(0.5)
+    time.sleep(1.0)
 
     df["MPG"] = df["MIN"] / df["GP"].replace(0, 1)
     df = df[df["GP"] >= 8]
@@ -480,7 +480,7 @@ def compute_special_defenders(season: str) -> list[dict[str, Any]]:
         try:
             roster = CommonTeamRoster(team_id=team_id, timeout=60).get_data_frames()[0]
             roster_pos_group[team_id] = {int(r["PLAYER_ID"]): _pos_group(r.get("POSITION")) for _, r in roster.iterrows()}
-            time.sleep(0.35)
+            time.sleep(0.8)
         except Exception:
             roster_pos_group[team_id] = {}
             continue
@@ -670,7 +670,7 @@ def compute_team_foul_rates(season: str) -> list[dict[str, Any]]:
         season_df = leaguedashteamstats.LeagueDashTeamStats(
             season=season, measure_type_detailed="Base"
         ).get_data_frames()[0]
-        time.sleep(0.5)
+        time.sleep(1.0)
     except Exception:
         return []
 
@@ -678,7 +678,7 @@ def compute_team_foul_rates(season: str) -> list[dict[str, Any]]:
         last5_df = leaguedashteamstats.LeagueDashTeamStats(
             season=season, measure_type_detailed="Base", last_n_games=5
         ).get_data_frames()[0]
-        time.sleep(0.5)
+        time.sleep(1.0)
     except Exception:
         last5_df = None
 
@@ -728,7 +728,7 @@ def compute_team_stats(season: str) -> list[dict[str, Any]]:
         df_base = leaguedashteamstats.LeagueDashTeamStats(
             season=season, measure_type_detailed='Base'
         ).get_data_frames()[0]
-        time.sleep(0.6)
+        time.sleep(1.2)
         for _, row in df_base.iterrows():
             tid = int(row['TEAM_ID'])
             gp = max(int(row.get('GP', 1) or 1), 1)
@@ -743,7 +743,7 @@ def compute_team_stats(season: str) -> list[dict[str, Any]]:
         df_scoring = leaguedashteamstats.LeagueDashTeamStats(
             season=season, measure_type_detailed='Scoring'
         ).get_data_frames()[0]
-        time.sleep(0.6)
+        time.sleep(1.2)
         for _, row in df_scoring.iterrows():
             tid = int(row['TEAM_ID'])
             gp = max(int(row.get('GP', 1) or 1), 1)
@@ -759,7 +759,7 @@ def compute_team_stats(season: str) -> list[dict[str, Any]]:
         df_opp = leaguedashteamstats.LeagueDashTeamStats(
             season=season, measure_type_detailed='Opponent'
         ).get_data_frames()[0]
-        time.sleep(0.6)
+        time.sleep(1.2)
         for _, row in df_opp.iterrows():
             tid = int(row['TEAM_ID'])
             gp = max(int(row.get('GP', 1) or 1), 1)
@@ -785,7 +785,7 @@ def compute_team_stats(season: str) -> list[dict[str, Any]]:
         df_opp5 = leaguedashteamstats.LeagueDashTeamStats(
             season=season, measure_type_detailed='Opponent', last_n_games=5
         ).get_data_frames()[0]
-        time.sleep(0.6)
+        time.sleep(1.2)
         for _, row in df_opp5.iterrows():
             tid = int(row['TEAM_ID'])
             gp = max(int(row.get('GP', 1) or 1), 1)
@@ -804,7 +804,7 @@ def compute_team_stats(season: str) -> list[dict[str, Any]]:
         df_base5 = leaguedashteamstats.LeagueDashTeamStats(
             season=season, measure_type_detailed='Base', last_n_games=5
         ).get_data_frames()[0]
-        time.sleep(0.6)
+        time.sleep(1.2)
         for _, row in df_base5.iterrows():
             tid = int(row['TEAM_ID'])
             gp = max(int(row.get('GP', 1) or 1), 1)
@@ -920,7 +920,7 @@ def compute_rolling_dvp(season: str) -> list[dict[str, Any]]:
             if window > 0:
                 kwargs["last_n_games"] = window
             df = leaguedashteamstats.LeagueDashTeamStats(**kwargs).get_data_frames()[0]
-            time.sleep(0.5)
+            time.sleep(1.0)
             return df
         except Exception:
             return None
@@ -1040,7 +1040,7 @@ def compute_advanced_player_stats(season: str) -> list[dict[str, Any]]:
             measure_type_detailed='Advanced',
             per_mode_detailed='PerGame',
         ).get_data_frames()[0]
-        time.sleep(0.5)
+        time.sleep(1.0)
         for _, row in adv_df.iterrows():
             pid = int(row['PLAYER_ID'])
             oreb = _sf(row.get('OREB_PCT', 0))
@@ -1069,7 +1069,7 @@ def compute_advanced_player_stats(season: str) -> list[dict[str, Any]]:
             season=season,
             per_mode_simple='PerGame',
         ).get_data_frames()[0]
-        time.sleep(0.5)
+        time.sleep(1.0)
         for _, row in bio_df.iterrows():
             pid = int(row['PLAYER_ID'])
             draft_year = row.get('DRAFT_YEAR', 0)
@@ -1120,9 +1120,9 @@ def compute_clutch_stats(season: str) -> list[dict[str, Any]]:
     try:
         df = leaguedashplayerclutch.LeagueDashPlayerClutch(
             season=season,
-            per_mode_simple='PerGame',
+            per_mode_detailed='PerGame',
         ).get_data_frames()[0]
-        time.sleep(0.5)
+        time.sleep(1.0)
     except Exception as e:
         print(f"compute_clutch_stats: fetch failed: {e}")
         return []
@@ -1155,7 +1155,7 @@ def compute_hustle_stats(season: str) -> list[dict[str, Any]]:
             season=season,
             per_mode_time='PerGame',
         ).get_data_frames()[0]
-        time.sleep(0.5)
+        time.sleep(1.0)
     except Exception as e:
         print(f"compute_hustle_stats: fetch failed: {e}")
         return []
@@ -1187,7 +1187,7 @@ def compute_shot_profile(season: str) -> list[dict[str, Any]]:
                 per_mode_simple='PerGame',
                 **kwargs,
             ).get_data_frames()[0]
-            time.sleep(0.5)
+            time.sleep(1.0)
             return df
         except Exception as e:
             print(f"compute_shot_profile: fetch failed {kwargs}: {e}")
@@ -1255,13 +1255,13 @@ def compute_synergy_play_types(season: str) -> list[dict[str, Any]]:
     for pt, (pct_key, ppp_key) in play_type_map.items():
         try:
             df = synergyplaytypes.SynergyPlayTypes(
-                season_year_nullable=season,
+                season=season,
                 play_type_nullable=pt,
                 player_or_team_abbreviation='P',
                 type_grouping_nullable='offensive',
-                per_mode_simple_nullable='PerGame',
+                per_mode_simple='PerGame',
             ).get_data_frames()[0]
-            time.sleep(0.5)
+            time.sleep(1.0)
             for _, row in df.iterrows():
                 try:
                     pid = int(row.get('PLAYER_ID', 0) or row.get('ENTITY_ID', 0) or 0)
@@ -1275,7 +1275,7 @@ def compute_synergy_play_types(season: str) -> list[dict[str, Any]]:
                     continue
         except Exception as e:
             print(f"compute_synergy_play_types: fetch failed for {pt}: {e}")
-            time.sleep(0.5)
+            time.sleep(1.0)
 
     results: list[dict[str, Any]] = []
     for pid, data in player_data.items():
@@ -1306,9 +1306,9 @@ def compute_on_off_ratings(season: str) -> list[dict[str, Any]]:
         try:
             frames = teamplayeronoffsummary.TeamPlayerOnOffSummary(
                 team_id=team_id,
-                season_nullable=season,
+                season=season,
             ).get_data_frames()
-            time.sleep(0.35)
+            time.sleep(0.8)
 
             # Look for the on-court frame and off-court frame
             on_df = None
@@ -1374,7 +1374,7 @@ def compute_on_off_ratings(season: str) -> list[dict[str, Any]]:
                 })
         except Exception as e:
             print(f"compute_on_off_ratings: team {team_id} failed: {e}")
-            time.sleep(0.35)
+            time.sleep(0.8)
 
     return results
 
@@ -1385,7 +1385,7 @@ def _get_active_player_ids(limit: int = 400) -> list[int]:
         df = commonallplayers.CommonAllPlayers(
             is_only_current_season=1,
         ).get_data_frames()[0]
-        time.sleep(0.5)
+        time.sleep(1.0)
         pids = [int(r['PERSON_ID']) for _, r in df.iterrows()]
         return pids[:limit]
     except Exception as e:
@@ -1407,7 +1407,7 @@ def compute_shot_zone_breakdown(season: str, player_ids: list[int] | None = None
                 season=season,
                 per_mode_detailed='PerGame',
             ).get_data_frames()
-            time.sleep(0.6)
+            time.sleep(1.2)
 
             zone_df = None
             for frame in frames:
@@ -1486,7 +1486,7 @@ def compute_shot_zone_breakdown(season: str, player_ids: list[int] | None = None
             })
         except Exception as e:
             print(f"compute_shot_zone_breakdown: player {pid} failed: {e}")
-            time.sleep(0.6)
+            time.sleep(1.2)
 
     return results
 
@@ -1516,7 +1516,7 @@ def compute_quarter_splits(season: str, player_ids: list[int] | None = None) -> 
                 season=season,
                 per_mode_detailed='PerGame',
             ).get_data_frames()
-            time.sleep(0.6)
+            time.sleep(1.2)
 
             period_df = None
             for frame in frames:
@@ -1561,7 +1561,7 @@ def compute_quarter_splits(season: str, player_ids: list[int] | None = None) -> 
             })
         except Exception as e:
             print(f"compute_quarter_splits: player {pid} failed: {e}")
-            time.sleep(0.6)
+            time.sleep(1.2)
 
     return results
 
@@ -1573,7 +1573,7 @@ def compute_opp_shot_zones(season: str) -> list[dict[str, Any]]:
             season=season,
             per_mode_simple='PerGame',
         ).get_data_frames()[0]
-        time.sleep(0.5)
+        time.sleep(1.0)
     except Exception as e:
         print(f"compute_opp_shot_zones: fetch failed: {e}")
         return []
@@ -1636,13 +1636,13 @@ def compute_synergy_team_defense(season: str) -> list[dict[str, Any]]:
     for pt, key in play_type_map.items():
         try:
             df = synergyplaytypes.SynergyPlayTypes(
-                season_year_nullable=season,
+                season=season,
                 play_type_nullable=pt,
                 player_or_team_abbreviation='T',
                 type_grouping_nullable='defensive',
-                per_mode_simple_nullable='PerGame',
+                per_mode_simple='PerGame',
             ).get_data_frames()[0]
-            time.sleep(0.5)
+            time.sleep(1.0)
             for _, row in df.iterrows():
                 try:
                     tid = int(row.get('TEAM_ID', 0) or 0)
@@ -1655,7 +1655,7 @@ def compute_synergy_team_defense(season: str) -> list[dict[str, Any]]:
                     continue
         except Exception as e:
             print(f"compute_synergy_team_defense: fetch failed for {pt}: {e}")
-            time.sleep(0.5)
+            time.sleep(1.0)
 
     results: list[dict[str, Any]] = []
     for tid, data in team_data.items():
@@ -1926,7 +1926,7 @@ def compute_player_tracking(season: str = '2024-25') -> list[dict[str, Any]]:
             pt_measure_type='SpeedDistance',
             per_mode_simple='PerGame',
         ).get_data_frames()[0]
-        time.sleep(0.6)
+        time.sleep(1.2)
         for _, row in df.iterrows():
             pid = int(row['PLAYER_ID'])
             if pid not in player_data:
@@ -1942,7 +1942,7 @@ def compute_player_tracking(season: str = '2024-25') -> list[dict[str, Any]]:
     except Exception as e:
         print(f"compute_player_tracking: SpeedDistance fetch failed: {e}")
 
-    time.sleep(0.6)
+    time.sleep(1.2)
 
     # 2. Possessions
     try:
@@ -1952,7 +1952,7 @@ def compute_player_tracking(season: str = '2024-25') -> list[dict[str, Any]]:
             pt_measure_type='Possessions',
             per_mode_simple='PerGame',
         ).get_data_frames()[0]
-        time.sleep(0.6)
+        time.sleep(1.2)
         for _, row in df.iterrows():
             pid = int(row['PLAYER_ID'])
             if pid not in player_data:
@@ -1967,7 +1967,7 @@ def compute_player_tracking(season: str = '2024-25') -> list[dict[str, Any]]:
     except Exception as e:
         print(f"compute_player_tracking: Possessions fetch failed: {e}")
 
-    time.sleep(0.6)
+    time.sleep(1.2)
 
     # 3. Passing
     try:
@@ -1977,7 +1977,7 @@ def compute_player_tracking(season: str = '2024-25') -> list[dict[str, Any]]:
             pt_measure_type='Passing',
             per_mode_simple='PerGame',
         ).get_data_frames()[0]
-        time.sleep(0.6)
+        time.sleep(1.2)
         for _, row in df.iterrows():
             pid = int(row['PLAYER_ID'])
             if pid not in player_data:
@@ -2058,7 +2058,7 @@ def compute_team_standings(season: str = '2024-25') -> list[dict[str, Any]]:
 
     try:
         df = leaguestandingsv3.LeagueStandingsV3(season=season).get_data_frames()[0]
-        time.sleep(0.6)
+        time.sleep(1.2)
     except Exception as e:
         print(f"compute_team_standings: fetch failed: {e}")
         return []
@@ -2164,7 +2164,7 @@ def compute_player_scoring_breakdown(season: str = '2024-25') -> list[dict[str, 
             measure_type_detailed_defense='Scoring',
             per_mode_detailed='PerGame',
         ).get_data_frames()[0]
-        time.sleep(0.6)
+        time.sleep(1.2)
     except Exception as e:
         print(f"compute_player_scoring_breakdown: fetch failed: {e}")
         return []
@@ -2224,7 +2224,7 @@ def compute_player_vs_opponent(season: str = '2024-25', max_players: int = 400) 
     for pid in player_ids:
         try:
             df = playergamelog.PlayerGameLog(player_id=pid, season=season).get_data_frames()[0]
-            time.sleep(0.6)
+            time.sleep(1.2)
             if df.empty:
                 continue
 
@@ -2251,7 +2251,7 @@ def compute_player_vs_opponent(season: str = '2024-25', max_players: int = 400) 
                 })
         except Exception as e:
             print(f"compute_player_vs_opponent: player {pid} failed: {e}")
-            time.sleep(0.6)
+            time.sleep(1.2)
 
     return results
 
@@ -2299,7 +2299,7 @@ def compute_team_rest_splits(season: str = '2024-25') -> list[dict[str, Any]]:
                 season=season,
                 per_mode_detailed='PerGame',
             ).get_data_frames()
-            time.sleep(0.6)
+            time.sleep(1.2)
 
             rest_df = None
             for frame in frames:
@@ -2351,7 +2351,7 @@ def compute_team_rest_splits(season: str = '2024-25') -> list[dict[str, Any]]:
             })
         except Exception as e:
             print(f"compute_team_rest_splits: team {tid} failed: {e}")
-            time.sleep(0.6)
+            time.sleep(1.2)
 
     return results
 
@@ -2399,7 +2399,7 @@ def compute_player_yoy(season: str = '2024-25', max_players: int = 400) -> list[
                 season=season,
                 per_mode_detailed='PerGame',
             ).get_data_frames()
-            time.sleep(0.6)
+            time.sleep(1.2)
 
             yoy_df = None
             for frame in frames:
@@ -2457,7 +2457,7 @@ def compute_player_yoy(season: str = '2024-25', max_players: int = 400) -> list[
             })
         except Exception as e:
             print(f"compute_player_yoy: player {pid} failed: {e}")
-            time.sleep(0.6)
+            time.sleep(1.2)
 
     return results
 
