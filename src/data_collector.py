@@ -759,6 +759,19 @@ class TrainingDataCollector:
                 'ast_pct_to_usg_ratio': 0.83, 'defensive_burden': 58.0,
                 'shot_profile_fit': 0.09, 'pace_adjusted_projection': 0.0,
                 'form_momentum': 0.0,
+                # Context features (player_context / team_context / opponent_context)
+                # Conditional in prepare_features() — must exist in training samples
+                # so the scaler/model learns their column shape.
+                'vs_team_avg': 0.0, 'matchup_games': 0, 'matchup_success_rate': 0.0,
+                'pos_pts_allowed': 0.0, 'pos_def_rating': 0.0,
+                'effective_fg_pct': 0.47, 'injury_risk': 0.0,
+                'team_off_rating': 110.0, 'team_def_rating': 110.0,
+                'team_form': 0.5, 'team_injuries': 0.0,
+                'opp_def_rating': 110.0, 'opp_form': 0.5, 'opp_injuries': 0.0,
+                'team_injury_impact': 0.0, 'team_key_players_out': 0,
+                'team_total_players_out': 0,
+                'opp_injury_impact': 0.0, 'opp_key_players_out': 0,
+                'opp_total_players_out': 0,
             }
             for _k, _dv in _group_defaults.items():
                 features.setdefault(_k, _dv)
