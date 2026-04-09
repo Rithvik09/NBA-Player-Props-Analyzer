@@ -555,6 +555,69 @@ class PrecomputedStore:
         except Exception:
             pass
 
+        player_vs_opponent: dict[tuple, dict] = {}
+        try:
+            cur.execute(
+                """
+                SELECT player_id, opponent_team_id, gp, avg_stat_pts, fg_pct, ts_pct, avg_min
+                FROM player_vs_opponent
+                """
+            )
+            for row in cur.fetchall():
+                (pid, opp_tid, gp, pts, fg, ts, mn) = row
+                player_vs_opponent[(int(pid), int(opp_tid))] = {
+                    'historical_avg_vs_opp':    float(pts) if pts is not None else 0.0,
+                    'historical_fg_pct_vs_opp': float(fg)  if fg  is not None else 0.45,
+                    'historical_ts_pct_vs_opp': float(ts)  if ts  is not None else 0.55,
+                    'historical_games_vs_opp':  int(gp)    if gp  is not None else 0,
+                    'historical_min_vs_opp':    float(mn)  if mn  is not None else 30.0,
+                }
+        except Exception:
+            pass
+
+        team_rest_splits: dict[int, dict] = {}
+        try:
+            cur.execute(
+                """
+                SELECT team_id, b2b_def_rating, b2b_pace, b2b_pts_allowed,
+                       rested_def_rating, rested_pace
+                FROM team_rest_splits
+                """
+            )
+            for row in cur.fetchall():
+                (tid, b2b_def, b2b_pace, b2b_pts, rest_def, rest_pace) = row
+                b2b_def_f  = float(b2b_def)  if b2b_def  is not None else 112.0
+                rest_def_f = float(rest_def) if rest_def is not None else 110.0
+                team_rest_splits[int(tid)] = {
+                    'opp_b2b_def_rating':        b2b_def_f,
+                    'opp_b2b_pace':              float(b2b_pace)  if b2b_pace  is not None else 100.0,
+                    'opp_b2b_pts_allowed':       float(b2b_pts)   if b2b_pts   is not None else 115.0,
+                    'opp_rested_def_rating':     rest_def_f,
+                    'opp_rested_pace':           float(rest_pace) if rest_pace is not None else 100.0,
+                    'opp_rest_def_rating_delta': b2b_def_f - rest_def_f,
+                }
+        except Exception:
+            pass
+
+        player_yoy_stats: dict[int, dict] = {}
+        try:
+            cur.execute(
+                """
+                SELECT player_id, yoy_pts_change, yoy_ts_change, yoy_usage_change, seasons_in_league
+                FROM player_yoy_stats
+                """
+            )
+            for row in cur.fetchall():
+                (pid, pts_ch, ts_ch, usg_ch, seasons) = row
+                player_yoy_stats[int(pid)] = {
+                    'yoy_pts_change':    float(pts_ch)  if pts_ch  is not None else 0.0,
+                    'yoy_ts_change':     float(ts_ch)   if ts_ch   is not None else 0.0,
+                    'yoy_usage_change':  float(usg_ch)  if usg_ch  is not None else 0.0,
+                    'seasons_in_league': int(seasons)   if seasons is not None else 5,
+                }
+        except Exception:
+            pass
+
         payload = {
             'dvp': dvp,
             'dvp_meta': dvp_meta,
@@ -580,6 +643,9 @@ class PrecomputedStore:
             'player_tracking': player_tracking,
             'team_standings': team_standings,
             'player_scoring_breakdown': player_scoring_breakdown,
+            'player_vs_opponent': player_vs_opponent,
+            'team_rest_splits': team_rest_splits,
+            'player_yoy_stats': player_yoy_stats,
         }
         self._cache = payload
         self._cache_at = now
