@@ -692,6 +692,9 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
         y_train = np.array([e.y for e in train_exs], dtype=float)
         X_test = pd.concat([e.X for e in test_exs], ignore_index=True)
         y_test = np.array([e.y for e in test_exs], dtype=float)
+        # Deduplicate columns — XGBoost fails with duplicate col names
+        X_train = X_train.loc[:, ~X_train.columns.duplicated()]
+        X_test  = X_test.loc[:,  ~X_test.columns.duplicated()]
 
         metadata["props"].setdefault(prop, {})
         metadata["props"][prop].update({
@@ -730,6 +733,11 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
                 yc_tr = np.array(yc_tr_parts, dtype=int)
                 Xc_te = pd.concat(Xc_te_parts, ignore_index=True)
                 yc_te = np.array(yc_te_parts, dtype=int)
+
+                # Deduplicate columns — XGBoost fails with duplicate col names
+                # (pandas returns a DataFrame instead of Series on df[col])
+                Xc_tr = Xc_tr.loc[:, ~Xc_tr.columns.duplicated()]
+                Xc_te = Xc_te.loc[:, ~Xc_te.columns.duplicated()]
 
                 clf_wf = create_classifier(use_xgboost=True)
                 clf_wf.fit(Xc_tr, yc_tr)
@@ -849,6 +857,9 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
             yc_train = np.array(yc_train_parts, dtype=int)
             Xc_test = pd.concat(Xc_test_parts, ignore_index=True)
             yc_test = np.array(yc_test_parts, dtype=int)
+            # Deduplicate columns — XGBoost fails with duplicate col names
+            Xc_train = Xc_train.loc[:, ~Xc_train.columns.duplicated()]
+            Xc_test  = Xc_test.loc[:,  ~Xc_test.columns.duplicated()]
 
             use_optuna = OPTUNA_AVAILABLE and len(Xc_train) > 500
             optimized_params = None
