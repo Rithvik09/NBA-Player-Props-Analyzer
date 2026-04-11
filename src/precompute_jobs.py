@@ -2334,7 +2334,7 @@ def compute_team_rest_splits(season: str = '2024-25') -> list[dict[str, Any]]:
             # filter for rest-day rows
             gv_col = 'GROUP_VALUE' if 'GROUP_VALUE' in rest_df.columns else rest_df.columns[1]
             b2b_rows = rest_df[rest_df[gv_col].astype(str).str.upper().str.contains('REST DAYS 0|REST DAYS 1|0 REST|1 REST|BACK TO BACK|B2B', na=False)]
-            rested_rows = rest_df[rest_df[gv_col].astype(str).str.upper().str.contains('REST DAYS 2|REST DAYS 3|2\+ REST|3\+ REST', na=False)]
+            rested_rows = rest_df[rest_df[gv_col].astype(str).str.upper().str.contains(r'REST DAYS 2|REST DAYS 3|2\+ REST|3\+ REST', na=False)]
 
             def _avg_rows(df_sub, col, default):
                 vals = []
