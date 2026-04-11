@@ -160,8 +160,35 @@ def build_training_examples(
         try:
             info = CommonPlayerInfo(player_id=player_id).get_data_frames()[0]
             raw_pos = str(info["POSITION"].iloc[0] if "POSITION" in info.columns else "").upper()
+            # Extract bio data for training features
+            try:
+                _birthdate = str(info["BIRTHDATE"].iloc[0] if "BIRTHDATE" in info.columns else "")
+                if _birthdate and _birthdate != "nan":
+                    from datetime import date as _date_cls
+                    _bd = pd.to_datetime(_birthdate, errors='coerce')
+                    _player_age = float((pd.Timestamp.now() - _bd).days / 365.25) if _bd is not pd.NaT else 26.0
+                else:
+                    _player_age = 26.0
+            except Exception:
+                _player_age = 26.0
+            try:
+                _exp_str = str(info["SEASON_EXP"].iloc[0] if "SEASON_EXP" in info.columns else "5")
+                _player_exp = float(_exp_str) if _exp_str and _exp_str != "nan" else 5.0
+            except Exception:
+                _player_exp = 5.0
+            try:
+                _ht_str = str(info["HEIGHT"].iloc[0] if "HEIGHT" in info.columns else "6-6")
+                _ht_parts = _ht_str.split("-")
+                _player_height = float(_ht_parts[0]) * 12 + float(_ht_parts[1]) if len(_ht_parts) == 2 else 78.0
+            except Exception:
+                _player_height = 78.0
+            try:
+                _player_weight = float(info["WEIGHT"].iloc[0] if "WEIGHT" in info.columns else 220.0)
+            except Exception:
+                _player_weight = 220.0
         except Exception:
             raw_pos = ""
+            _player_age = 26.0; _player_exp = 5.0; _player_height = 78.0; _player_weight = 220.0
         if "C" in raw_pos and "G" not in raw_pos:
             dvp_pos = "C"
             pos_group = "C"
@@ -579,11 +606,11 @@ def build_training_examples(
                         "opp_def_rating_trend": 0.0,
                         "opp_pace_last5": float((opp_ctx or {}).get("pace", 100.0)),
                         "opp_win_rate_last10": 0.5,
-                        # Tier 8: Player Age & Experience (default — bio not in game log)
-                        "player_age": 26.0,
-                        "years_experience": 5.0,
-                        "is_rookie": 0.0,
-                        "is_veteran": 0.0,
+                        # Tier 8: Player Age & Experience (from CommonPlayerInfo)
+                        "player_age": _player_age,
+                        "years_experience": _player_exp,
+                        "is_rookie": 1.0 if _player_exp <= 1 else 0.0,
+                        "is_veteran": 1.0 if _player_exp >= 10 else 0.0,
                         # Tier 8: Game Script Prediction
                         "expected_game_script": float(blowout_game_pct - close_game_pct),
                         "blowout_probability": float(blowout_game_pct),
