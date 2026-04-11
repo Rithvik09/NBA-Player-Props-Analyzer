@@ -249,6 +249,48 @@ def build_training_examples(
             ceiling_games = (hist["PTS"] >= ceiling_threshold).sum() if "PTS" in hist.columns else 0
             ceiling_game_frequency = ceiling_games / max(len(hist), 1)
 
+            # --- Pre-computed features: replace zero defaults with real values ---
+            # Date / schedule features
+            _cur_date = pd.to_datetime(row.get("GAME_DATE"))
+            if len(hist) >= 1 and "GAME_DATE" in hist.columns:
+                _last_date = hist.iloc[-1]["GAME_DATE"]
+                _days_gap = int((_cur_date - _last_date).days)
+                _rest_days = float(max(0, _days_gap - 1))
+                _is_b2b = 1.0 if _rest_days == 0 else 0.0
+                _days_since_last = float(_days_gap)
+            else:
+                _rest_days = 2.0; _is_b2b = 0.0; _days_since_last = 2.0
+            _hist_dates = hist["GAME_DATE"] if "GAME_DATE" in hist.columns else pd.Series(dtype="datetime64[ns]")
+            _7d_ago = _cur_date - pd.Timedelta(days=7)
+            _games_in_7d = int((_hist_dates >= _7d_ago).sum()) if len(_hist_dates) > 0 else 3
+
+            # Minutes fatigue
+            _mins_arr = hist["MIN"].values.astype(float) if "MIN" in hist.columns else np.full(len(hist), mins_season)
+            _mins_l3 = float(np.mean(_mins_arr[-3:])) if len(_mins_arr) >= 3 else mins_season
+            _mins_l7 = float(np.mean(_mins_arr[-7:])) if len(_mins_arr) >= 7 else mins_season
+            _total_mins_l3 = float(np.sum(_mins_arr[-3:])) if len(_mins_arr) >= 3 else _mins_l3 * 3
+            _total_mins_l5 = float(np.sum(_mins_arr[-5:])) if len(_mins_arr) >= 5 else mins_last5 * 5
+            _total_mins_l7 = float(np.sum(_mins_arr[-7:])) if len(_mins_arr) >= 7 else _mins_l7 * 7
+            _fatigue = min(1.0, _total_mins_l5 / max(mins_season * 5, 1.0)) if mins_season > 0 else 0.5
+
+            # Rebound / FT rates (player-level, not prop-specific)
+            _total_reb_pg = oreb_per_game + dreb_per_game
+            _oreb_rate = oreb_per_game / max(_total_reb_pg, 0.1)
+            _dreb_rate = dreb_per_game / max(_total_reb_pg, 0.1)
+            _total_reb_rate = _total_reb_pg / max(mins_season / 36.0, 0.1) if mins_season > 0 else 0.1
+            _ft_rate = fta_per_game / max(fga_per_game, 1.0)
+            _foul_draw = fta_per_game / max(mins_season / 36.0, 0.1) if mins_season > 0 else 0.0
+            _fouls_drawn_pg = fta_per_game * 0.44  # proxy: FTA drives foul count
+            _and_one_freq = min(0.3, fta_per_game / max(fga_per_game * 3, 1.0))
+
+            # Performance splits (W vs L)
+            if "WL" in hist.columns and "PTS" in hist.columns:
+                _win_m = hist["WL"] == "W"
+                _perf_lead = float(hist.loc[_win_m, "PTS"].mean()) if _win_m.any() else pts_mean
+                _perf_trail = float(hist.loc[~_win_m, "PTS"].mean()) if (~_win_m).any() else pts_mean
+            else:
+                _perf_lead = pts_mean; _perf_trail = pts_mean
+
             team_ctx = predictor.get_team_context(team_id)
             opp_ctx = predictor.get_team_context(opp_id)
 
@@ -269,7 +311,55 @@ def build_training_examples(
             special_defenders = defenders_map.get((int(opp_id), pos_group), [])
             primary_def = special_defenders[0] if special_defenders else None
 
+            # Per-100 possessions (needs pace from team_ctx)
+            _pace = float((team_ctx or {}).get("pace", 100.0))
+            _poss_pg = _pace * (mins_season / 48.0) if mins_season > 0 else 50.0
+            _p100 = 100.0 / max(_poss_pg, 1.0)
+            _pts_p100 = pts_mean * _p100
+            _ast_p100 = float(hist["AST"].mean() if "AST" in hist.columns else 0) * _p100
+            _reb_p100 = _total_reb_pg * _p100
+            _stl_p100 = float(hist["STL"].mean() if "STL" in hist.columns else 0) * _p100
+            _blk_p100 = float(hist["BLK"].mean() if "BLK" in hist.columns else 0) * _p100
+            _tov_p100 = (total_tov / max(len(hist), 1)) * _p100
+
             def make_features(stat_values, last5_avg, season_avg, stddev):
+                # --- Prop-specific time-series features (computed from stat_values) ---
+                _sv = stat_values  # shorthand
+                # EWM
+                _sv_s = pd.Series(_sv)
+                _ewm03 = float(_sv_s.ewm(alpha=0.3).mean().iloc[-1]) if len(_sv) > 0 else season_avg
+                _ewm05 = float(_sv_s.ewm(alpha=0.5).mean().iloc[-1]) if len(_sv) > 0 else season_avg
+                # Rolling game-count averages
+                _r7 = float(np.mean(_sv[-7:])) if len(_sv) >= 7 else season_avg
+                _r14 = float(np.mean(_sv[-14:])) if len(_sv) >= 14 else season_avg
+                _r30 = float(np.mean(_sv[-30:])) if len(_sv) >= 30 else season_avg
+                # Trend slopes
+                def _slope(arr):
+                    if len(arr) < 2: return 0.0
+                    try: return float(np.polyfit(range(len(arr)), arr, 1)[0])
+                    except: return 0.0
+                _t5 = _slope(_sv[-5:])
+                _t10 = _slope(_sv[-10:]) if len(_sv) >= 10 else 0.0
+                # Volatility ratio
+                _vol = float(np.std(_sv[-5:]) / max(stddev, 0.01)) if len(_sv) >= 5 else 1.0
+                # Momentum (last5 vs prev5)
+                _prev5 = _sv[-10:-5] if len(_sv) >= 10 else _sv[:max(1, len(_sv)//2)]
+                _prev5_avg = float(np.mean(_prev5)) if len(_prev5) > 0 else season_avg
+                _momentum = (last5_avg - _prev5_avg) / max(abs(_prev5_avg), 0.1)
+                # Games above season avg in 7/14 game windows
+                _g_above7 = int(sum(1 for v in _sv[-7:] if v > season_avg)) if len(_sv) >= 7 else 0
+                _g_above14 = int(sum(1 for v in _sv[-14:] if v > season_avg)) if len(_sv) >= 14 else 0
+                # Streaks (over/under rolling line)
+                _line_proxy = float(np.mean(_sv[-10:])) if len(_sv) >= 10 else season_avg
+                _c_over = 0; _c_under = 0
+                for _v in reversed(_sv[-10:] if len(_sv) >= 10 else _sv):
+                    if _v > _line_proxy:
+                        if _c_under > 0: break
+                        _c_over += 1
+                    else:
+                        if _c_over > 0: break
+                        _c_under += 1
+                _hot = 1.0 if len(_sv) >= 3 and all(v > season_avg for v in _sv[-3:]) else 0.0
                 return {
                     "recent_avg": float(last5_avg),
                     "season_avg": float(season_avg),
@@ -291,7 +381,7 @@ def build_training_examples(
                     "plus_minus_avg": plus_minus_avg,
                     "fouls_per_game": fouls_per_game,
                     "win_rate_last10": win_rate_last10,
-                    "rest_days": 2,
+                    "rest_days": _rest_days,
                     "is_home_game": is_home,
                     "recent_away_streak": 0,
                     "team_pace": float(team_ctx.get("pace", 100.0)),
@@ -367,10 +457,10 @@ def build_training_examples(
                         "spot_up_pct": 0.0,
                         "post_up_pct": 0.0,
                         "transition_pct": 0.0,
-                        "consecutive_over_games": 0,
-                        "consecutive_under_games": 0,
-                        "hot_hand_indicator": 0.0,
-                        "recent_variance_spike": float(hist.tail(3)["PTS"].std() / max(hist["PTS"].std(), 0.1) - 1.0) if "PTS" in hist.columns and len(hist) >= 3 else 0.0,
+                        "consecutive_over_games": float(_c_over),
+                        "consecutive_under_games": float(_c_under),
+                        "hot_hand_indicator": _hot,
+                        "recent_variance_spike": float(np.std(_sv[-3:]) / max(stddev, 0.1) - 1.0) if len(_sv) >= 3 else 0.0,
                         "playoff_seeding_impact": 0.5,
                         "tanking_indicator": 0.0,
                         "must_win_situation": 0.0,
@@ -434,9 +524,9 @@ def build_training_examples(
                         "last_5_games_trend": float(last5_avg - season_avg),
                         "last_10_games_trend": float(hist[target_col].tail(10).mean() - season_avg if len(hist) >= 10 else 0.0),
                         "games_above_season_avg_last5": float(sum(1 for v in hist[target_col].tail(5) if v > season_avg)),
-                        "is_back_to_back": 0.0,
-                        "days_since_last_game": 2.0,
-                        "games_in_last_7_days": float(min(len(hist), 3)),
+                        "is_back_to_back": _is_b2b,
+                        "days_since_last_game": _days_since_last,
+                        "games_in_last_7_days": float(_games_in_7d),
                         "travel_distance": 0.0,
                         "time_zone_change": 0.0,
                         "arena_altitude": 0.0,
@@ -460,6 +550,109 @@ def build_training_examples(
                         "model_accuracy_player": 0.70,
                         "avg_prediction_error_player": float(stddev * 0.5),
                         "calibration_score_player": 0.75,
+                        # Tier 7: Time-Series Features (computed from stat_values)
+                        "rolling_7day_avg": _r7,
+                        "rolling_14day_avg": _r14,
+                        "rolling_30day_avg": _r30,
+                        "ewm_alpha_0.3": _ewm03,
+                        "ewm_alpha_0.5": _ewm05,
+                        "trend_slope_10games": _t10,
+                        "trend_slope_5games": _t5,
+                        "volatility_ratio": _vol,
+                        "momentum_score": _momentum,
+                        "games_above_season_avg_7day": float(_g_above7),
+                        "games_above_season_avg_14day": float(_g_above14),
+                        # Tier 7: Enhanced Matchup Features (defaults — no easy game-log source)
+                        "head_to_head_avg": float(season_avg),
+                        "head_to_head_games": 0,
+                        "position_vs_position_dvp": float(dvp_deltas.get("dvp_pts_delta", 0.0)),
+                        "matchup_pace": float((team_ctx or {}).get("pace", 100.0)),
+                        "defender_switching_frequency": 0.0,
+                        "historical_game_script_avg": float(blowout_game_pct - close_game_pct),
+                        # Tier 8: Relative Rest Advantage
+                        "rest_advantage": 0.0,  # opponent rest unknown at training
+                        "rest_advantage_abs": 0.0,
+                        "both_teams_rested": 1.0 if _rest_days >= 2 else 0.0,
+                        # Tier 8: Opponent Recent Form
+                        "opp_def_rating_last5": float((opp_ctx or {}).get("defensive_rating", 110.0)),
+                        "opp_def_rating_last10": float((opp_ctx or {}).get("defensive_rating", 110.0)),
+                        "opp_def_rating_trend": 0.0,
+                        "opp_pace_last5": float((opp_ctx or {}).get("pace", 100.0)),
+                        "opp_win_rate_last10": 0.5,
+                        # Tier 8: Player Age & Experience (default — bio not in game log)
+                        "player_age": 26.0,
+                        "years_experience": 5.0,
+                        "is_rookie": 0.0,
+                        "is_veteran": 0.0,
+                        # Tier 8: Game Script Prediction
+                        "expected_game_script": float(blowout_game_pct - close_game_pct),
+                        "blowout_probability": float(blowout_game_pct),
+                        "close_game_probability": float(close_game_pct),
+                        # Tier 8: Quarter Performance (default — need play-by-play)
+                        "first_quarter_avg": float(last5_avg * 0.25),
+                        "fourth_quarter_avg": float(last5_avg * 0.25),
+                        "clutch_performance_score": float(consistency_score),
+                        # Tier 8: Shot Selection Quality (defaults)
+                        "shot_selection_rating": float(fg_pct_recent),
+                        "bad_shot_frequency": float(1.0 - fg_pct_recent),
+                        "shot_clock_management": 12.0,
+                        # Tier 8: Team Chemistry (defaults)
+                        "teammate_chemistry_score": 0.5,
+                        "lineup_continuity": 0.7,
+                        "team_win_streak": 0.0,
+                        "team_loss_streak": 0.0,
+                        # Tier 8: Enhanced Defensive Matchup (defaults)
+                        "primary_defender_rating": 110.0,
+                        "primary_defender_age": 26.0,
+                        "defender_size_mismatch": 0.0,
+                        "defender_recent_form": 0.5,
+                        # Tier 9: Pace-Adjusted Per-100 Stats
+                        "pts_per_100": _pts_p100,
+                        "ast_per_100": _ast_p100,
+                        "reb_per_100": _reb_p100,
+                        "stl_per_100": _stl_p100,
+                        "blk_per_100": _blk_p100,
+                        "tov_per_100": _tov_p100,
+                        # Tier 9: Free Throw Rate & Foul Drawing
+                        "ft_rate": _ft_rate,
+                        "fouls_drawn_per_game": _fouls_drawn_pg,
+                        "ft_attempts_per_game": fta_per_game,
+                        "and_one_frequency": _and_one_freq,
+                        "foul_drawing_ability": _foul_draw,
+                        # Tier 9: Rebounding Rates
+                        "oreb_rate": _oreb_rate,
+                        "dreb_rate": _dreb_rate,
+                        "total_reb_rate": _total_reb_rate,
+                        "rebound_contested_pct": 0.4,
+                        "rebound_positioning_score": float(reb_rate_per_36 / max(_total_reb_pg * 36 / max(mins_season, 1), 0.1)),
+                        # Tier 9: Points in Paint (estimated)
+                        "paint_pts_per_game": float(pts_mean * 0.35),
+                        "paint_attempts_per_game": float(fga_per_game * 0.40),
+                        "paint_fg_pct": float(fg_pct_recent * 1.1),
+                        "paint_touch_to_points": float(pts_mean * 0.35 / max(fga_per_game * 0.40, 0.1)),
+                        "restricted_area_attempts": float(fga_per_game * 0.25),
+                        # Tier 9: Game Situation Performance (from W/L splits)
+                        "performance_when_leading": _perf_lead,
+                        "performance_when_trailing": _perf_trail,
+                        "performance_when_tied": float(season_avg),
+                        "performance_in_overtime": float(season_avg),
+                        "performance_by_score_differential": float(_perf_lead - _perf_trail),
+                        # Tier 10: Minutes Fatigue
+                        "minutes_last_3_games": _total_mins_l3,
+                        "minutes_last_5_games": _total_mins_l5,
+                        "minutes_last_7_games": _total_mins_l7,
+                        "avg_minutes_last_3": _mins_l3,
+                        "minutes_fatigue_score": _fatigue,
+                        # Tier 10: Player-Level Advanced Metrics (defaults — not in game log)
+                        "player_off_rating": float((team_ctx or {}).get("offensive_rating", 110.0)),
+                        "player_def_rating": float((team_ctx or {}).get("defensive_rating", 110.0)),
+                        "player_pace": float((team_ctx or {}).get("pace", 100.0)),
+                        "fta_rate_player": _ft_rate,
+                        "pct_fga_2pt": float(1.0 - (fg3a_per_game / max(fga_per_game, 1.0))),
+                        "pct_fga_3pt": float(fg3a_per_game / max(fga_per_game, 1.0)),
+                        "pct_pts_in_paint": 0.35,
+                        "pct_pts_off_tov": 0.10,
+                        "pct_pts_fb": 0.12,
                     }
 
             for prop_type, target_col in STAT_TARGETS.items():

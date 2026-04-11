@@ -1,5 +1,5 @@
 from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, FunctionTransformer
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, mean_squared_error
@@ -92,14 +92,19 @@ class EnhancedMLPredictor:
                 prop_type = fname[len('clf_cal_'):-len('.joblib')]
                 reg_path = os.path.join(self.model_dir, f'reg_{prop_type}.joblib')
                 scaler_path = os.path.join(self.model_dir, f'scaler_{prop_type}.joblib')
-                if not os.path.exists(reg_path) or not os.path.exists(scaler_path):
-                    print(f"skipping incomplete per-prop bundle for '{prop_type}': missing reg or scaler file")
+                if not os.path.exists(reg_path):
+                    print(f"skipping incomplete per-prop bundle for '{prop_type}': missing reg file")
                     continue
                 try:
+                    # Use a saved scaler if available; fall back to identity (XGBoost doesn't need scaling)
+                    if os.path.exists(scaler_path):
+                        _scaler = joblib.load(scaler_path)
+                    else:
+                        _scaler = FunctionTransformer()  # identity passthrough
                     self.prop_models[prop_type] = {
                         'calibrated_clf': joblib.load(os.path.join(self.model_dir, fname)),
                         'regression_model': joblib.load(reg_path),
-                        'scaler': joblib.load(scaler_path),
+                        'scaler': _scaler,
                     }
                 except Exception as e:
                     print(f"failed to load per-prop model for {prop_type}: {e}")
@@ -984,6 +989,314 @@ class EnhancedMLPredictor:
                 'opp_total_players_out': int(opponent_context['injuries']['total_players_out']),
             })
 
+        # ---- Fill remaining model features from available data ----
+        # Naming aliases (training used different key names)
+        _vals = list(player_stats.get('values') or [0])
+        _arr = np.array(_vals[::-1], dtype=float)  # chronological order
+        _seas_avg = float(np.mean(_arr)) if len(_arr) > 0 else 0.0
+        _seas_std = float(np.std(_arr)) if len(_arr) > 1 else 1.0
+        _fga = features.get('fga_per_game', 15.0)
+        _fta = features.get('fta_per_game', 4.0)
+        _pts = features.get('recent_avg', 0.0)
+
+        features.setdefault('is_back_to_back', float(player_stats.get('b2b_flag', 0)))
+        features.setdefault('is_home_game_num', float(player_stats.get('is_home', 0.5)))
+        features.setdefault('mins_last5', features.get('recent_minutes', 24.0))
+        features.setdefault('mins_season', features.get('avg_minutes', 24.0))
+        features.setdefault('ft_pct_recent', features.get('ft_pct', 0.75))
+        features.setdefault('fg_pct_recent', features.get('recent_fg_pct', 0.45))
+        features.setdefault('first_quarter_avg', features.get('q1_avg', 0.0))
+        features.setdefault('fourth_quarter_avg', features.get('q4_avg', 0.0))
+        features.setdefault('clutch_minutes_per_game', features.get('clutch_min_per_game', 0.0))
+        features.setdefault('isolation_pct', features.get('iso_poss_pct', 0.0))
+        features.setdefault('spot_up_pct', features.get('spotup_poss_pct', 0.0))
+        features.setdefault('post_up_pct', features.get('postup_poss_pct', 0.0))
+        features.setdefault('corner_3_pct', features.get('corner3_fg_pct', 0.38))
+        features.setdefault('above_break_3_pct', features.get('above_break3_fg_pct', 0.35))
+        features.setdefault('corner_three_pct', features.get('corner3_fg_pct', 0.38))
+        features.setdefault('above_break_three_pct', features.get('above_break3_fg_pct', 0.35))
+        features.setdefault('catch_and_shoot_pct', features.get('catch_shoot_fg_pct', 0.40))
+        features.setdefault('pull_up_shot_pct', features.get('pullup_fg_pct', 0.40))
+        features.setdefault('wide_open_shot_pct', features.get('open_shot_fg_pct', 0.50))
+        features.setdefault('days_rest_opponent', features.get('opp_days_rest', 2.0))
+        features.setdefault('opponent_back_to_back', features.get('opp_b2b', 0.0))
+
+        # Derived from shot zones + per-game rates
+        features.setdefault('rim_fga_per_game', features.get('rim_fga_pct', 0.25) * _fga)
+        features.setdefault('paint_fga_per_game', features.get('paint_fga_pct', 0.30) * _fga)
+        features.setdefault('mid_range_fga_per_game', features.get('midrange_fga_pct', 0.20) * _fga)
+        features.setdefault('restricted_area_fg_pct', features.get('rim_fg_pct', 0.62))
+        features.setdefault('mid_range_frequency', features.get('midrange_fga_pct', 0.20))
+        features.setdefault('contested_shot_pct', 0.30)
+        features.setdefault('open_shot_pct', features.get('open_shot_frequency', 0.30))
+        features.setdefault('paint_touch_frequency', features.get('paint_fga_pct', 0.30))
+        features.setdefault('paint_pts_per_game', features.get('pct_pts_paint', 0.30) * _seas_avg)
+        features.setdefault('paint_attempts_per_game', features.get('paint_fga_pct', 0.30) * _fga)
+        features.setdefault('paint_fg_pct', features.get('paint_fg_pct', 0.55))
+        features.setdefault('restricted_area_attempts', features.get('rim_fga_pct', 0.25) * _fga)
+        features.setdefault('paint_touch_to_points', features.get('pct_pts_paint', 0.30))
+
+        # Efficiency metrics derivable from existing features
+        _ts_denom = 2.0 * (_fga + 0.44 * _fta)
+        features.setdefault('true_shooting_pct', features.get('ts_pct_official', (_pts / _ts_denom) if _ts_denom > 0 else 0.55))
+        features.setdefault('assist_percentage', features.get('ast_pct_official', 0.15))
+        features.setdefault('rebound_percentage', features.get('reb_pct_official', 0.10))
+        features.setdefault('dreb_rate', features.get('dreb_pct_official', 0.15))
+        features.setdefault('oreb_rate', features.get('oreb_pct_official', 0.05))
+        features.setdefault('total_reb_rate', features.get('reb_pct_official', 0.10))
+        features.setdefault('ft_rate', _fta / max(_fga, 1.0))
+        features.setdefault('fta_rate_player', _fta / max(_fga, 1.0))
+        features.setdefault('ft_attempts_per_game', _fta)
+        features.setdefault('fouls_drawn_per_game', _fta * 0.6)
+        features.setdefault('and_one_frequency', _fta * 0.05)
+        features.setdefault('foul_drawing_ability', _fta / max(_fga, 1.0))
+
+        # Per-100 possessions (approximate from per-game assuming ~100 poss/game)
+        _min_ratio = float(player_stats.get('avg_minutes', 30.0)) / 48.0
+        _poss_per_game = features.get('team_pace', 100.0) * _min_ratio
+        _poss = max(_poss_per_game, 1.0)
+        features.setdefault('pts_per_100', _seas_avg / _poss * 100.0)
+        features.setdefault('ast_per_100', float(player_stats.get('ast_to_tov_ratio', 1.5)) * 2.0)
+        features.setdefault('reb_per_100', features.get('dreb_per_game', 3.0) / _poss * 100.0)
+        features.setdefault('stl_per_100', 1.5)
+        features.setdefault('blk_per_100', 0.5)
+        features.setdefault('tov_per_100', float(player_stats.get('ast_to_tov_ratio', 1.5)) > 0 and 2.0 / float(player_stats.get('ast_to_tov_ratio', 1.5)) or 1.5)
+
+        # Rolling window stats from values array
+        _ewm03 = float(pd.Series(_arr).ewm(alpha=0.3).mean().iloc[-1]) if len(_arr) > 0 else _seas_avg
+        _ewm05 = float(pd.Series(_arr).ewm(alpha=0.5).mean().iloc[-1]) if len(_arr) > 0 else _seas_avg
+        _last7  = _arr[-7:]  if len(_arr) >= 7  else _arr
+        _last14 = _arr[-14:] if len(_arr) >= 14 else _arr
+        _last30 = _arr[-30:] if len(_arr) >= 30 else _arr
+        features.setdefault('ewm_alpha_0.3', _ewm03)
+        features.setdefault('ewm_alpha_0.5', _ewm05)
+        features.setdefault('rolling_7day_avg', float(np.mean(_last7)) if len(_last7) > 0 else _seas_avg)
+        features.setdefault('rolling_14day_avg', float(np.mean(_last14)) if len(_last14) > 0 else _seas_avg)
+        features.setdefault('rolling_30day_avg', float(np.mean(_last30)) if len(_last30) > 0 else _seas_avg)
+        features.setdefault('games_above_season_avg_7day', float(np.sum(_last7 > _seas_avg)) if len(_last7) > 0 else 3.5)
+        features.setdefault('games_above_season_avg_14day', float(np.sum(_last14 > _seas_avg)) if len(_last14) > 0 else 7.0)
+
+        def _slope(a):
+            if len(a) < 2: return 0.0
+            try: return float(np.polyfit(range(len(a)), a, 1)[0])
+            except Exception: return 0.0
+
+        _last5 = _arr[-5:] if len(_arr) >= 5 else _arr
+        _last10 = _arr[-10:] if len(_arr) >= 10 else _arr
+        features.setdefault('trend_slope_5games', _slope(_last5))
+        features.setdefault('trend_slope_10games', _slope(_last10))
+        features.setdefault('volatility_ratio', _seas_std / max(_seas_avg, 0.1))
+        features.setdefault('momentum_score', (_ewm05 - _seas_avg) / max(_seas_std, 0.1))
+        features.setdefault('hot_hand_indicator', float(np.mean(_last5) > _seas_avg * 1.1) if len(_last5) > 0 else 0.0)
+
+        # Minutes-based features
+        _avg_min = float(player_stats.get('avg_minutes', 30.0))
+        _rec_min = float(player_stats.get('recent_minutes', _avg_min))
+        _min_vals = [_avg_min] * len(_vals)  # approximate; real per-game minutes not stored separately
+        features.setdefault('avg_minutes_last_3', _rec_min)
+        features.setdefault('minutes_last_3_games', _rec_min * 3)
+        features.setdefault('minutes_last_5_games', _rec_min * 5)
+        features.setdefault('minutes_last_7_games', _rec_min * 7)
+        features.setdefault('minutes_fatigue_score', max(0.0, (_rec_min - _avg_min) / max(_avg_min, 1.0)))
+
+        # Consecutive streaks (over/under vs season avg — no line available here)
+        _consec_over = 0
+        for v in reversed(list(_arr)):
+            if v > _seas_avg: _consec_over += 1
+            else: break
+        _consec_under = 0
+        for v in reversed(list(_arr)):
+            if v <= _seas_avg: _consec_under += 1
+            else: break
+        features.setdefault('consecutive_over_games', float(_consec_over))
+        features.setdefault('consecutive_under_games', float(_consec_under))
+
+        # Rest advantage
+        _own_rest = features.get('rest_days', 2.0)
+        _opp_rest = features.get('days_rest_opponent', features.get('opp_days_rest', 2.0))
+        features.setdefault('rest_advantage', _own_rest - _opp_rest)
+        features.setdefault('rest_advantage_abs', abs(_own_rest - _opp_rest))
+        features.setdefault('both_teams_rested', float(_own_rest >= 2 and _opp_rest >= 2))
+
+        # Player age/experience flags
+        _age = features.get('player_age', 26.0)
+        _exp = features.get('years_experience', 5.0)
+        features.setdefault('is_rookie', float(_exp <= 1))
+        features.setdefault('is_veteran', float(_exp >= 10))
+
+        # Opponent def context
+        features.setdefault('opp_win_rate_last10', float(player_stats.get('opp_win_rate_last10', 0.5)))
+        features.setdefault('opp_def_rating_last10', float(player_stats.get('opp_def_rating_last10', 110.0)))
+        features.setdefault('opp_pace_last5', float(player_stats.get('opp_pace_last5', 100.0)))
+
+        # Tracking derived
+        _touches = features.get('tracking_touches_pg', 50.0)
+        _time_poss = features.get('tracking_time_of_poss_pg', 2.5)
+        _dist = features.get('tracking_dist_miles', 2.5)
+        features.setdefault('avg_dribbles_per_touch', features.get('tracking_avg_drib_per_touch', 1.5))
+        features.setdefault('avg_seconds_per_touch', (_time_poss * 60.0) / max(_touches, 1.0))
+        features.setdefault('avg_points_per_touch', _seas_avg / max(_touches, 1.0))
+        features.setdefault('touches_per_game', _touches)
+        features.setdefault('touches_per_possession', _touches / max(_poss, 1.0))
+        features.setdefault('time_of_possession_per_game', _time_poss)
+        features.setdefault('elbow_touches_per_game', _touches * 0.05)
+        features.setdefault('post_touches_per_game', features.get('postup_poss_pct', 0.0) * _touches)
+        features.setdefault('paint_touches_per_game', features.get('paint_fga_pct', 0.30) * _touches)
+        features.setdefault('front_court_touches_per_game', _touches * 0.7)
+
+        # Shot clock / shot timing
+        features.setdefault('avg_shot_clock_time', 14.0)
+        features.setdefault('avg_shot_distance', 14.0)
+        features.setdefault('late_clock_shot_frequency', 0.15)
+        features.setdefault('early_clock_shot_frequency', 0.20)
+        features.setdefault('shot_quality_vs_expected', features.get('ts_vs_zone_expected', 0.0))
+
+        # Lineup / role features
+        features.setdefault('net_rating_with_starters', features.get('on_court_net_rating', 0.0))
+        features.setdefault('usage_rate_with_star_out', features.get('usage_rate', 18.0) * 1.05)
+        features.setdefault('minutes_with_starting_lineup_pct', 0.6)
+        features.setdefault('five_man_unit_net_rating', features.get('on_court_net_rating', 0.0))
+        features.setdefault('lineups_played_count', 50.0)
+        features.setdefault('off_court_plus_minus', features.get('off_court_net_rating', 0.0))
+        features.setdefault('on_court_plus_minus', features.get('on_court_net_rating', 0.0))
+        features.setdefault('top_lineup_minutes_pct', 0.4)
+        features.setdefault('net_rating', features.get('net_rating_player', 0.0))
+        features.setdefault('lineup_continuity', 0.7)
+        features.setdefault('lineup_stability_score', float(player_stats.get('lineup_stability_score', 0.7)))
+        features.setdefault('teammate_chemistry_score', 0.5)
+        features.setdefault('bench_strength', 0.5)
+        features.setdefault('new_teammate_games', 0.0)
+        features.setdefault('primary_teammate_out', 0.0)
+        features.setdefault('secondary_teammate_out', 0.0)
+
+        # Game situation features
+        features.setdefault('blowout_probability', features.get('blowout_game_pct', 0.2))
+        features.setdefault('close_game_probability', features.get('close_game_pct', 0.3))
+        features.setdefault('expected_game_script', 0.5)
+        features.setdefault('historical_game_script_avg', 0.5)
+        features.setdefault('head_to_head_avg', features.get('vs_team_avg', 0.0))
+        features.setdefault('head_to_head_games', features.get('matchup_games', 0))
+        features.setdefault('position_vs_position_dvp', features.get('dvp_pts_delta', 0.0))
+        features.setdefault('matchup_pace', (features.get('team_pace', 100.0) + features.get('opp_pace', 100.0)) / 2.0)
+
+        # Clutch / performance situational
+        features.setdefault('clutch_performance_score', features.get('clutch_pts_per_game', 0.0) / max(_seas_avg, 0.1))
+        features.setdefault('fourth_quarter_usage_rate', features.get('usage_rate', 18.0))
+        features.setdefault('crunch_time_usage', features.get('clutch_min_per_game', 0.0))
+        features.setdefault('garbage_time_minutes_pct', 0.05)
+        features.setdefault('typical_substitution_minute', 20.0)
+
+        # Performance by game state (defaults to season avg)
+        features.setdefault('performance_when_leading', _seas_avg * 0.95)
+        features.setdefault('performance_when_trailing', _seas_avg * 1.05)
+        features.setdefault('performance_when_tied', _seas_avg)
+        features.setdefault('performance_in_overtime', _seas_avg)
+        features.setdefault('performance_by_score_differential', 0.0)
+        features.setdefault('stat_in_wins', features.get('stat_in_wins', _seas_avg))
+        features.setdefault('stat_in_losses', features.get('stat_in_losses', _seas_avg))
+
+        # Defender features
+        features.setdefault('career_vs_defender', features.get('vs_team_avg', 0.0))
+        features.setdefault('recent_vs_defender', features.get('vs_team_avg', 0.0))
+        features.setdefault('primary_defender_rating', features.get('opp_def_rating', 110.0))
+        features.setdefault('primary_defender_age', 26.0)
+        features.setdefault('defender_size_mismatch', 0.0)
+        features.setdefault('defender_recent_form', 0.5)
+        features.setdefault('defender_switching_frequency', 0.3)
+        features.setdefault('def_fg_pct_allowed', features.get('opp_fg_pct', 0.47))
+        features.setdefault('def_rating_individual', features.get('opp_def_rating', 110.0))
+        features.setdefault('deflections_per_game', float(player_stats.get('deflections_per_game', 1.0)))
+
+        # Arena / travel
+        features.setdefault('arena_altitude', 0.0)
+        features.setdefault('arena_capacity', 19000.0)
+        features.setdefault('home_court_advantage_rating', 3.0)
+        features.setdefault('player_vs_arena', 0.0)
+        features.setdefault('travel_distance', 1000.0)
+        features.setdefault('time_zone_change', 0.0)
+        features.setdefault('coast_to_coast', 0.0)
+
+        # Schedule context
+        features.setdefault('recent_away_streak', float(player_stats.get('recent_away_streak', 0.0)))
+        features.setdefault('team_win_streak', float(player_stats.get('team_win_streak', 0.0)))
+        features.setdefault('team_loss_streak', float(player_stats.get('team_loss_streak', 0.0)))
+
+        # Season context
+        features.setdefault('playoff_implications', 0.5)
+        features.setdefault('rivalry_game', 0.0)
+        features.setdefault('national_tv_game', 0.0)
+        features.setdefault('season_phase', features.get('season_phase_numeric', 0.5))
+        features.setdefault('playoff_seeding_impact', 0.5)
+        features.setdefault('tanking_indicator', 0.0)
+        features.setdefault('must_win_situation', 0.0)
+        features.setdefault('games_back_from_playoff', features.get('team_games_back', 5.0))
+
+        # Model performance tracking (neutral defaults until graded predictions accumulate)
+        features.setdefault('model_accuracy_player', 0.55)
+        features.setdefault('avg_prediction_error_player', _seas_std)
+        features.setdefault('calibration_score_player', 0.5)
+
+        # Hit rate and edge (used by classifier)
+        features.setdefault('hit_rate', float(player_stats.get('hit_rate', 0.5)))
+        features.setdefault('edge', float(player_stats.get('edge', 0.0)))
+        features.setdefault('is_home', float(player_stats.get('is_home', 0.5)))
+        features.setdefault('location_avg', float(player_stats.get('location_avg', _seas_avg)))
+
+        # Additional derived
+        features.setdefault('vs_team_last_season_avg', features.get('vs_team_avg', 0.0))
+        features.setdefault('vs_team_home_away_split', 0.0)
+        features.setdefault('vs_team_win_pct', 0.5)
+        features.setdefault('shot_selection_rating', features.get('ts_pct_official', 0.55))
+        features.setdefault('bad_shot_frequency', 1.0 - features.get('ts_pct_official', 0.55))
+        features.setdefault('shot_clock_management', 0.5)
+        features.setdefault('pnr_ball_handler_pct', features.get('pnr_bh_poss_pct', 0.0))
+        features.setdefault('pnr_roll_man_pct', features.get('pnr_roll_poss_pct', 0.0))
+        features.setdefault('transition_pct', features.get('transition_poss_pct', 0.0))
+
+        # pct_fga splits
+        _rim_pct = features.get('rim_fga_pct', 0.25)
+        _paint_pct = features.get('paint_fga_pct', 0.30)
+        _mid_pct = features.get('midrange_fga_pct', 0.20)
+        _c3_pct = features.get('corner3_fga_pct', 0.10)
+        _ab3_pct = features.get('above_break3_fga_pct', 0.25)
+        _total3 = _c3_pct + _ab3_pct
+        features.setdefault('pct_fga_2pt', 1.0 - _total3)
+        features.setdefault('pct_fga_3pt', _total3)
+        features.setdefault('pct_pts_in_paint', features.get('pct_pts_paint', 0.30))
+        features.setdefault('pct_pts_off_tov', 0.10)
+        features.setdefault('pct_pts_fb', 0.12)
+
+        # Additional missing features from NUMERIC_FEATURE_KEYS
+        features.setdefault('opp_def_rating_last10', features.get('opp_def_rating_last5', 110.0))
+        features.setdefault('opp_pace_last5', features.get('opp_pace', 100.0))
+        features.setdefault('opp_win_rate_last10', 0.5)
+        features.setdefault('is_rookie', float(features.get('years_experience', 5.0) <= 1))
+        features.setdefault('is_veteran', float(features.get('years_experience', 5.0) >= 10))
+        features.setdefault('first_quarter_avg', features.get('q1_avg', 0.0))
+        features.setdefault('fourth_quarter_avg', features.get('q4_avg', 0.0))
+        features.setdefault('clutch_performance_score', features.get('clutch_pts_per_game', 0.0) / max(_seas_avg, 0.1))
+        features.setdefault('shot_selection_rating', features.get('ts_pct_official', 0.55))
+        features.setdefault('bad_shot_frequency', 1.0 - features.get('ts_pct_official', 0.55))
+        features.setdefault('shot_clock_management', 12.0)
+        features.setdefault('player_age', 26.0)
+        features.setdefault('years_experience', 5.0)
+        features.setdefault('net_rating_player', 0.0)
+        features.setdefault('rebound_contested_pct', 0.4)
+        features.setdefault('rebound_positioning_score', 0.5)
+        features.setdefault('paint_touch_to_points', features.get('pct_pts_paint', 0.30))
+        features.setdefault('performance_in_overtime', _seas_avg)
+        features.setdefault('performance_by_score_differential', 0.0)
+        features.setdefault('both_teams_rested', float(features.get('rest_days', 2) >= 2 and features.get('days_rest_opponent', 2) >= 2))
+        features.setdefault('head_to_head_avg', features.get('vs_team_avg', 0.0))
+        features.setdefault('head_to_head_games', features.get('matchup_games', 0))
+        features.setdefault('position_vs_position_dvp', features.get('dvp_pts_delta', 0.0))
+        features.setdefault('matchup_pace', (features.get('team_pace', 100.0) + features.get('opp_pace', 100.0)) / 2.0)
+        features.setdefault('historical_game_script_avg', features.get('blowout_game_pct', 0.2) - features.get('close_game_pct', 0.3))
+        features.setdefault('defender_switching_frequency', 0.3)
+        features.setdefault('blowout_probability', features.get('blowout_game_pct', 0.2))
+        features.setdefault('close_game_probability', features.get('close_game_pct', 0.3))
+        features.setdefault('expected_game_script', features.get('blowout_game_pct', 0.2) - features.get('close_game_pct', 0.3))
+
         return features
 
     def predict(self, features, line, prop_type=None):
@@ -1033,23 +1346,45 @@ class EnhancedMLPredictor:
             if _models_ready:
                 try:
                     features_df = pd.DataFrame([features])
-                    # align columns to what scaler was trained on
-                    if hasattr(_scaler, 'feature_names_in_'):
-                        for col in _scaler.feature_names_in_:
-                            if col not in features_df.columns:
-                                features_df[col] = 0.0
-                        features_df = features_df[_scaler.feature_names_in_]
-                    features_df = features_df.fillna(0.0)  # prevent NaN from propagating through the scaler
-                    features_scaled = _scaler.transform(features_df)
+
+                    def _align_to_model(df, estimator, extra=None):
+                        """Zero-fill missing cols and reorder to match estimator's expected features."""
+                        # unwrap custom wrappers like IsotonicCalibratedModel
+                        actual = getattr(estimator, 'base_estimator', estimator)
+                        feat_names = None
+                        if hasattr(actual, 'feature_names_in_'):
+                            feat_names = [str(f) for f in actual.feature_names_in_]
+                        elif hasattr(actual, 'get_booster'):
+                            feat_names = actual.get_booster().feature_names
+                        elif hasattr(estimator, 'feature_names_in_'):
+                            feat_names = [str(f) for f in estimator.feature_names_in_]
+                        if feat_names is None:
+                            return df
+                        row = {col: df[col].iloc[0] if col in df.columns else 0.0 for col in feat_names}
+                        if extra:
+                            for k, v in extra.items():
+                                if k in feat_names:
+                                    row[k] = v
+                        return pd.DataFrame([row], columns=feat_names)
+
+                    # align for scaler / regressor (scaler takes precedence if it has feature names)
+                    scaler_estimator = _scaler if hasattr(_scaler, 'feature_names_in_') else _reg
+                    features_aligned = _align_to_model(features_df, scaler_estimator)
+                    features_aligned = features_aligned.fillna(0.0)
+                    features_scaled = _scaler.transform(features_aligned)
 
                     ml_pred = float(_reg.predict(features_scaled)[0])
-                    ml_prob = float(_clf.predict_proba(features_scaled)[0, 1])
 
-                    # 50/50 blend: statistical baseline + ML models
-                    predicted_value = 0.5 * stat_predicted_value + 0.5 * ml_pred
+                    # classifier may expect additional features (e.g. 'line')
+                    clf_features = _align_to_model(features_df, _clf, extra={'line': line})
+                    clf_features = clf_features.fillna(0.0)
+                    ml_prob = float(_clf.predict_proba(clf_features)[0, 1])
+
+                    # 25/75 blend: small stats anchor + ML dominant
+                    predicted_value = 0.25 * stat_predicted_value + 0.75 * ml_pred
                     blended_z = (line - predicted_value) / (std_dev + 1e-6)
                     blended_stat_prob = 1 - scipy.stats.norm.cdf(blended_z)
-                    over_prob = 0.5 * blended_stat_prob + 0.5 * ml_prob
+                    over_prob = 0.25 * blended_stat_prob + 0.75 * ml_prob
                 except Exception as e:
                     print(f"ML inference failed, falling back to stats: {e}")
             # when models aren't trained yet, the stat-only baseline is already set above — nothing more to do
