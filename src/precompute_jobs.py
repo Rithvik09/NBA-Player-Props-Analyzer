@@ -2392,8 +2392,8 @@ def upsert_team_rest_splits(conn: sqlite3.Connection, rows: list[dict[str, Any]]
 
 
 def compute_player_yoy(season: str = '2024-25', max_players: int = 400) -> list[dict[str, Any]]:
-    """Fetch year-over-year scoring trajectory for each player."""
-    from nba_api.stats.endpoints import playerdashboardbyyearoveryear
+    """Compute year-over-year stat changes using PlayerCareerStats (reliable endpoint)."""
+    from nba_api.stats.endpoints import playercareerstats
 
     player_ids = _get_active_player_ids(max_players)
     results: list[dict[str, Any]] = []
@@ -2404,62 +2404,52 @@ def compute_player_yoy(season: str = '2024-25', max_players: int = 400) -> list[
         except Exception:
             return default
 
+    def _ts(pts, fga, fta):
+        denom = 2.0 * (fga + 0.44 * fta)
+        return (pts / denom) if denom > 0 else 0.55
+
     for pid in player_ids:
         try:
-            frames = playerdashboardbyyearoveryear.PlayerDashboardByYearOverYear(
+            frames = playercareerstats.PlayerCareerStats(
                 player_id=pid,
-                season=season,
-                per_mode_detailed='PerGame',
-                timeout=20,
+                per_mode36='PerGame',
+                timeout=15,
             ).get_data_frames()
-            time.sleep(1.2)
+            time.sleep(0.8)
 
-            yoy_df = None
-            for frame in frames:
-                if frame.empty:
-                    continue
-                cols_upper = [c.upper() for c in frame.columns]
-                if 'SEASON_ID' in cols_upper and 'PTS' in cols_upper:
-                    yoy_df = frame
-                    break
-
-            if yoy_df is None or yoy_df.empty:
+            # Frame 0 is regular season per-game stats by season
+            career_df = frames[0] if frames and not frames[0].empty else None
+            if career_df is None or career_df.empty:
                 continue
 
-            # Sort by SEASON_ID descending (most recent first)
-            season_col = None
-            for c in yoy_df.columns:
-                if 'SEASON_ID' in c.upper() or c.upper() == 'SEASON':
-                    season_col = c
-                    break
+            # Sort by SEASON_ID descending
+            season_col = next((c for c in career_df.columns if 'SEASON_ID' in c.upper()), None)
             if season_col is None:
                 continue
 
-            yoy_df = yoy_df.sort_values(season_col, ascending=False).reset_index(drop=True)
-            seasons_count = len(yoy_df)
+            career_df = career_df.sort_values(season_col, ascending=False).reset_index(drop=True)
+            seasons_count = len(career_df)
 
             if seasons_count < 2:
-                # Only one season — zero change
                 yoy_pts_change = 0.0
                 yoy_ts_change = 0.0
                 yoy_usage_change = 0.0
             else:
-                curr = yoy_df.iloc[0]
-                prev = yoy_df.iloc[1]
-                yoy_pts_change = _sf(curr.get('PTS', 0.0)) - _sf(prev.get('PTS', 0.0))
+                curr = career_df.iloc[0]
+                prev = career_df.iloc[1]
 
-                def _ts(row):
-                    pts = _sf(row.get('PTS', 0.0))
-                    fga = _sf(row.get('FGA', 10.0))
-                    fta = _sf(row.get('FTA', 3.0))
-                    denom = 2.0 * (fga + 0.44 * fta)
-                    return (pts / denom) if denom > 0 else 0.55
+                curr_pts = _sf(curr.get('PTS', 0.0))
+                prev_pts = _sf(prev.get('PTS', 0.0))
+                yoy_pts_change = curr_pts - prev_pts
 
-                yoy_ts_change = _ts(curr) - _ts(prev)
+                curr_ts = _ts(_sf(curr.get('PTS', 0.0)), _sf(curr.get('FGA', 10.0)), _sf(curr.get('FTA', 3.0)))
+                prev_ts = _ts(_sf(prev.get('PTS', 0.0)), _sf(prev.get('FGA', 10.0)), _sf(prev.get('FTA', 3.0)))
+                yoy_ts_change = curr_ts - prev_ts
 
-                curr_usg = _sf(curr.get('USG_PCT', curr.get('FGA', 10.0)))
-                prev_usg = _sf(prev.get('USG_PCT', prev.get('FGA', 10.0)))
-                yoy_usage_change = curr_usg - prev_usg
+                # USG_PCT not in career stats — approximate via FGA/(team FGA proxy)
+                curr_fga = _sf(curr.get('FGA', 10.0))
+                prev_fga = _sf(prev.get('FGA', 10.0))
+                yoy_usage_change = (curr_fga - prev_fga) / max(prev_fga, 1.0)
 
             results.append({
                 'player_id': pid,
@@ -2470,7 +2460,7 @@ def compute_player_yoy(season: str = '2024-25', max_players: int = 400) -> list[
             })
         except Exception as e:
             print(f"compute_player_yoy: player {pid} failed: {e}")
-            time.sleep(1.2)
+            time.sleep(0.8)
 
     return results
 
