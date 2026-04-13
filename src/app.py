@@ -35,6 +35,28 @@ if _odds_key:
     betting_helper.set_odds_api_key(_odds_key)
     app.logger.info('Odds tracker enabled via ODDS_API_KEY env var')
 
+# ── Odds polling background loop ─────────────────────────────────────────────
+_odds_poll_interval = int(os.environ.get('ODDS_POLL_INTERVAL', 1800))  # default 30 min
+
+def _odds_poll_loop():
+    """Poll odds API on a loop while the server is running."""
+    if not _odds_key:
+        return
+    from src.odds_tracker import poll_odds
+    import time as _time
+    _time.sleep(5)  # let server finish starting
+    while True:
+        try:
+            count = poll_odds(_odds_key, betting_helper.db_name)
+            app.logger.info(f"Odds poll: {count} lines stored")
+        except Exception as e:
+            app.logger.error(f"Odds poll failed: {e}")
+        _time.sleep(_odds_poll_interval)
+
+if _odds_key:
+    threading.Thread(target=_odds_poll_loop, daemon=True, name='odds-poller').start()
+    app.logger.info(f'Odds poller started (every {_odds_poll_interval}s)')
+
 def _startup_auto_grade():
     try:
         result = betting_helper.auto_grade_pending()

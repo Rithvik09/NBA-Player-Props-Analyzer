@@ -1,0 +1,32 @@
+# System files
+.DS_Store
+.cursor/
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+
+# Logs
+logs/
+*.log
+
+# Databases (runtime data, not source code)
+*.db
+
+# Broken/old model snapshots
+models/incremental.broken_*/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
