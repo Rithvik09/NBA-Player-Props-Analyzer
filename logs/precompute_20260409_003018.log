@@ -1,0 +1,61 @@
+/Users/rithv/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+computing advanced player stats...
+  advanced player stats: 579 rows
+computing clutch stats...
+  clutch stats: 485 rows
+computing hustle stats...
+  hustle stats: 576 rows
+computing shot profile...
+  shot profile: 570 rows
+computing synergy play types...
+  play types: 427 rows
+computing on/off ratings...
+compute_on_off_ratings: team 1610612750 failed: Expecting value: line 1 column 1 (char 0)
+compute_on_off_ratings: team 1610612754 failed: Expecting value: line 1 column 1 (char 0)
+  on/off ratings: 609 rows
+computing shot zone breakdown (up to 400 players)...
+compute_shot_zone_breakdown: player 1643024 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+compute_shot_zone_breakdown: player 1643016 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+compute_shot_zone_breakdown: player 1642272 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630644 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641755 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630183 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642862 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642274 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+compute_shot_zone_breakdown: player 1630530 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+  shot zones: 386 rows
+computing quarter splits (up to 400 players)...
+compute_quarter_splits: player 203648 failed: Expecting value: line 1 column 1 (char 0)
+compute_quarter_splits: player 1629646 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+compute_quarter_splits: player 1642383 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+compute_quarter_splits: player 1627742 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+  quarter splits: 0 rows
+computing opponent shot zones...
+  opp shot zones: 30 rows
+computing synergy team defense...
+  synergy defense: 30 rows
+computing player tracking stats...
+  player tracking: 579 rows
+computing team standings...
+  team standings: 30 rows
+computing player scoring breakdown...
+compute_player_scoring_breakdown: fetch failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=30)
+  scoring breakdown: 0 rows
+computing player vs opponent splits (up to 400 players)...
+compute_player_vs_opponent: player 1642380 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+compute_player_vs_opponent: player 1631116 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+compute_player_vs_opponent: player 1631457 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+  player vs opponent: 8628 rows
+computing team rest splits (30 teams)...
+  team rest splits: 30 rows
+computing player year-over-year stats (up to 400 players)...
+compute_player_yoy: player 1631321 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+compute_player_yoy: player 1641740 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+compute_player_yoy: player 1629634 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+compute_player_yoy: player 203903 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+compute_player_yoy: player 1629060 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+compute_player_yoy: player 1642615 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+compute_player_yoy: player 1628420 failed: HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=10)
+  player yoy: 0 rows
+[precompute] done: {'season': '2025-26', 'updated_at': 1775709019, 'dvp_rows': 150, 'defender_rows': 170, 'ref_rows': 222, 'team_stats_rows': 30, 'foul_rate_rows': 30, 'rolling_dvp_rows': 60, 'adv_rows': 579, 'clutch_rows': 485, 'hustle_rows': 576, 'shot_profile_rows': 570, 'play_type_rows': 427, 'on_off_rows': 609, 'shot_zone_rows': 386, 'quarter_split_rows': 0, 'opp_shot_zone_rows': 30, 'synergy_def_rows': 30, 'tracking_rows': 579, 'standings_rows': 30, 'scoring_breakdown_rows': 0, 'player_vs_opp_rows': 8628, 'team_rest_rows': 30, 'player_yoy_rows': 0}
