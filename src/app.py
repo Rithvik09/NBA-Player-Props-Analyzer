@@ -29,6 +29,12 @@ app.logger.info('app started')
 betting_helper = BasketballBettingHelper()
 game_predictor = GamePredictor(betting_helper)
 
+# Enable odds tracking if API key is set via environment variable
+_odds_key = os.environ.get('ODDS_API_KEY')
+if _odds_key:
+    betting_helper.set_odds_api_key(_odds_key)
+    app.logger.info('Odds tracker enabled via ODDS_API_KEY env var')
+
 def _startup_auto_grade():
     try:
         result = betting_helper.auto_grade_pending()

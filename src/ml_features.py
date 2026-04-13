@@ -486,6 +486,18 @@ NUMERIC_FEATURE_KEYS: list[str] = [
     "vs_opp_fg_pct",
     "vs_opp_ts_pct",
     "vs_opp_avg_min",
+    # Market / odds line movement features (from odds_tracker)
+    "opening_line",
+    "current_line",
+    "line_movement",
+    "line_movement_pct",
+    "implied_over_prob",
+    "implied_under_prob",
+    "market_consensus_std",
+    "sharp_action_score",
+    "line_velocity",
+    "stale_line_flag",
+    "bookmaker_count",
 ]
 
 CLASSIFIER_EXTRA_KEYS: list[str] = [

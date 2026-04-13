@@ -632,6 +632,33 @@ def build_training_examples(
             _blk_p100 = float(hist["BLK"].mean() if "BLK" in hist.columns else 0) * _p100
             _tov_p100 = (total_tov / max(len(hist), 1)) * _p100
 
+            # --- Stub-replacement pre-computations ---
+            # 1. Recent away streak: consecutive away games from end of hist
+            _away_streak = 0
+            if "MATCHUP" in hist.columns and len(hist) > 0:
+                for _i in range(len(hist) - 1, -1, -1):
+                    if "@" in str(hist.iloc[_i]["MATCHUP"]):
+                        _away_streak += 1
+                    else:
+                        break
+
+            # 2. Season phase (month-based): 0=early, 1=mid, 2=late, 3=playoff push
+            _month = _cur_date.month
+            _season_phase = 0 if _month in (10, 11) else (1 if _month in (12, 1) else (2 if _month in (2, 3) else 3))
+
+            # 3. Win pct vs this opponent from hist
+            _vs_opp_games = hist[hist["MATCHUP"].str.contains(str(opp_abbrev), na=False)] if ("MATCHUP" in hist.columns and opp_abbrev) else pd.DataFrame()
+            _vs_team_win_pct = float((_vs_opp_games["WL"] == "W").mean()) if (len(_vs_opp_games) > 0 and "WL" in _vs_opp_games.columns) else 0.5
+
+            # 4 & 5. Home/away performance split for target_col
+            _home_games = hist[hist["MATCHUP"].str.contains("vs.", na=False)] if "MATCHUP" in hist.columns else pd.DataFrame()
+            _away_games = hist[hist["MATCHUP"].str.contains("@", na=False)] if "MATCHUP" in hist.columns else pd.DataFrame()
+            _home_avg_target = float(_home_games[target_col].mean()) if (len(_home_games) > 0 and target_col in _home_games.columns) else float(pts_mean)
+            _away_avg_target = float(_away_games[target_col].mean()) if (len(_away_games) > 0 and target_col in _away_games.columns) else float(pts_mean)
+            _vs_team_home_away_split = _home_avg_target - _away_avg_target
+            _is_away_now = "@" in str(row.get("MATCHUP", ""))
+            _player_vs_arena = (_away_avg_target - float(pts_mean)) if _is_away_now else (_home_avg_target - float(pts_mean))
+
             def make_features(stat_values, last5_avg, season_avg, stddev):
                 # --- Prop-specific time-series features (computed from stat_values) ---
                 _sv = stat_values  # shorthand
@@ -693,7 +720,7 @@ def build_training_examples(
                     "win_rate_last10": win_rate_last10,
                     "rest_days": _rest_days,
                     "is_home_game": is_home,
-                    "recent_away_streak": 0,
+                    "recent_away_streak": float(_away_streak),
                     "team_pace": float(team_ctx.get("pace", 100.0)),
                     "opp_pace": float(opp_ctx.get("pace", 100.0)),
                     "team_off_rating": float(team_ctx.get("offensive_rating", 110.0)),
@@ -744,8 +771,8 @@ def build_training_examples(
                     "opponent_back_to_back": _opp_is_b2b,
                     "playoff_implications": 0,
                     "rivalry_game": 0,
-                    "national_tv_game": 0,
-                    "season_phase": 0,
+                    "national_tv_game": 0,  # Not available in game log data
+                    "season_phase": float(_season_phase),
                     "primary_teammate_out": 0,
                     "secondary_teammate_out": 0,
                     "new_teammate_games": 0,
@@ -777,7 +804,7 @@ def build_training_examples(
                         "crunch_time_usage": 0.28 if mins_season > 28 else 0.15,
                         "career_vs_defender": 0.0,
                         "recent_vs_defender": 0.0,
-                        "player_vs_arena": 0.0,
+                        "player_vs_arena": float(_player_vs_arena),
                         "avg_shot_distance": float(_sz.get("rim_fga_pct", 0.25)) * 3.0 + float(_sz.get("paint_fga_pct", 0.20)) * 8.0 + float(_sz.get("midrange_fga_pct", 0.20)) * 16.0 + float(_sz.get("corner3_fga_pct", 0.10)) * 22.0 + float(_sz.get("above_break3_fga_pct", 0.25)) * 24.0,
                         "contested_shot_pct": float(_sp.get("tight_shot_freq", 0.5)),
                         "open_shot_pct": float(_sp.get("open_shot_freq", 0.3)),
@@ -837,9 +864,9 @@ def build_training_examples(
                         "arena_altitude":   float(_arena_info.get("altitude", 0.0)),
                         "arena_capacity":   float(_arena_info.get("capacity", 18000.0)),
                         "home_court_advantage_rating": 3.5 if (is_home is not None and is_home) else (-3.5 if is_home is not None else 0.0),
-                        "vs_team_win_pct": 0.500,
+                        "vs_team_win_pct": float(_vs_team_win_pct),
                         "vs_team_last_season_avg": float(_vs_opp_avg_pts) if _vs_opp_gp > 0 else float(season_avg),
-                        "vs_team_home_away_split": 0.0,
+                        "vs_team_home_away_split": float(_vs_team_home_away_split),
                         "clutch_minutes_per_game": float(_clt.get("clutch_min_pg", mins_season * 0.15)),
                         "paint_fga_per_game": float(_sz.get("paint_fga_pct", 0.40)) * fga_per_game,
                         "mid_range_fga_per_game": float(_sz.get("midrange_fga_pct", 0.25)) * fga_per_game,
@@ -926,7 +953,7 @@ def build_training_examples(
                         "oreb_rate": _oreb_rate,
                         "dreb_rate": _dreb_rate,
                         "total_reb_rate": _total_reb_rate,
-                        "rebound_contested_pct": 0.4,
+                        "rebound_contested_pct": min(1.0, float(_hsl.get("contested_shots_pg", 3.0)) / 10.0),
                         "rebound_positioning_score": float(reb_rate_per_36 / max(_total_reb_pg * 36 / max(mins_season, 1), 0.1)),
                         # Tier 9: Points in Paint (estimated)
                         "paint_pts_per_game": float(_scr.get("pct_pts_paint", 0.35)) * pts_mean,
