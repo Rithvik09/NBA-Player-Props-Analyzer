@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from .basketball_betting_helper import BasketballBettingHelper
 from .data_collector import TrainingDataCollector
+from .game_predictor import GamePredictor
 import threading
 import time
 import logging
