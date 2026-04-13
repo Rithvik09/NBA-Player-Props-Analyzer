@@ -1,0 +1,26 @@
+/Users/rithv/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+skipping incomplete per-prop bundle for 'blocks': missing reg or scaler file
+skipping incomplete per-prop bundle for 'assists': missing reg or scaler file
+skipping incomplete per-prop bundle for 'stl_blk': missing reg or scaler file
+skipping incomplete per-prop bundle for 'steals': missing reg or scaler file
+skipping incomplete per-prop bundle for 'points': missing reg or scaler file
+skipping incomplete per-prop bundle for 'triple_double': missing reg or scaler file
+skipping incomplete per-prop bundle for 'pts_reb': missing reg or scaler file
+skipping incomplete per-prop bundle for 'double_double': missing reg or scaler file
+skipping incomplete per-prop bundle for 'rebounds': missing reg or scaler file
+skipping incomplete per-prop bundle for 'pts_ast': missing reg or scaler file
+skipping incomplete per-prop bundle for 'ast_reb': missing reg or scaler file
+skipping incomplete per-prop bundle for 'three_pointers': missing reg or scaler file
+skipping incomplete per-prop bundle for 'turnovers': missing reg or scaler file
+skipping incomplete per-prop bundle for 'pts_ast_reb': missing reg or scaler file
+[train] building examples seasons=['2022-23', '2023-24', '2024-25', '2025-26'] max_players=300 ...
+[train] season 2022-23: building examples...
+Traceback (most recent call last):
+  File "/Users/rithv/Data Management/AI Basketball Helper/scripts/train_models.py", line 954, in <module>
+    main()
+  File "/Users/rithv/Data Management/AI Basketball Helper/scripts/train_models.py", line 945, in main
+    examples.extend(build_training_examples(season=s, max_players=args.max_players, predictor=predictor, precomputed=precomputed))
+  File "/Users/rithv/Data Management/AI Basketball Helper/scripts/train_models.py", line 252, in build_training_examples
+    team_ctx = predictor.get_team_context(team_id, include_injuries=False, season=season)
+TypeError: get_team_context() got an unexpected keyword argument 'include_injuries'

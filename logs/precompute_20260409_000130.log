@@ -1,0 +1,252 @@
+/Users/rithv/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+team_stats base fetch failed: __init__() got an unexpected keyword argument 'measure_type_detailed'
+team_stats scoring fetch failed: __init__() got an unexpected keyword argument 'measure_type_detailed'
+team_stats opponent fetch failed: __init__() got an unexpected keyword argument 'measure_type_detailed'
+team_stats opp_last5 fetch failed: __init__() got an unexpected keyword argument 'measure_type_detailed'
+team_stats base_last5 fetch failed: __init__() got an unexpected keyword argument 'measure_type_detailed'
+computing advanced player stats...
+compute_advanced_player_stats: advanced fetch failed: __init__() got an unexpected keyword argument 'measure_type_detailed'
+  advanced player stats: 579 rows
+computing clutch stats...
+compute_clutch_stats: fetch failed: __init__() got an unexpected keyword argument 'per_mode_simple'
+  clutch stats: 0 rows
+computing hustle stats...
+  hustle stats: 576 rows
+computing shot profile...
+  shot profile: 570 rows
+computing synergy play types...
+compute_synergy_play_types: fetch failed for Isolation: __init__() got an unexpected keyword argument 'season_year_nullable'
+compute_synergy_play_types: fetch failed for PRBallHandler: __init__() got an unexpected keyword argument 'season_year_nullable'
+compute_synergy_play_types: fetch failed for PRRollman: __init__() got an unexpected keyword argument 'season_year_nullable'
+compute_synergy_play_types: fetch failed for Postup: __init__() got an unexpected keyword argument 'season_year_nullable'
+compute_synergy_play_types: fetch failed for Spotup: __init__() got an unexpected keyword argument 'season_year_nullable'
+compute_synergy_play_types: fetch failed for Transition: __init__() got an unexpected keyword argument 'season_year_nullable'
+compute_synergy_play_types: fetch failed for Cut: __init__() got an unexpected keyword argument 'season_year_nullable'
+  play types: 0 rows
+computing on/off ratings...
+compute_on_off_ratings: team 1610612737 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612738 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612739 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612740 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612741 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612742 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612743 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612744 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612745 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612746 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612747 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612748 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612749 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612750 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612751 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612752 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612753 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612754 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612755 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612756 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612757 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612758 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612759 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612760 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612761 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612762 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612763 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612764 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612765 failed: __init__() got an unexpected keyword argument 'season_nullable'
+compute_on_off_ratings: team 1610612766 failed: __init__() got an unexpected keyword argument 'season_nullable'
+  on/off ratings: 0 rows
+computing shot zone breakdown (up to 400 players)...
+compute_shot_zone_breakdown: player 1630173 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628389 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630534 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630583 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641725 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629638 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628960 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628386 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630631 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203937 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630828 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203507 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203648 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630175 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628384 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630166 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629028 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628963 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642846 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642380 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631116 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630163 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628366 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628964 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631094 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630217 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630625 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631230 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203084 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630567 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642964 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629628 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629646 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642419 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 201587 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203078 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630699 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642866 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630180 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629048 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 202687 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641710 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641778 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631205 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203992 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641737 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1626164 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628449 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631123 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628396 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631103 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631128 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642886 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628969 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628970 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628415 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641780 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628971 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642468 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1627759 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641738 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628973 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642868 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628418 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641723 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631174 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 202710 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641824 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631288 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203484 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641739 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203991 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642928 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642382 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642267 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642269 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628975 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628976 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1627936 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642264 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630658 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630577 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630551 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631113 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642353 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631108 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630619 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631321 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641740 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629634 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203903 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629651 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642383 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642363 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642270 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641730 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629599 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642268 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628381 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628380 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 201144 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1626192 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631451 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630536 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641731 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642907 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642384 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1643018 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630595 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203552 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 201939 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642359 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630700 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642368 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203076 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631120 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 201942 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642484 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628978 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631217 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642885 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641711 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630621 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631172 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642265 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629029 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629652 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630245 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203083 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1627739 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642346 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 201142 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631105 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642856 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631106 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641744 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642845 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630162 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642348 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631165 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203954 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642400 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642855 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630623 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629234 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641787 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642271 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642853 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628368 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642402 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628365 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1643158 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 202331 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631221 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203932 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 201569 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203924 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631260 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629750 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 201145 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630182 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629656 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631243 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629060 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630169 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641790 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203501 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 201935 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630702 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641989 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642844 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631199 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 203914 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 202699 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628404 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628392 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630573 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641722 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629637 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630165 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628502 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1630703 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641707 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642935 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629639 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1627741 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1629312 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1642396 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1628988 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 201950 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641842 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1641747 failed: Expecting value: line 1 column 1 (char 0)
+compute_shot_zone_breakdown: player 1631096 failed: Expecting value: line 1 column 1 (char 0)
