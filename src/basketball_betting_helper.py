@@ -11,6 +11,7 @@ from .models import EnhancedMLPredictor
 from .incremental_models import IncrementalModelManager
 from .ml_features import build_feature_vector, build_classifier_vector
 from .precomputed_store import PrecomputedStore
+from .arena_data import calculate_travel_metrics, ARENA_DATA
 
 
 def _compute_calendar_features(ref_date=None):
@@ -1417,13 +1418,13 @@ class BasketballBettingHelper:
                 stat_data['team_current_streak']  = float(_my_std.get('current_streak', 0))
                 stat_data['team_l10_wins']        = float(_my_std.get('l10_wins', 5))
                 stat_data['team_home_win_pct']    = float(_my_std.get('home_win_pct', 0.5))
-                stat_data['opp_win_pct_standings']     = float(_opp_std.get('win_pct', 0.5))
+                stat_data['opp_win_pct']               = float(_opp_std.get('win_pct', 0.5))
                 stat_data['opp_conf_rank']             = float(_opp_std.get('conf_rank', 8))
                 stat_data['opp_games_back']            = float(_opp_std.get('games_back', 5.0))
-                stat_data['opp_current_streak_standings'] = float(_opp_std.get('current_streak', 0))
+                stat_data['opp_current_streak']        = float(_opp_std.get('current_streak', 0))
                 stat_data['opp_l10_wins']              = float(_opp_std.get('l10_wins', 5))
                 stat_data['opp_road_win_pct']          = float(_opp_std.get('road_win_pct', 0.5))
-                _wpct_diff = stat_data['team_win_pct'] - stat_data['opp_win_pct_standings']
+                _wpct_diff = stat_data['team_win_pct'] - stat_data['opp_win_pct']
                 stat_data['win_pct_diff'] = float(_wpct_diff)
                 _my_gb   = abs(float(_my_std.get('games_back', 10.0)))
                 _opp_gb  = abs(float(_opp_std.get('games_back', 10.0)))
@@ -1432,8 +1433,8 @@ class BasketballBettingHelper:
                 for _k, _dk in [
                     ('team_win_pct', 0.5), ('team_conf_rank', 8.0), ('team_games_back', 5.0),
                     ('team_current_streak', 0.0), ('team_l10_wins', 5.0), ('team_home_win_pct', 0.5),
-                    ('opp_win_pct_standings', 0.5), ('opp_conf_rank', 8.0), ('opp_games_back', 5.0),
-                    ('opp_current_streak_standings', 0.0), ('opp_l10_wins', 5.0),
+                    ('opp_win_pct', 0.5), ('opp_conf_rank', 8.0), ('opp_games_back', 5.0),
+                    ('opp_current_streak', 0.0), ('opp_l10_wins', 5.0),
                     ('opp_road_win_pct', 0.5), ('win_pct_diff', 0.0), ('is_playoff_race_game', 0.0),
                 ]:
                     stat_data.setdefault(_k, _dk)
@@ -1565,17 +1566,17 @@ class BasketballBettingHelper:
                 _pid_b = int(player_id)
                 _opp_b = int(opponent_team_id) if opponent_team_id else None
                 _pvo = _pre.get('player_vs_opponent', {}).get((_pid_b, _opp_b), {}) if _opp_b else {}
-                stat_data['historical_avg_vs_opp']    = float(_pvo.get('historical_avg_vs_opp', 0.0))
-                stat_data['historical_fg_pct_vs_opp'] = float(_pvo.get('historical_fg_pct_vs_opp', 0.45))
-                stat_data['historical_ts_pct_vs_opp'] = float(_pvo.get('historical_ts_pct_vs_opp', 0.55))
-                stat_data['historical_games_vs_opp']  = float(_pvo.get('historical_games_vs_opp', 0))
-                stat_data['historical_min_vs_opp']    = float(_pvo.get('historical_min_vs_opp', 30.0))
+                stat_data['vs_opp_avg_pts'] = float(_pvo.get('avg_stat_pts', 0.0))
+                stat_data['vs_opp_fg_pct']  = float(_pvo.get('fg_pct', 0.45))
+                stat_data['vs_opp_ts_pct']  = float(_pvo.get('ts_pct', 0.55))
+                stat_data['vs_opp_gp']      = float(_pvo.get('gp', 0))
+                stat_data['vs_opp_avg_min'] = float(_pvo.get('avg_min', 30.0))
             except Exception:
-                stat_data.setdefault('historical_avg_vs_opp', 0.0)
-                stat_data.setdefault('historical_fg_pct_vs_opp', 0.45)
-                stat_data.setdefault('historical_ts_pct_vs_opp', 0.55)
-                stat_data.setdefault('historical_games_vs_opp', 0)
-                stat_data.setdefault('historical_min_vs_opp', 30.0)
+                stat_data.setdefault('vs_opp_avg_pts', 0.0)
+                stat_data.setdefault('vs_opp_fg_pct', 0.45)
+                stat_data.setdefault('vs_opp_ts_pct', 0.55)
+                stat_data.setdefault('vs_opp_gp', 0.0)
+                stat_data.setdefault('vs_opp_avg_min', 30.0)
 
             # ---- GROUP C: Team Rest Splits (opponent context when tired vs rested) ----
             try:
@@ -1634,11 +1635,26 @@ class BasketballBettingHelper:
                     _def_pid = int(_defs[0]['player_id'])
                     _def_active = _check_defender_active(_def_pid)
                     stat_data['primary_defender_active'] = 1.0 if _def_active else 0.0
+                    # Defender rating, age, size mismatch from precomputed data
+                    _def_adv = _pre.get('player_advanced', {}).get(_def_pid, {})
+                    _subj_adv = _pre.get('player_advanced', {}).get(int(player_id), {})
+                    stat_data['primary_defender_rating']  = float(_defs[0].get('def_rating', 110.0))
+                    stat_data['primary_defender_age']     = float(_def_adv.get('age', 26.0))
+                    stat_data['defender_size_mismatch']   = float(_def_adv.get('height_inches', 78.0)) - float(_subj_adv.get('height_inches', 78.0))
+                    stat_data['defender_recent_form']     = float(_defs[0].get('score01', 0.5))
                 else:
                     stat_data.setdefault('primary_defender_active', 1.0)
+                    stat_data.setdefault('primary_defender_rating', 110.0)
+                    stat_data.setdefault('primary_defender_age', 26.0)
+                    stat_data.setdefault('defender_size_mismatch', 0.0)
+                    stat_data.setdefault('defender_recent_form', 0.5)
                 stat_data.setdefault('opp_lineup_changes_last5', 0.0)
             except Exception:
                 stat_data.setdefault('primary_defender_active', 1.0)
+                stat_data.setdefault('primary_defender_rating', 110.0)
+                stat_data.setdefault('primary_defender_age', 26.0)
+                stat_data.setdefault('defender_size_mismatch', 0.0)
+                stat_data.setdefault('defender_recent_form', 0.5)
                 stat_data.setdefault('opp_lineup_changes_last5', 0.0)
 
             features = self.ml_predictor.prepare_features(
@@ -1919,6 +1935,13 @@ class BasketballBettingHelper:
         # b2b
         b2b_flag = int(rest_days <= 1)
 
+        # travel / arena
+        try:
+            _last_game_team_id = int(player_stats.get('last_game_team_id', team_id or 0) or 0)
+            _tz_chg, _c2c, _trav = calculate_travel_metrics(_last_game_team_id, int(team_id) if team_id else None, is_home)
+        except Exception:
+            _tz_chg, _c2c, _trav = 0.0, 0.0, 0.0
+
         # location splits
         home_avg = float(player_stats.get('home_avg', recent_avg))
         away_avg = float(player_stats.get('away_avg', recent_avg))
@@ -2016,7 +2039,7 @@ class BasketballBettingHelper:
             'blowout_game_pct':         0.0,
             'close_game_pct':           0.0,
             # Tier 4: opp defensive trends
-            'opp_def_rating_home_away_split': 0.0,
+            'opp_def_rating_home_away_split': float(_pre.get('team_home_away_splits', {}).get(int(opponent_team_id) if opponent_team_id else 0, {}).get('home_away_def_split', 0.0)),
             'opp_blocks_per_game_last5':      0.0,
             'opp_steals_per_game_last5':      0.0,
             # Tier 4: game context (unknown → 0)
@@ -2025,7 +2048,8 @@ class BasketballBettingHelper:
             'national_tv_game': 0, 'season_phase': 0,
             # Tier 4: teammate impact
             'primary_teammate_out': 0, 'secondary_teammate_out': 0,
-            'new_teammate_games': 0, 'lineup_stability_score': 1.0, 'bench_strength': 0.0,
+            'new_teammate_games': 0, 'lineup_stability_score': 1.0,
+            'bench_strength': float(_pre.get('team_lineup_stats', {}).get(int(team_id) if team_id else 0, {}).get('bench_strength', 0.0)),
             # Tier 4: opponent-adjusted
             'pts_vs_top10_defenses':    season_avg,
             'pts_vs_bottom10_defenses': season_avg,
@@ -2034,10 +2058,13 @@ class BasketballBettingHelper:
             # Tier 4: advanced defensive (live → 0)
             'def_fg_pct_allowed': 0.0, 'def_rating_individual': 0.0,
             'deflections_per_game': 0.0, 'contested_shots_per_game': 0.0,
-            # Tier 4: play type (live → 0)
-            'pnr_ball_handler_pct': 0.0, 'pnr_roll_man_pct': 0.0,
-            'isolation_pct': 0.0, 'spot_up_pct': 0.0,
-            'post_up_pct': 0.0, 'transition_pct': 0.0,
+            # Tier 4: play type (aliases to canonical poss_pct keys set earlier)
+            'pnr_ball_handler_pct': float(player_stats.get('pnr_bh_poss_pct',    0.0)),
+            'pnr_roll_man_pct':     float(player_stats.get('pnr_roll_poss_pct',  0.0)),
+            'isolation_pct':        float(player_stats.get('iso_poss_pct',        0.0)),
+            'spot_up_pct':          float(player_stats.get('spotup_poss_pct',     0.0)),
+            'post_up_pct':          float(player_stats.get('postup_poss_pct',     0.0)),
+            'transition_pct':       float(player_stats.get('transition_poss_pct', 0.0)),
             # Tier 5: streaks / game importance (0)
             'consecutive_over_games': 0, 'consecutive_under_games': 0,
             'hot_hand_indicator': 0.0, 'recent_variance_spike': 0.0,
@@ -2058,28 +2085,38 @@ class BasketballBettingHelper:
             'corner_three_pct':           float(player_stats.get('corner3_pct',      0.37)),
             'above_break_three_pct':      float(player_stats.get('above_break3_pct', 0.35)),
             'restricted_area_fg_pct':     float(eff.get('fg_pct', 0.55)),
-            'mid_range_frequency': 0.0, 'shot_quality_vs_expected': 0.0,
+            'mid_range_frequency': float(player_stats.get('midrange_fga_pct', 0.0)), 'shot_quality_vs_expected': 0.0,
             'avg_shot_clock_time': 12.0, 'late_clock_shot_frequency': 0.15,
             'early_clock_shot_frequency': 0.25,
-            # Tier 6: touch/usage (0)
+            # Tier 6: touch/usage (from tracking stats where available)
             'touches_per_game': float(fga_per_game + recent_avg * 0.3),
-            'avg_dribbles_per_touch': 2.0, 'avg_seconds_per_touch': 3.0,
-            'elbow_touches_per_game': 0.0, 'post_touches_per_game': 0.0,
-            'paint_touches_per_game': 0.0, 'front_court_touches_per_game': 0.0,
-            'time_of_possession_per_game': avg_minutes * 0.25,
-            'touches_per_possession': 0.0, 'avg_points_per_touch': 0.0,
+            'avg_dribbles_per_touch': float(player_stats.get('tracking_avg_drib_per_touch', 2.0)),
+            'avg_seconds_per_touch':  float(player_stats.get('tracking_time_of_poss_pg', 2.5)) * 60.0 / max(float(player_stats.get('tracking_touches_pg', 50.0)), 1.0),
+            'elbow_touches_per_game': float(player_stats.get('tracking_elbow_touches_pg', 0.0)),
+            'post_touches_per_game':  float(player_stats.get('tracking_paint_touches_pg', 0.0)),
+            'paint_touches_per_game': float(player_stats.get('tracking_paint_touches_pg', 0.0)),
+            'front_court_touches_per_game': float(player_stats.get('tracking_touches_pg', 50.0)) * 0.6,
+            'time_of_possession_per_game': float(player_stats.get('tracking_time_of_poss_pg', avg_minutes * 0.25 / 60.0)) * 60.0,
+            'touches_per_possession': float(player_stats.get('tracking_touches_pg', 50.0)) / max(float(player_stats.get('team_pace', 100.0)), 1.0),
+            'avg_points_per_touch':   float(recent_avg) / max(float(player_stats.get('tracking_touches_pg', 50.0)), 1.0),
             # Tier 6: lineup (0)
             'net_rating_with_starters': 0.0,
             'usage_rate_with_star_out': usage_rate / 100.0 * 1.1,
             'minutes_with_starting_lineup_pct': 0.65 if avg_minutes > 25 else 0.35,
-            'five_man_unit_net_rating': 0.0,
+            'five_man_unit_net_rating': float(_pre.get('team_lineup_stats', {}).get(int(team_id) if team_id else 0, {}).get('top_lineup_net_rating', 0.0)),
             'on_court_net_rating': 0.0, 'off_court_net_rating': 0.0,
-            'on_off_differential': 0.0, 'lineups_played_count': 1.0,
-            # Tier 3: travel / arena (0)
-            'time_zone_change': 0.0, 'travel_distance': 0.0, 'coast_to_coast': 0.0,
-            'arena_altitude': 0.0, 'arena_capacity': 0.0, 'home_court_advantage_rating': 0.0,
+            'on_off_differential': float(player_stats.get('on_off_differential', 0.0)),
+            'lineups_played_count': float(_pre.get('team_lineup_stats', {}).get(int(team_id) if team_id else 0, {}).get('lineups_played_count', 1)),
+            # Tier 3: travel / arena (from arena_data)
+            'time_zone_change':  float(_tz_chg),
+            'travel_distance':   float(_trav),
+            'coast_to_coast':    float(_c2c),
+            'arena_altitude':    float(ARENA_DATA.get(int(team_id) if team_id else 0, {}).get('altitude', 0.0)),
+            'arena_capacity':    float(ARENA_DATA.get(int(team_id) if team_id else 0, {}).get('capacity', 18000.0)),
+            'home_court_advantage_rating': 3.5 if is_home else (-3.5 if is_home is not None else 0.0),
             # Tier 3: lineup on/off
-            'on_court_plus_minus': 0.0, 'off_court_plus_minus': 0.0,
+            'on_court_plus_minus':  float(player_stats.get('on_court_net_rating', 0.0)),
+            'off_court_plus_minus': float(player_stats.get('off_court_net_rating', 0.0)),
             'net_rating': 0.0, 'top_lineup_minutes_pct': 0.0,
             # Tier 3: vs-team history
             'vs_team_last_season_avg': vs_team_avg,
@@ -2120,11 +2157,14 @@ class BasketballBettingHelper:
             # Tier 8: shot selection quality (0)
             'shot_selection_rating': 0.0, 'bad_shot_frequency': 0.0, 'shot_clock_management': 0.0,
             # Tier 8: team chemistry (0)
-            'teammate_chemistry_score': 0.0, 'lineup_continuity': 0.0,
+            'teammate_chemistry_score': 0.0,
+            'lineup_continuity': float(_pre.get('team_lineup_stats', {}).get(int(team_id) if team_id else 0, {}).get('lineup_continuity', 0.7)),
             'team_win_streak': 0.0, 'team_loss_streak': 0.0,
-            # Tier 8: defender detail
-            'primary_defender_rating': 0.0, 'primary_defender_age': 0.0,
-            'defender_size_mismatch': 0.0, 'defender_recent_form': 0.0,
+            # Tier 8: defender detail (set earlier from team_special_defenders; defaults here are fallback)
+            'primary_defender_rating': float(player_stats.get('primary_defender_rating', 110.0)),
+            'primary_defender_age':    float(player_stats.get('primary_defender_age', 26.0)),
+            'defender_size_mismatch':  float(player_stats.get('defender_size_mismatch', 0.0)),
+            'defender_recent_form':    float(player_stats.get('defender_recent_form', 0.5)),
             # Tier 9: pace-adjusted (0)
             'pts_per_100': 0.0, 'ast_per_100': 0.0, 'reb_per_100': 0.0,
             'stl_per_100': 0.0, 'blk_per_100': 0.0, 'tov_per_100': 0.0,

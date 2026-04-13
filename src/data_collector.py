@@ -711,11 +711,11 @@ class TrainingDataCollector:
                 'load_efficiency_ratio': 1.0,
                 'tracking_dist_per_touch': 0.05,
                 # Group B: Historical vs Opponent
-                'historical_avg_vs_opp': 0.0,
-                'historical_fg_pct_vs_opp': 0.45,
-                'historical_ts_pct_vs_opp': 0.55,
-                'historical_games_vs_opp': 0,
-                'historical_min_vs_opp': 30.0,
+                'vs_opp_avg_pts': 0.0,
+                'vs_opp_fg_pct':  0.45,
+                'vs_opp_ts_pct':  0.55,
+                'vs_opp_gp':      0,
+                'vs_opp_avg_min': 30.0,
                 # Group C: Team Rest Splits
                 'opp_b2b_def_rating': 112.0,
                 'opp_b2b_pace': 100.0,
@@ -744,8 +744,8 @@ class TrainingDataCollector:
                 # Group 2: Team Standings
                 'team_win_pct': 0.5, 'team_conf_rank': 8.0, 'team_games_back': 5.0,
                 'team_current_streak': 0.0, 'team_l10_wins': 5.0, 'team_home_win_pct': 0.5,
-                'opp_win_pct_standings': 0.5, 'opp_conf_rank': 8.0, 'opp_games_back': 5.0,
-                'opp_current_streak_standings': 0.0, 'opp_l10_wins': 5.0,
+                'opp_win_pct': 0.5, 'opp_conf_rank': 8.0, 'opp_games_back': 5.0,
+                'opp_current_streak': 0.0, 'opp_l10_wins': 5.0,
                 'opp_road_win_pct': 0.5, 'win_pct_diff': 0.0, 'is_playoff_race_game': 0.0,
                 # Group 3: Scoring Breakdown
                 'pct_pts_3pt': 0.25, 'pct_pts_paint': 0.30, 'pct_pts_ft': 0.15,
