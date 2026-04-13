@@ -130,7 +130,10 @@ class BasketballBettingHelper:
         self.ml_predictor = EnhancedMLPredictor()
         self._incremental_mm = IncrementalModelManager('models')
         self._precomputed = PrecomputedStore(db_name)
-        
+
+        # Odds tracker — initialized lazily via set_odds_api_key()
+        self._odds_tracker = None
+
         current_year = datetime.now().year
         current_month = datetime.now().month
         
@@ -141,7 +144,13 @@ class BasketballBettingHelper:
             self.current_season = f"{current_year}-{str(current_year+1)[2:]}"
             
         self.create_tables()
-        
+
+    def set_odds_api_key(self, api_key: str):
+        """Enable odds tracking with the given API key."""
+        from src.odds_tracker import OddsTracker
+        self._odds_tracker = OddsTracker(api_key, self.db_name)
+        log.info("[betting] Odds tracker enabled")
+
     def get_db(self):
         return sqlite3.connect(self.db_name)
         
@@ -1657,6 +1666,17 @@ class BasketballBettingHelper:
                 stat_data.setdefault('defender_recent_form', 0.5)
                 stat_data.setdefault('opp_lineup_changes_last5', 0.0)
 
+            # ---- Odds / line movement features (from OddsTracker) ----
+            try:
+                if hasattr(self, '_odds_tracker') and self._odds_tracker is not None:
+                    _player_name_for_odds = player_name or str(player_id)
+                    _odds_feats = self._odds_tracker.get_line_features(
+                        _player_name_for_odds, prop_type
+                    )
+                    stat_data.update(_odds_feats)
+            except Exception as _odds_err:
+                log.debug(f"Odds features unavailable: {_odds_err}")
+
             features = self.ml_predictor.prepare_features(
                 stat_data, player_context, team_context, opponent_context
             )
@@ -1725,7 +1745,18 @@ class BasketballBettingHelper:
                 model_version=self.ml_predictor.model_version,
             )
 
-            return {
+            # ---- Sharp signal analysis (when odds tracker is active) ----
+            sharp_signal = None
+            try:
+                if self._odds_tracker is not None and player_name:
+                    pred_val = ml_prediction.get('predicted_value', stat_data.get('avg', 0))
+                    sharp_signal = self._odds_tracker.get_sharp_signals(
+                        float(pred_val), player_name, prop_type
+                    )
+            except Exception as _sig_err:
+                log.debug(f"Sharp signal error: {_sig_err}")
+
+            result = {
                 'success': True,
                 'log_id': log_id,
                 'hit_rate': hit_rate,
@@ -1750,6 +1781,9 @@ class BasketballBettingHelper:
                     'opponent': opponent_context
                 }
             }
+            if sharp_signal:
+                result['sharp_signal'] = sharp_signal
+            return result
 
         except Exception as e:
             print(f"analyze_prop_bet error: {e}")

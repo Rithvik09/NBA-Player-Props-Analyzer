@@ -1,0 +1,560 @@
+"""
+Odds API integration for tracking NBA player prop line movements.
+
+Polls The Odds API for player prop lines, stores snapshots over time,
+computes line movement features, and surfaces sharp action signals.
+"""
+
+import sqlite3
+import logging
+import time
+from datetime import datetime, timezone
+
+import requests
+
+log = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def american_to_implied(price: float) -> float:
+    """Convert American odds to implied probability (0-1)."""
+    if price > 0:
+        return 100.0 / (price + 100.0)
+    elif price < 0:
+        return abs(price) / (abs(price) + 100.0)
+    return 0.5
+
+
+# ---------------------------------------------------------------------------
+# OddsTracker
+# ---------------------------------------------------------------------------
+
+class OddsTracker:
+    """Track NBA player prop line movements via The Odds API."""
+
+    BASE_URL = "https://api.the-odds-api.com"
+    SPORT = "basketball_nba"
+
+    # Maps Odds API market keys → internal prop type names
+    PROP_TYPE_MAP = {
+        "player_points":                    "points",
+        "player_rebounds":                   "rebounds",
+        "player_assists":                    "assists",
+        "player_threes":                     "three_pointers",
+        "player_steals":                     "steals",
+        "player_blocks":                     "blocks",
+        "player_turnovers":                  "turnovers",
+        "player_points_rebounds_assists":     "pts_ast_reb",
+        "player_points_rebounds":             "pts_reb",
+        "player_points_assists":             "pts_ast",
+        "player_rebounds_assists":            "ast_reb",
+        "player_steals_blocks":              "stl_blk",
+        "player_double_double":              "double_double",
+    }
+
+    MARKETS = ",".join(PROP_TYPE_MAP.keys())
+
+    def __init__(self, api_key: str, db_path: str = "basketball_data.db"):
+        self.api_key = api_key
+        self.db_path = db_path
+        self._init_db()
+
+    # ---- DB setup ---------------------------------------------------------
+
+    def _init_db(self):
+        """Create line-tracking tables if they don't exist."""
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS prop_line_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_id TEXT NOT NULL,
+                player_id INTEGER,
+                player_name TEXT NOT NULL,
+                prop_type TEXT NOT NULL,
+                bookmaker TEXT NOT NULL,
+                line REAL NOT NULL,
+                over_price REAL,
+                under_price REAL,
+                snapshot_time TEXT NOT NULL,
+                UNIQUE(game_id, player_name, prop_type, bookmaker, snapshot_time)
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS prop_line_summary (
+                game_id TEXT NOT NULL,
+                player_name TEXT NOT NULL,
+                player_id INTEGER,
+                prop_type TEXT NOT NULL,
+                opening_line REAL,
+                current_line REAL,
+                line_movement REAL,
+                opening_over_price REAL,
+                current_over_price REAL,
+                price_movement REAL,
+                num_snapshots INTEGER DEFAULT 0,
+                first_seen TEXT,
+                last_updated TEXT,
+                consensus_line REAL,
+                line_std REAL,
+                sharp_action_score REAL DEFAULT 0.0,
+                PRIMARY KEY(game_id, player_name, prop_type)
+            )
+        """)
+        conn.commit()
+        conn.close()
+        log.info("[odds] DB tables initialized")
+
+    # ---- API calls --------------------------------------------------------
+
+    def _get(self, url: str, params: dict | None = None) -> dict | list | None:
+        """Make a GET request and log quota usage."""
+        params = params or {}
+        params["apiKey"] = self.api_key
+        try:
+            resp = requests.get(url, params=params, timeout=30)
+            # Log quota from headers
+            used = resp.headers.get("x-requests-used", "?")
+            remaining = resp.headers.get("x-requests-remaining", "?")
+            log.info(f"[odds] API quota: {used} used, {remaining} remaining")
+            print(f"[odds] API quota: {used} used, {remaining} remaining")
+            resp.raise_for_status()
+            return resp.json()
+        except requests.exceptions.HTTPError as e:
+            if resp.status_code == 429:
+                log.warning("[odds] Rate limited — backing off")
+                print("[odds] Rate limited — backing off")
+            elif resp.status_code == 401:
+                log.error("[odds] Invalid API key")
+                print("[odds] Invalid API key")
+            else:
+                log.error(f"[odds] HTTP error: {e}")
+                print(f"[odds] HTTP error: {e}")
+            return None
+        except requests.exceptions.RequestException as e:
+            log.error(f"[odds] Request failed: {e}")
+            print(f"[odds] Request failed: {e}")
+            return None
+
+    def fetch_upcoming_games(self) -> list[dict]:
+        """Fetch upcoming NBA games with basic odds."""
+        url = f"{self.BASE_URL}/v4/sports/{self.SPORT}/odds/"
+        data = self._get(url, {
+            "regions": "us",
+            "markets": "spreads,totals",
+            "oddsFormat": "american",
+        })
+        if not data:
+            return []
+        games = []
+        for event in data:
+            games.append({
+                "id": event["id"],
+                "home_team": event.get("home_team", ""),
+                "away_team": event.get("away_team", ""),
+                "commence_time": event.get("commence_time", ""),
+            })
+        log.info(f"[odds] Found {len(games)} upcoming games")
+        print(f"[odds] Found {len(games)} upcoming games")
+        return games
+
+    def fetch_player_props(self, event_id: str) -> list[dict]:
+        """Fetch all player prop lines for a single game event."""
+        url = f"{self.BASE_URL}/v4/sports/{self.SPORT}/events/{event_id}/odds"
+        data = self._get(url, {
+            "regions": "us",
+            "markets": self.MARKETS,
+            "oddsFormat": "american",
+        })
+        if not data:
+            return []
+
+        props = []
+        bookmakers = data.get("bookmakers", [])
+        for bk in bookmakers:
+            bk_name = bk.get("key", bk.get("title", "unknown"))
+            for market in bk.get("markets", []):
+                market_key = market.get("key", "")
+                prop_type = self.PROP_TYPE_MAP.get(market_key)
+                if not prop_type:
+                    continue
+
+                # Group outcomes by player name to pair Over/Under
+                player_outcomes: dict[str, dict] = {}
+                for outcome in market.get("outcomes", []):
+                    name = outcome.get("description", outcome.get("name", ""))
+                    if not name:
+                        continue
+                    side = outcome.get("name", "").lower()  # "Over" or "Under"
+                    point = outcome.get("point", 0.0)
+                    price = outcome.get("price", 0)
+
+                    if name not in player_outcomes:
+                        player_outcomes[name] = {"line": point}
+                    if "over" in side:
+                        player_outcomes[name]["over_price"] = float(price)
+                        player_outcomes[name]["line"] = float(point)
+                    elif "under" in side:
+                        player_outcomes[name]["under_price"] = float(price)
+
+                for player_name, info in player_outcomes.items():
+                    props.append({
+                        "player_name": player_name,
+                        "prop_type": prop_type,
+                        "bookmaker": bk_name,
+                        "line": info.get("line", 0.0),
+                        "over_price": info.get("over_price", -110),
+                        "under_price": info.get("under_price", -110),
+                    })
+        return props
+
+    # ---- Snapshot + storage -----------------------------------------------
+
+    def snapshot_all_games(self) -> int:
+        """Poll all upcoming games and store line snapshots. Returns total lines stored."""
+        games = self.fetch_upcoming_games()
+        if not games:
+            print("[odds] No upcoming games found")
+            return 0
+
+        total = 0
+        for i, game in enumerate(games, 1):
+            event_id = game["id"]
+            props = self.fetch_player_props(event_id)
+            if props:
+                self._store_snapshot(event_id, props)
+                # Update summaries
+                seen = set()
+                for p in props:
+                    key = (event_id, p["player_name"], p["prop_type"])
+                    if key not in seen:
+                        self._update_summary(*key)
+                        seen.add(key)
+                total += len(props)
+            print(f"[odds] Game {i}/{len(games)}: {game['away_team']} @ {game['home_team']} — {len(props)} lines")
+            # Be polite to the API
+            if i < len(games):
+                time.sleep(1)
+
+        print(f"[odds] Snapshotted {total} lines across {len(games)} games")
+        log.info(f"[odds] Snapshotted {total} lines across {len(games)} games")
+        return total
+
+    def _store_snapshot(self, game_id: str, props: list[dict]):
+        """Insert line snapshots into prop_line_history."""
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        for p in props:
+            try:
+                c.execute("""
+                    INSERT OR IGNORE INTO prop_line_history
+                    (game_id, player_name, prop_type, bookmaker, line, over_price, under_price, snapshot_time)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    game_id,
+                    p["player_name"],
+                    p["prop_type"],
+                    p["bookmaker"],
+                    p["line"],
+                    p.get("over_price"),
+                    p.get("under_price"),
+                    now,
+                ))
+            except sqlite3.Error as e:
+                log.warning(f"[odds] Insert error: {e}")
+        conn.commit()
+        conn.close()
+
+    def _update_summary(self, game_id: str, player_name: str, prop_type: str):
+        """Recompute prop_line_summary for a given (game, player, prop) combo."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+
+        # Get all snapshots ordered by time
+        c.execute("""
+            SELECT line, over_price, under_price, bookmaker, snapshot_time
+            FROM prop_line_history
+            WHERE game_id = ? AND player_name = ? AND prop_type = ?
+            ORDER BY snapshot_time ASC
+        """, (game_id, player_name, prop_type))
+        rows = c.fetchall()
+
+        if not rows:
+            conn.close()
+            return
+
+        # Opening = earliest snapshot (average across bookmakers at that time)
+        first_time = rows[0]["snapshot_time"]
+        opening_rows = [r for r in rows if r["snapshot_time"] == first_time]
+        opening_line = sum(r["line"] for r in opening_rows) / len(opening_rows)
+        opening_over = sum((r["over_price"] or -110) for r in opening_rows) / len(opening_rows)
+
+        # Current = latest snapshot
+        last_time = rows[-1]["snapshot_time"]
+        current_rows = [r for r in rows if r["snapshot_time"] == last_time]
+        current_line = sum(r["line"] for r in current_rows) / len(current_rows)
+        current_over = sum((r["over_price"] or -110) for r in current_rows) / len(current_rows)
+
+        line_movement = current_line - opening_line
+        price_movement = current_over - opening_over
+
+        # Consensus = average across all bookmakers at latest snapshot
+        consensus_line = current_line  # already averaged above
+        import statistics
+        line_vals = [r["line"] for r in current_rows]
+        line_std = statistics.stdev(line_vals) if len(line_vals) > 1 else 0.0
+
+        # Distinct snapshot times
+        distinct_times = len(set(r["snapshot_time"] for r in rows))
+
+        # Sharp action score:
+        # If price moved one direction but line moved opposite → sharp money
+        # e.g., over price went MORE negative (more juice on over = public on over)
+        #        but line went DOWN (books lowered it = sharp money on under)
+        if abs(line_movement) > 0.25:
+            # price_movement > 0 means over became less favorable (public on over)
+            # line_movement < 0 means line dropped (sharp on under)
+            if (price_movement > 0 and line_movement < 0) or \
+               (price_movement < 0 and line_movement > 0):
+                sharp_action_score = abs(line_movement) * 2.0
+            else:
+                sharp_action_score = abs(line_movement) * 0.5
+        else:
+            sharp_action_score = 0.0
+
+        c.execute("""
+            INSERT INTO prop_line_summary
+            (game_id, player_name, prop_type, opening_line, current_line, line_movement,
+             opening_over_price, current_over_price, price_movement,
+             num_snapshots, first_seen, last_updated, consensus_line, line_std, sharp_action_score)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(game_id, player_name, prop_type) DO UPDATE SET
+                current_line = excluded.current_line,
+                line_movement = excluded.line_movement,
+                current_over_price = excluded.current_over_price,
+                price_movement = excluded.price_movement,
+                num_snapshots = excluded.num_snapshots,
+                last_updated = excluded.last_updated,
+                consensus_line = excluded.consensus_line,
+                line_std = excluded.line_std,
+                sharp_action_score = excluded.sharp_action_score
+        """, (
+            game_id, player_name, prop_type,
+            opening_line, current_line, line_movement,
+            opening_over, current_over, price_movement,
+            distinct_times, first_time, last_time,
+            consensus_line, line_std, sharp_action_score,
+        ))
+        conn.commit()
+        conn.close()
+
+    # ---- Feature extraction -----------------------------------------------
+
+    def get_line_features(self, player_name: str, prop_type: str,
+                          game_id: str | None = None) -> dict:
+        """Get ML-ready features from line movement data."""
+        empty = {
+            "opening_line": 0.0,
+            "current_line": 0.0,
+            "line_movement": 0.0,
+            "line_movement_pct": 0.0,
+            "implied_over_prob": 0.5,
+            "implied_under_prob": 0.5,
+            "market_consensus_std": 0.0,
+            "sharp_action_score": 0.0,
+            "line_velocity": 0.0,
+            "stale_line_flag": 0.0,
+            "bookmaker_count": 0.0,
+        }
+
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+
+        if game_id:
+            c.execute("""
+                SELECT * FROM prop_line_summary
+                WHERE player_name = ? AND prop_type = ? AND game_id = ?
+            """, (player_name, prop_type, game_id))
+        else:
+            c.execute("""
+                SELECT * FROM prop_line_summary
+                WHERE player_name = ? AND prop_type = ?
+                ORDER BY last_updated DESC LIMIT 1
+            """, (player_name, prop_type))
+
+        row = c.fetchone()
+        if not row:
+            conn.close()
+            return empty
+
+        # Count distinct bookmakers at latest snapshot
+        c.execute("""
+            SELECT COUNT(DISTINCT bookmaker) as cnt
+            FROM prop_line_history
+            WHERE game_id = ? AND player_name = ? AND prop_type = ?
+        """, (row["game_id"], player_name, prop_type))
+        bk_count = c.fetchone()["cnt"]
+        conn.close()
+
+        opening = float(row["opening_line"] or 0)
+        current = float(row["current_line"] or 0)
+        movement = float(row["line_movement"] or 0)
+        over_price = float(row["current_over_price"] or -110)
+        num_snaps = int(row["num_snapshots"] or 0)
+
+        # Hours between first and last snapshot
+        try:
+            t0 = datetime.strptime(row["first_seen"], "%Y-%m-%d %H:%M:%S")
+            t1 = datetime.strptime(row["last_updated"], "%Y-%m-%d %H:%M:%S")
+            hours = max((t1 - t0).total_seconds() / 3600.0, 0.1)
+        except (ValueError, TypeError):
+            hours = 1.0
+
+        return {
+            "opening_line": opening,
+            "current_line": current,
+            "line_movement": movement,
+            "line_movement_pct": movement / max(abs(opening), 0.1),
+            "implied_over_prob": american_to_implied(over_price),
+            "implied_under_prob": 1.0 - american_to_implied(over_price),
+            "market_consensus_std": float(row["line_std"] or 0),
+            "sharp_action_score": float(row["sharp_action_score"] or 0),
+            "line_velocity": movement / hours,
+            "stale_line_flag": 1.0 if num_snaps > 3 and abs(movement) < 0.5 else 0.0,
+            "bookmaker_count": float(bk_count),
+        }
+
+    # ---- Signal engine ----------------------------------------------------
+
+    def get_sharp_signals(self, model_prediction: float, player_name: str,
+                          prop_type: str, game_id: str | None = None) -> dict:
+        """
+        Compare model prediction vs market line movement to surface actionable signals.
+
+        Returns:
+            signal_type: "sharp_fade" | "model_market_agree" | "stale_line" | "neutral"
+            conviction: 0.0 - 1.0
+            recommendation: "STRONG OVER" | "OVER" | "STRONG UNDER" | "UNDER" | "PASS"
+            reasoning: human-readable explanation
+        """
+        feats = self.get_line_features(player_name, prop_type, game_id)
+        current = feats["current_line"]
+        opening = feats["opening_line"]
+        movement = feats["line_movement"]
+        sharp = feats["sharp_action_score"]
+
+        if current == 0.0:
+            return {
+                "signal_type": "no_data",
+                "conviction": 0.0,
+                "model_edge": 0.0,
+                "model_edge_pct": 0.0,
+                "recommendation": "PASS",
+                "reasoning": "No line data available for this player prop.",
+            }
+
+        model_edge = model_prediction - current
+        model_edge_pct = model_edge / max(abs(current), 0.1)
+        model_says_over = model_prediction > current
+        line_moved_up = movement > 0.25
+        line_moved_down = movement < -0.25
+        stale = feats["stale_line_flag"] > 0
+
+        signal_type = "neutral"
+        conviction = 0.0
+        recommendation = "PASS"
+        reasoning = ""
+
+        if model_says_over and line_moved_down:
+            # Model says OVER, line moved DOWN → both agree on OVER
+            signal_type = "model_market_agree"
+            conviction = min(1.0, abs(model_edge_pct) * 2 + abs(movement) * 0.5)
+            recommendation = "STRONG OVER" if conviction > 0.6 else "OVER"
+            reasoning = (
+                f"Model predicts {model_prediction:.1f} (OVER {current:.1f}). "
+                f"Line dropped {abs(movement):.1f} pts from {opening:.1f} — "
+                f"sharp money also on OVER. Strongest signal."
+            )
+        elif not model_says_over and line_moved_up:
+            # Model says UNDER, line moved UP → both agree on UNDER
+            signal_type = "model_market_agree"
+            conviction = min(1.0, abs(model_edge_pct) * 2 + abs(movement) * 0.5)
+            recommendation = "STRONG UNDER" if conviction > 0.6 else "UNDER"
+            reasoning = (
+                f"Model predicts {model_prediction:.1f} (UNDER {current:.1f}). "
+                f"Line rose {abs(movement):.1f} pts from {opening:.1f} — "
+                f"sharp money also on UNDER. Strongest signal."
+            )
+        elif model_says_over and line_moved_up:
+            # Model says OVER but line moved UP (sharp took UNDER) → sharp fade
+            signal_type = "sharp_fade"
+            conviction = min(1.0, sharp * 0.3 + abs(movement) * 0.4)
+            recommendation = "UNDER" if conviction > 0.4 else "PASS"
+            reasoning = (
+                f"Model predicts {model_prediction:.1f} (OVER {current:.1f}), "
+                f"but line rose {abs(movement):.1f} pts — sharp money on UNDER. "
+                f"Fading model in favor of sharp action."
+            )
+        elif not model_says_over and line_moved_down:
+            # Model says UNDER but line dropped (sharp took OVER) → sharp fade
+            signal_type = "sharp_fade"
+            conviction = min(1.0, sharp * 0.3 + abs(movement) * 0.4)
+            recommendation = "OVER" if conviction > 0.4 else "PASS"
+            reasoning = (
+                f"Model predicts {model_prediction:.1f} (UNDER {current:.1f}), "
+                f"but line dropped {abs(movement):.1f} pts — sharp money on OVER. "
+                f"Fading model in favor of sharp action."
+            )
+        elif stale and abs(model_edge) > 1.0:
+            signal_type = "stale_line"
+            conviction = min(1.0, abs(model_edge_pct) * 1.5)
+            recommendation = "OVER" if model_says_over else "UNDER"
+            reasoning = (
+                f"Line hasn't moved ({opening:.1f} → {current:.1f}) despite "
+                f"{feats['bookmaker_count']:.0f} bookmakers tracked. "
+                f"Model sees {abs(model_edge):.1f} pt edge — possible stale line."
+            )
+        else:
+            signal_type = "neutral"
+            conviction = abs(model_edge_pct) * 0.5
+            recommendation = "PASS"
+            reasoning = (
+                f"Model predicts {model_prediction:.1f} vs line {current:.1f}. "
+                f"No strong market signal (movement: {movement:+.1f})."
+            )
+
+        return {
+            "signal_type": signal_type,
+            "conviction": round(conviction, 3),
+            "model_edge": round(model_edge, 2),
+            "model_edge_pct": round(model_edge_pct, 4),
+            "recommendation": recommendation,
+            "reasoning": reasoning,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Polling entry point
+# ---------------------------------------------------------------------------
+
+def poll_odds(api_key: str, db_path: str = "basketball_data.db") -> int:
+    """Single poll cycle — call on a cron/schedule every 30-60 min on game days."""
+    tracker = OddsTracker(api_key, db_path)
+    count = tracker.snapshot_all_games()
+    print(f"[odds] Poll complete: {count} lines stored at {datetime.now(timezone.utc).strftime('%H:%M UTC')}")
+    return count
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) < 2:
+        print("Usage: python odds_tracker.py <API_KEY> [db_path]")
+        sys.exit(1)
+    key = sys.argv[1]
+    db = sys.argv[2] if len(sys.argv) > 2 else "basketball_data.db"
+    poll_odds(key, db)

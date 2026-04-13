@@ -1321,6 +1321,21 @@ class EnhancedMLPredictor:
         features.setdefault('close_game_probability', features.get('close_game_pct', 0.3))
         features.setdefault('expected_game_script', features.get('blowout_game_pct', 0.2) - features.get('close_game_pct', 0.3))
 
+        # ---- Market / odds line movement features ----
+        # These are injected by the caller (analyze_prop_bet) when odds data is available.
+        # Default to neutral values when no odds tracking is active.
+        features.setdefault('opening_line', 0.0)
+        features.setdefault('current_line', 0.0)
+        features.setdefault('line_movement', 0.0)
+        features.setdefault('line_movement_pct', 0.0)
+        features.setdefault('implied_over_prob', 0.5)
+        features.setdefault('implied_under_prob', 0.5)
+        features.setdefault('market_consensus_std', 0.0)
+        features.setdefault('sharp_action_score', 0.0)
+        features.setdefault('line_velocity', 0.0)
+        features.setdefault('stale_line_flag', 0.0)
+        features.setdefault('bookmaker_count', 0.0)
+
         return features
 
     def predict(self, features, line, prop_type=None):
