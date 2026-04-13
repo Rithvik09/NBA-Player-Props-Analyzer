@@ -533,15 +533,17 @@ class EnhancedMLPredictor:
         """
         features = {}
 
-        # ---- core rolling stats (last-5 window, matches training) ----
-        _all_vals = player_stats.get('values') or [0]
-        _last5 = _all_vals[:5] if len(_all_vals) >= 5 else _all_vals
+        # ---- core rolling stats ----
+        # values list is newest-first from _get_stat_dict; reverse for chronological order
+        _all_vals = list(reversed(player_stats.get('values') or [0]))
+        _last5 = _all_vals[-5:] if len(_all_vals) >= 5 else _all_vals
         features.update({
             'recent_avg':   float(player_stats.get('last5_avg', 0)),
             'season_avg':   float(player_stats.get('avg', 0)),
-            'max_recent':   float(max(_last5)),
-            'min_recent':   float(min(_last5)),
-            'stddev':       float(np.std(_last5)),
+            # stddev/max/min over full history to match training (train uses full hist, not just last5)
+            'max_recent':   float(max(_all_vals)),
+            'min_recent':   float(min(_all_vals)),
+            'stddev':       float(np.std(_all_vals)) if len(_all_vals) > 1 else 0.0,
             'games_played': len(_all_vals),
         })
 
@@ -566,10 +568,11 @@ class EnhancedMLPredictor:
         })
 
         # ---- extended game-log derived features ----
-        _vals = player_stats.get('values') or [0]
-        _last5_ext = _vals[:5] if len(_vals) >= 5 else _vals
-        _last10_ext = _vals[:10] if len(_vals) >= 10 else _vals
-        _last3_ext = _vals[:3] if len(_vals) >= 3 else _vals
+        # _all_vals is already chronological (oldest-first) from the fix above
+        _vals = _all_vals  # chronological order, consistent with training
+        _last5_ext  = _vals[-5:]  if len(_vals) >= 5  else _vals
+        _last10_ext = _vals[-10:] if len(_vals) >= 10 else _vals
+        _last3_ext  = _vals[-3:]  if len(_vals) >= 3  else _vals
         _seas_avg_ext = float(np.mean(_vals)) if _vals else 0.0
         _seas_std_ext = float(np.std(_vals)) if len(_vals) > 1 else 1.0
 
@@ -604,9 +607,13 @@ class EnhancedMLPredictor:
                                       max(0.0, 1.0 - (_seas_std_ext / max(_seas_avg_ext, 0.1))))),
             'ceiling_game_frequency': float(player_stats.get('ceiling_game_frequency', 0.1)),
             'recent_variance_spike':  float(player_stats.get('recent_variance_spike', 0.0)),
-            'last_3_games_trend':  float(player_stats.get('last_3_games_trend', _slope_ext(list(reversed(_last3_ext))))),
-            'last_5_games_trend':  float(player_stats.get('last_5_games_trend', _slope_ext(list(reversed(_last5_ext))))),
-            'last_10_games_trend': float(player_stats.get('last_10_games_trend', _slope_ext(list(reversed(_last10_ext))))),
+            # Trend = mean(last-N) - season_avg, matching training definition in train_models.py
+            'last_3_games_trend':  float(player_stats.get('last_3_games_trend',
+                                         float(np.mean(_last3_ext)) - _seas_avg_ext if _last3_ext else 0.0)),
+            'last_5_games_trend':  float(player_stats.get('last_5_games_trend',
+                                         float(np.mean(_last5_ext)) - _seas_avg_ext if _last5_ext else 0.0)),
+            'last_10_games_trend': float(player_stats.get('last_10_games_trend',
+                                         float(np.mean(_last10_ext)) - _seas_avg_ext if _last10_ext else 0.0)),
             'games_above_season_avg_last5': float(player_stats.get('games_above_season_avg_last5',
                                                   float(sum(1 for v in _last5_ext if v > _seas_avg_ext)))),
             'days_since_last_game':  float(player_stats.get('days_since_last_game', 2.0)),
@@ -661,7 +668,7 @@ class EnhancedMLPredictor:
         features.update({
             'ref_foul_rate':     float(player_stats.get('ref_foul_rate', 0.0)),
             'ref_home_bias':     float(player_stats.get('ref_home_bias', 0.5)),
-            'ref_pace_tendency': float(player_stats.get('ref_pace_tendency', 0.0)),
+            'ref_pace_tendency': float(player_stats.get('ref_pace_tendency', 100.0)),
         })
         # ---- Rolling DVP deltas ----
         features.update({
@@ -843,10 +850,10 @@ class EnhancedMLPredictor:
             'team_current_streak':             float(player_stats.get('team_current_streak', 0.0)),
             'team_l10_wins':                   float(player_stats.get('team_l10_wins', 5.0)),
             'team_home_win_pct':               float(player_stats.get('team_home_win_pct', 0.5)),
-            'opp_win_pct_standings':           float(player_stats.get('opp_win_pct_standings', 0.5)),
+            'opp_win_pct':                     float(player_stats.get('opp_win_pct', 0.5)),
             'opp_conf_rank':                   float(player_stats.get('opp_conf_rank', 8.0)),
             'opp_games_back':                  float(player_stats.get('opp_games_back', 5.0)),
-            'opp_current_streak_standings':    float(player_stats.get('opp_current_streak_standings', 0.0)),
+            'opp_current_streak':              float(player_stats.get('opp_current_streak', 0.0)),
             'opp_l10_wins':                    float(player_stats.get('opp_l10_wins', 5.0)),
             'opp_road_win_pct':                float(player_stats.get('opp_road_win_pct', 0.5)),
             'win_pct_diff':                    float(player_stats.get('win_pct_diff', 0.0)),
@@ -882,6 +889,21 @@ class EnhancedMLPredictor:
             'pace_adjusted_projection':  float(player_stats.get('pace_adjusted_projection', 0.0)),
             'form_momentum':             float(player_stats.get('form_momentum', 0.0)),
         })
+        # ---- Group 7: Player vs Opponent Historical Splits ----
+        features.update({
+            'vs_opp_avg_pts': float(player_stats.get('vs_opp_avg_pts', 0.0)),
+            'vs_opp_fg_pct':  float(player_stats.get('vs_opp_fg_pct', 0.45)),
+            'vs_opp_ts_pct':  float(player_stats.get('vs_opp_ts_pct', 0.55)),
+            'vs_opp_gp':      float(player_stats.get('vs_opp_gp', 0.0)),
+            'vs_opp_avg_min': float(player_stats.get('vs_opp_avg_min', 30.0)),
+        })
+        # ---- Group 8: Opponent trend features ----
+        features.update({
+            'opp_def_rating_trend':          float(player_stats.get('opp_def_rating_trend', 0.0)),
+            'opp_def_rating_home_away_split': float(player_stats.get('opp_def_rating_home_away_split', 0.0)),
+            'pts_vs_top10_defenses':         float(player_stats.get('pts_vs_top10_defenses', float(player_stats.get('season_avg', 0.0)))),
+            'pts_vs_bottom10_defenses':      float(player_stats.get('pts_vs_bottom10_defenses', float(player_stats.get('season_avg', 0.0)))),
+        })
 
         # ---- Group A: Derived Efficiency Features (computed from existing player_stats keys) ----
         features.update({
@@ -907,11 +929,6 @@ class EnhancedMLPredictor:
 
         # ---- Groups B/C/D: Historical vs Opponent, Team Rest Splits, YoY Stats ----
         features.update({
-            'historical_avg_vs_opp':       float(player_stats.get('historical_avg_vs_opp', 0.0)),
-            'historical_fg_pct_vs_opp':    float(player_stats.get('historical_fg_pct_vs_opp', 0.45)),
-            'historical_ts_pct_vs_opp':    float(player_stats.get('historical_ts_pct_vs_opp', 0.55)),
-            'historical_games_vs_opp':     float(player_stats.get('historical_games_vs_opp', 0)),
-            'historical_min_vs_opp':       float(player_stats.get('historical_min_vs_opp', 30.0)),
             'opp_b2b_def_rating':          float(player_stats.get('opp_b2b_def_rating', 112.0)),
             'opp_b2b_pace':                float(player_stats.get('opp_b2b_pace', 100.0)),
             'opp_b2b_pts_allowed':         float(player_stats.get('opp_b2b_pts_allowed', 115.0)),
@@ -1055,12 +1072,19 @@ class EnhancedMLPredictor:
         _min_ratio = float(player_stats.get('avg_minutes', 30.0)) / 48.0
         _poss_per_game = features.get('team_pace', 100.0) * _min_ratio
         _poss = max(_poss_per_game, 1.0)
+        # Per-100 possessions: stat_per_game / poss_per_game * 100
+        _ast_pg  = float(player_stats.get('ast_per_game',  features.get('ast_to_tov_ratio', 1.5) * 1.5))
+        _reb_pg  = features.get('dreb_per_game', 3.0) + features.get('oreb_per_game', 1.0)
+        _stl_pg  = float(player_stats.get('stl_per_game',  1.0))
+        _blk_pg  = float(player_stats.get('blk_per_game',  0.5))
+        _tov_pg  = float(player_stats.get('tov_per_game',
+                         (_ast_pg / max(float(player_stats.get('ast_to_tov_ratio', 2.0)), 0.1))))
         features.setdefault('pts_per_100', _seas_avg / _poss * 100.0)
-        features.setdefault('ast_per_100', float(player_stats.get('ast_to_tov_ratio', 1.5)) * 2.0)
-        features.setdefault('reb_per_100', features.get('dreb_per_game', 3.0) / _poss * 100.0)
-        features.setdefault('stl_per_100', 1.5)
-        features.setdefault('blk_per_100', 0.5)
-        features.setdefault('tov_per_100', float(player_stats.get('ast_to_tov_ratio', 1.5)) > 0 and 2.0 / float(player_stats.get('ast_to_tov_ratio', 1.5)) or 1.5)
+        features.setdefault('ast_per_100', _ast_pg / _poss * 100.0)
+        features.setdefault('reb_per_100', _reb_pg  / _poss * 100.0)
+        features.setdefault('stl_per_100', _stl_pg  / _poss * 100.0)
+        features.setdefault('blk_per_100', _blk_pg  / _poss * 100.0)
+        features.setdefault('tov_per_100', _tov_pg  / _poss * 100.0)
 
         # Rolling window stats from values array
         _ewm03 = float(pd.Series(_arr).ewm(alpha=0.3).mean().iloc[-1]) if len(_arr) > 0 else _seas_avg

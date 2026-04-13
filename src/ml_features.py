@@ -226,9 +226,6 @@ NUMERIC_FEATURE_KEYS: list[str] = [
     "usage_rate_with_star_out",
     "minutes_with_starting_lineup_pct",
     "five_man_unit_net_rating",
-    "on_court_net_rating",
-    "off_court_net_rating",
-    "on_off_differential",
     "lineups_played_count",
     # Tier 7: Time-Series Features (Quick Win #2)
     "rolling_7day_avg",
@@ -308,7 +305,6 @@ NUMERIC_FEATURE_KEYS: list[str] = [
     # Tier 9: Points in the Paint
     "paint_pts_per_game",  # Points scored in the paint
     "paint_attempts_per_game",  # Field goal attempts in the paint
-    "paint_fg_pct",  # Field goal percentage in the paint
     "paint_touch_to_points",  # Points per paint touch
     "restricted_area_attempts",  # Attempts in restricted area
     # Tier 9: Game Situation Performance
@@ -366,27 +362,17 @@ NUMERIC_FEATURE_KEYS: list[str] = [
     "oreb_pct_official",
     "dreb_pct_official",
     "reb_pct_official",
-    "pie",
-    "player_off_rating",
-    "player_def_rating",
-    "player_pace",
     "net_rating_player",
     # Player bio
-    "player_age",
     "player_height_inches",
     "player_weight",
-    "years_experience",
     # Clutch performance (last 5 min, within 5 pts)
-    "clutch_pts_per_game",
-    "clutch_fg_pct",
     "clutch_fg3_pct",
     "clutch_fta_per_game",
     "clutch_plus_minus",
     "clutch_min_per_game",
     "clutch_games",
     # Hustle stats
-    "contested_shots_per_game",
-    "deflections_per_game",
     "charges_drawn_per_game",
     "screen_assists_per_game",
     # Shot profile by defender distance / shot type
@@ -454,6 +440,52 @@ NUMERIC_FEATURE_KEYS: list[str] = [
     "iso_matchup_advantage",
     "spotup_matchup_advantage",
     "transition_matchup_advantage",
+    # Player tracking stats (from player_tracking_stats)
+    "tracking_avg_speed",
+    "tracking_avg_speed_off",
+    "tracking_avg_speed_def",
+    "tracking_dist_miles",
+    "tracking_dist_miles_off",
+    "tracking_dist_miles_def",
+    "tracking_touches_pg",
+    "tracking_time_of_poss_pg",
+    "tracking_avg_drib_per_touch",
+    "tracking_passes_made_pg",
+    "tracking_potential_ast_pg",
+    "tracking_secondary_ast_pg",
+    # Scoring breakdown (from player_scoring_breakdown)
+    "pct_pts_3pt",
+    "pct_pts_paint",
+    "pct_pts_ft",
+    "pct_pts_midrange",
+    "pct_uast_fgm",
+    "pct_ast_fgm",
+    # Year-over-year development (from player_yoy_stats)
+    "yoy_pts_change",
+    "yoy_ts_change",
+    "yoy_usage_change",
+    "seasons_in_league",
+    # Opponent rest splits (from team_rest_splits)
+    "opp_b2b_def_rating",
+    "opp_b2b_pace",
+    "opp_b2b_pts_allowed",
+    "opp_rested_def_rating",
+    "opp_rested_pace",
+    # Team standings context (from team_standings)
+    "team_win_pct",
+    "team_conf_rank",
+    "team_current_streak",
+    "team_l10_wins",
+    "opp_win_pct",
+    "opp_conf_rank",
+    "opp_current_streak",
+    "opp_l10_wins",
+    # Player vs specific opponent (from player_vs_opponent)
+    "vs_opp_gp",
+    "vs_opp_avg_pts",
+    "vs_opp_fg_pct",
+    "vs_opp_ts_pct",
+    "vs_opp_avg_min",
 ]
 
 CLASSIFIER_EXTRA_KEYS: list[str] = [

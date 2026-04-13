@@ -566,11 +566,11 @@ class PrecomputedStore:
             for row in cur.fetchall():
                 (pid, opp_tid, gp, pts, fg, ts, mn) = row
                 player_vs_opponent[(int(pid), int(opp_tid))] = {
-                    'historical_avg_vs_opp':    float(pts) if pts is not None else 0.0,
-                    'historical_fg_pct_vs_opp': float(fg)  if fg  is not None else 0.45,
-                    'historical_ts_pct_vs_opp': float(ts)  if ts  is not None else 0.55,
-                    'historical_games_vs_opp':  int(gp)    if gp  is not None else 0,
-                    'historical_min_vs_opp':    float(mn)  if mn  is not None else 30.0,
+                    'vs_opp_avg_pts': float(pts) if pts is not None else 0.0,
+                    'vs_opp_fg_pct':  float(fg)  if fg  is not None else 0.45,
+                    'vs_opp_ts_pct':  float(ts)  if ts  is not None else 0.55,
+                    'vs_opp_gp':      int(gp)    if gp  is not None else 0,
+                    'vs_opp_avg_min': float(mn)  if mn  is not None else 30.0,
                 }
         except Exception:
             pass
@@ -618,6 +618,57 @@ class PrecomputedStore:
         except Exception:
             pass
 
+        team_home_away_splits: dict[int, dict] = {}
+        try:
+            cur.execute(
+                "SELECT team_id, home_def_rating, away_def_rating, home_away_def_split FROM team_home_away_splits"
+            )
+            for row in cur.fetchall():
+                (tid, home_def, away_def, split) = row
+                team_home_away_splits[int(tid)] = {
+                    'home_def_rating':       float(home_def)  if home_def  is not None else 110.0,
+                    'away_def_rating':       float(away_def)  if away_def  is not None else 110.0,
+                    'home_away_def_split':   float(split)     if split     is not None else 0.0,
+                }
+        except Exception:
+            pass
+
+        team_lineup_stats: dict[int, dict] = {}
+        try:
+            cur.execute(
+                """
+                SELECT team_id, top_lineup_net_rating, bench_net_rating, bench_strength,
+                       lineup_continuity, lineups_played_count
+                FROM team_lineup_stats
+                """
+            )
+            for row in cur.fetchall():
+                (tid, top_nr, bench_nr, bench_str, continuity, count) = row
+                team_lineup_stats[int(tid)] = {
+                    'top_lineup_net_rating': float(top_nr)    if top_nr    is not None else 0.0,
+                    'bench_net_rating':      float(bench_nr)  if bench_nr  is not None else 0.0,
+                    'bench_strength':        float(bench_str) if bench_str is not None else 0.0,
+                    'lineup_continuity':     float(continuity) if continuity is not None else 0.7,
+                    'lineups_played_count':  int(count)       if count     is not None else 1,
+                }
+        except Exception:
+            pass
+
+        team_injury_status: dict[int, dict] = {}
+        try:
+            cur.execute(
+                "SELECT team_id, key_players_out, total_players_out, total_impact FROM team_injury_status"
+            )
+            for row in cur.fetchall():
+                (tid, key_out, total_out, impact) = row
+                team_injury_status[int(tid)] = {
+                    'key_players_out':   int(key_out)    if key_out   is not None else 0,
+                    'total_players_out': int(total_out)  if total_out is not None else 0,
+                    'total_impact':      float(impact)   if impact    is not None else 0.0,
+                }
+        except Exception:
+            pass
+
         try:
             conn.close()
         except Exception:
@@ -651,6 +702,9 @@ class PrecomputedStore:
             'player_vs_opponent': player_vs_opponent,
             'team_rest_splits': team_rest_splits,
             'player_yoy_stats': player_yoy_stats,
+            'team_home_away_splits': team_home_away_splits,
+            'team_lineup_stats': team_lineup_stats,
+            'team_injury_status': team_injury_status,
         }
         self._cache = payload
         self._cache_at = now

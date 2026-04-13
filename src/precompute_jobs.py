@@ -31,6 +31,8 @@ from nba_api.stats.endpoints import (
     commonallplayers,
     leaguedashptstats,
     leaguestandingsv3,
+    teamdashboardbygeneralsplits,
+    leaguedashlineups,
 )
 from nba_api.stats.static import teams
 
@@ -351,6 +353,41 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
             yoy_usage_change REAL,
             seasons_in_league INTEGER,
             updated_at INTEGER
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS team_home_away_splits (
+            team_id INTEGER PRIMARY KEY,
+            home_def_rating REAL,
+            away_def_rating REAL,
+            home_away_def_split REAL,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS team_lineup_stats (
+            team_id INTEGER PRIMARY KEY,
+            top_lineup_net_rating REAL,
+            bench_net_rating REAL,
+            bench_strength REAL,
+            lineup_continuity REAL,
+            lineups_played_count INTEGER,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS team_injury_status (
+            team_id INTEGER PRIMARY KEY,
+            key_players_out INTEGER,
+            total_players_out INTEGER,
+            total_impact REAL,
+            updated_at INTEGER NOT NULL
         )
         """
     )
@@ -2487,6 +2524,187 @@ def upsert_player_yoy(conn: sqlite3.Connection, rows: list[dict[str, Any]], upda
     conn.commit()
 
 
+def compute_team_home_away_splits(season: str = '2024-25') -> list[dict[str, Any]]:
+    """Fetch home vs away defensive rating split for each team."""
+    all_teams = teams.get_teams()
+    rows: list[dict[str, Any]] = []
+    for team in all_teams:
+        tid = int(team['id'])
+        try:
+            dash = teamdashboardbygeneralsplits.TeamDashboardByGeneralSplits(
+                team_id=tid, season=season, measure_type_detailed_defense='Advanced',
+                per_mode_detailed='PerGame', timeout=60,
+            )
+            dfs = dash.get_data_frames()
+            # Frame index 1 is typically the Location split (Home/Road)
+            loc_df = None
+            for df in dfs:
+                if df is not None and not df.empty and 'GROUP_VALUE' in df.columns:
+                    vals = df['GROUP_VALUE'].str.upper().tolist()
+                    if 'HOME' in vals or 'ROAD' in vals:
+                        loc_df = df
+                        break
+            if loc_df is None or loc_df.empty:
+                time.sleep(0.6)
+                continue
+            home_row = loc_df[loc_df['GROUP_VALUE'].str.upper() == 'HOME']
+            away_row = loc_df[loc_df['GROUP_VALUE'].str.upper() == 'ROAD']
+            home_def = float(home_row['DEF_RATING'].iloc[0]) if not home_row.empty and 'DEF_RATING' in home_row.columns else 110.0
+            away_def = float(away_row['DEF_RATING'].iloc[0]) if not away_row.empty and 'DEF_RATING' in away_row.columns else 110.0
+            rows.append({
+                'team_id': tid,
+                'home_def_rating': home_def,
+                'away_def_rating': away_def,
+                'home_away_def_split': home_def - away_def,
+            })
+            time.sleep(0.6)
+        except Exception as _e:
+            print(f"  home/away split failed for team {tid}: {_e}")
+            time.sleep(0.6)
+    return rows
+
+
+def upsert_team_home_away_splits(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT INTO team_home_away_splits (team_id, home_def_rating, away_def_rating, home_away_def_split, updated_at)
+            VALUES (:team_id, :home_def_rating, :away_def_rating, :home_away_def_split, :updated_at)
+            ON CONFLICT(team_id) DO UPDATE SET
+                home_def_rating=excluded.home_def_rating,
+                away_def_rating=excluded.away_def_rating,
+                home_away_def_split=excluded.home_away_def_split,
+                updated_at=excluded.updated_at
+            """,
+            {**r, 'updated_at': updated_at},
+        )
+    conn.commit()
+
+
+def compute_lineup_stats(season: str = '2024-25') -> list[dict[str, Any]]:
+    """Compute lineup depth/continuity metrics per team using LeagueDashLineups."""
+    try:
+        dash = leaguedashlineups.LeagueDashLineups(
+            season=season, measure_type_detailed_defense='Advanced',
+            per_mode_detailed='PerGame', timeout=90,
+        )
+        df = dash.get_data_frames()[0]
+        time.sleep(1.0)
+    except Exception as _e:
+        print(f"  lineup stats fetch failed: {_e}")
+        return []
+
+    if df is None or df.empty:
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for tid, grp in df.groupby('TEAM_ID'):
+        tid = int(tid)
+        grp = grp.copy()
+        # Sort by minutes descending
+        min_col = 'MIN' if 'MIN' in grp.columns else None
+        nr_col = 'NET_RATING' if 'NET_RATING' in grp.columns else None
+        if min_col:
+            grp = grp.sort_values(min_col, ascending=False)
+        total_min = float(grp[min_col].sum()) if min_col else 1.0
+
+        # Top lineup = highest-minutes 5-man unit
+        top_nr = float(grp[nr_col].iloc[0]) if nr_col and not grp.empty else 0.0
+
+        # Bench lineups: those with GROUP_VALUE containing 0 starters (heuristic: net_rating of bottom half)
+        half = max(1, len(grp) // 2)
+        bench_grp = grp.iloc[half:]
+        bench_nr = float(bench_grp[nr_col].mean()) if nr_col and not bench_grp.empty else 0.0
+
+        # bench_strength: bench net rating normalised to [-1, 1]
+        bench_strength = max(-1.0, min(1.0, bench_nr / 10.0))
+
+        # lineup_continuity: fraction of total minutes in top-3 lineups
+        top3_min = float(grp[min_col].head(3).sum()) if min_col else total_min
+        lineup_continuity = top3_min / max(total_min, 1.0)
+
+        rows.append({
+            'team_id': tid,
+            'top_lineup_net_rating': top_nr,
+            'bench_net_rating': bench_nr,
+            'bench_strength': bench_strength,
+            'lineup_continuity': lineup_continuity,
+            'lineups_played_count': int(len(grp)),
+        })
+    return rows
+
+
+def upsert_lineup_stats(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT INTO team_lineup_stats
+                (team_id, top_lineup_net_rating, bench_net_rating, bench_strength, lineup_continuity, lineups_played_count, updated_at)
+            VALUES
+                (:team_id, :top_lineup_net_rating, :bench_net_rating, :bench_strength, :lineup_continuity, :lineups_played_count, :updated_at)
+            ON CONFLICT(team_id) DO UPDATE SET
+                top_lineup_net_rating=excluded.top_lineup_net_rating,
+                bench_net_rating=excluded.bench_net_rating,
+                bench_strength=excluded.bench_strength,
+                lineup_continuity=excluded.lineup_continuity,
+                lineups_played_count=excluded.lineups_played_count,
+                updated_at=excluded.updated_at
+            """,
+            {**r, 'updated_at': updated_at},
+        )
+    conn.commit()
+
+
+def compute_injury_status() -> list[dict[str, Any]]:
+    """Fetch current injury status for all 30 teams via InjuryTracker."""
+    try:
+        from .injury_tracker import InjuryTracker
+    except ImportError:
+        try:
+            from src.injury_tracker import InjuryTracker
+        except ImportError:
+            print("  InjuryTracker not available")
+            return []
+
+    tracker = InjuryTracker()
+    all_teams = teams.get_teams()
+    rows: list[dict[str, Any]] = []
+    for team in all_teams:
+        tid = int(team['id'])
+        try:
+            info = tracker.get_team_injuries(tid)
+            rows.append({
+                'team_id': tid,
+                'key_players_out': int(info.get('key_players_out', 0)),
+                'total_players_out': int(info.get('total_players_out', 0)),
+                'total_impact': float(info.get('total_impact', 0.0)),
+            })
+        except Exception as _e:
+            print(f"  injury status failed for team {tid}: {_e}")
+            rows.append({'team_id': tid, 'key_players_out': 0, 'total_players_out': 0, 'total_impact': 0.0})
+    return rows
+
+
+def upsert_injury_status(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+    cur = conn.cursor()
+    for r in rows:
+        cur.execute(
+            """
+            INSERT INTO team_injury_status (team_id, key_players_out, total_players_out, total_impact, updated_at)
+            VALUES (:team_id, :key_players_out, :total_players_out, :total_impact, :updated_at)
+            ON CONFLICT(team_id) DO UPDATE SET
+                key_players_out=excluded.key_players_out,
+                total_players_out=excluded.total_players_out,
+                total_impact=excluded.total_impact,
+                updated_at=excluded.updated_at
+            """,
+            {**r, 'updated_at': updated_at},
+        )
+    conn.commit()
+
+
 def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any]:
     """
     Runs full update and returns summary.
@@ -2669,6 +2887,34 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
     except Exception as _e:
         print(f"player yoy stats failed: {_e}")
 
+    # ---- New Tier B jobs ----
+    home_away_rows: list[dict[str, Any]] = []
+    try:
+        print("computing team home/away defensive splits (30 teams)...")
+        home_away_rows = compute_team_home_away_splits(season=season)
+        upsert_team_home_away_splits(conn, home_away_rows, updated_at=updated_at)
+        print(f"  home/away splits: {len(home_away_rows)} rows")
+    except Exception as _e:
+        print(f"team home/away splits failed: {_e}")
+
+    lineup_rows: list[dict[str, Any]] = []
+    try:
+        print("computing team lineup stats...")
+        lineup_rows = compute_lineup_stats(season=season)
+        upsert_lineup_stats(conn, lineup_rows, updated_at=updated_at)
+        print(f"  lineup stats: {len(lineup_rows)} rows")
+    except Exception as _e:
+        print(f"lineup stats failed: {_e}")
+
+    injury_rows: list[dict[str, Any]] = []
+    try:
+        print("computing team injury status (current)...")
+        injury_rows = compute_injury_status()
+        upsert_injury_status(conn, injury_rows, updated_at=updated_at)
+        print(f"  injury status: {len(injury_rows)} rows")
+    except Exception as _e:
+        print(f"injury status failed: {_e}")
+
     conn.close()
     return {
         "season": season,
@@ -2695,6 +2941,9 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         "player_vs_opp_rows": len(player_vs_opp_rows),
         "team_rest_rows": len(team_rest_rows),
         "player_yoy_rows": len(player_yoy_rows),
+        "home_away_rows": len(home_away_rows),
+        "lineup_rows": len(lineup_rows),
+        "injury_rows": len(injury_rows),
     }
 
 
