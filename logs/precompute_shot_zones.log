@@ -1,3 +1,0 @@
-Traceback (most recent call last):
-  File "<string>", line 7, in <module>
-TypeError: PrecomputedStore.__init__() missing 1 required positional argument: 'db_name'
