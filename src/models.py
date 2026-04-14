@@ -92,20 +92,22 @@ class EnhancedMLPredictor:
                 prop_type = fname[len('clf_cal_'):-len('.joblib')]
                 reg_path = os.path.join(self.model_dir, f'reg_{prop_type}.joblib')
                 scaler_path = os.path.join(self.model_dir, f'scaler_{prop_type}.joblib')
-                if not os.path.exists(reg_path):
-                    print(f"skipping incomplete per-prop bundle for '{prop_type}': missing reg file")
-                    continue
                 try:
                     # Use a saved scaler if available; fall back to identity (XGBoost doesn't need scaling)
                     if os.path.exists(scaler_path):
                         _scaler = joblib.load(scaler_path)
                     else:
                         _scaler = FunctionTransformer()  # identity passthrough
-                    self.prop_models[prop_type] = {
+                    bundle = {
                         'calibrated_clf': joblib.load(os.path.join(self.model_dir, fname)),
-                        'regression_model': joblib.load(reg_path),
                         'scaler': _scaler,
                     }
+                    # Regression model is optional for binary props (double_double, triple_double)
+                    if os.path.exists(reg_path):
+                        bundle['regression_model'] = joblib.load(reg_path)
+                    else:
+                        bundle['regression_model'] = None
+                    self.prop_models[prop_type] = bundle
                 except Exception as e:
                     print(f"failed to load per-prop model for {prop_type}: {e}")
 
@@ -1407,12 +1409,15 @@ class EnhancedMLPredictor:
                         return pd.DataFrame([row], columns=feat_names)
 
                     # align for scaler / regressor (scaler takes precedence if it has feature names)
-                    scaler_estimator = _scaler if hasattr(_scaler, 'feature_names_in_') else _reg
-                    features_aligned = _align_to_model(features_df, scaler_estimator)
-                    features_aligned = features_aligned.fillna(0.0)
-                    features_scaled = _scaler.transform(features_aligned)
-
-                    ml_pred = float(_reg.predict(features_scaled)[0])
+                    if _reg is not None:
+                        scaler_estimator = _scaler if hasattr(_scaler, 'feature_names_in_') else _reg
+                        features_aligned = _align_to_model(features_df, scaler_estimator)
+                        features_aligned = features_aligned.fillna(0.0)
+                        features_scaled = _scaler.transform(features_aligned)
+                        ml_pred = float(_reg.predict(features_scaled)[0])
+                    else:
+                        # Binary props (double_double, triple_double) — no regression model
+                        ml_pred = stat_predicted_value
 
                     # classifier may expect additional features (e.g. 'line')
                     clf_features = _align_to_model(features_df, _clf, extra={'line': line})
