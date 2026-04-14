@@ -1,3 +1,4 @@
+import logging
 import pandas as pd
 import numpy as np
 from nba_api.stats.endpoints import playergamelog, CommonPlayerInfo, TeamGameLog
@@ -6,6 +7,8 @@ import sqlite3
 import time
 from datetime import datetime, timedelta
 import warnings
+
+log = logging.getLogger(__name__)
 warnings.filterwarnings('ignore')
 from .models import EnhancedMLPredictor
 from .incremental_models import IncrementalModelManager
