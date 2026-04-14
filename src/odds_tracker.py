@@ -50,7 +50,6 @@ class OddsTracker:
         "player_points_rebounds":             "pts_reb",
         "player_points_assists":             "pts_ast",
         "player_rebounds_assists":            "ast_reb",
-        "player_steals_blocks":              "stl_blk",
         "player_double_double":              "double_double",
     }
 
