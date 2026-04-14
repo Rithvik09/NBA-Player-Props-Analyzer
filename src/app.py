@@ -36,7 +36,7 @@ if _odds_key:
     app.logger.info('Odds tracker enabled via ODDS_API_KEY env var')
 
 # ── Odds polling background loop ─────────────────────────────────────────────
-_odds_poll_interval = int(os.environ.get('ODDS_POLL_INTERVAL', 1800))  # default 30 min
+_odds_poll_interval = int(os.environ.get('ODDS_POLL_INTERVAL', 3600))  # default 60 min
 
 def _odds_poll_loop():
     """Poll odds API on a loop while the server is running."""

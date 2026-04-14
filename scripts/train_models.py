@@ -754,7 +754,6 @@ def build_training_examples(
                     "vs_team_avg": _vs_opp_avg_pts,
                     "matchup_games": int(_vs_opp_gp),
                     "dvp_gp": dvp_gp,
-                    **dvp_deltas,
                     "primary_defender_score01": float((primary_def or {}).get("score01", 0.0) or 0.0),
                     "points_per_shot": float(points_per_shot),
                     "ast_to_tov_ratio": float(ast_to_tov_ratio),
@@ -1146,6 +1145,18 @@ def build_training_examples(
                         "primary_defender_active": _primary_def_active,
                         # Opponent lineup instability (rolling DVP variance proxy)
                         "opp_lineup_changes_last5": _opp_lineup_changes,
+                        # Market / odds features (zeros during training — populated at inference)
+                        "opening_line": 0.0,
+                        "current_line": 0.0,
+                        "line_movement": 0.0,
+                        "line_movement_pct": 0.0,
+                        "implied_over_prob": 0.5,
+                        "implied_under_prob": 0.5,
+                        "market_consensus_std": 0.0,
+                        "sharp_action_score": 0.0,
+                        "line_velocity": 0.0,
+                        "stale_line_flag": 0.0,
+                        "bookmaker_count": 0.0,
                     }
 
             for prop_type, target_col in STAT_TARGETS.items():
