@@ -1,6 +1,11 @@
 from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
 from sklearn.preprocessing import StandardScaler, FunctionTransformer
 from sklearn.calibration import CalibratedClassifierCV
+try:
+    # sklearn >= 1.6; replaces CalibratedClassifierCV(cv='prefit') which was removed in 1.8
+    from sklearn.frozen import FrozenEstimator
+except ImportError:  # older sklearn — caller falls back to cv='prefit' path below
+    FrozenEstimator = None
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, mean_squared_error
 from nba_api.stats.endpoints import TeamGameLog, CommonPlayerInfo, LeagueGameFinder
@@ -1390,8 +1395,9 @@ class EnhancedMLPredictor:
 
                     def _align_to_model(df, estimator, extra=None):
                         """Zero-fill missing cols and reorder to match estimator's expected features."""
-                        # unwrap custom wrappers like IsotonicCalibratedModel
-                        actual = getattr(estimator, 'base_estimator', estimator)
+                        # unwrap custom wrappers like IsotonicCalibratedModel (.base_estimator)
+                        # and sklearn 1.6+ CalibratedClassifierCV (.estimator)
+                        actual = getattr(estimator, 'estimator', getattr(estimator, 'base_estimator', estimator))
                         feat_names = None
                         if hasattr(actual, 'feature_names_in_'):
                             feat_names = [str(f) for f in actual.feature_names_in_]
@@ -1556,7 +1562,11 @@ class EnhancedMLPredictor:
     def _make_calibrated_clf(self, base_clf, n_samples):
         """Wrap a fitted GradientBoostingClassifier in CalibratedClassifierCV."""
         method = 'isotonic' if n_samples >= 100 else 'sigmoid'
-        cal = CalibratedClassifierCV(base_clf, method=method, cv='prefit')
+        # sklearn 1.8 removed cv='prefit'; wrap already-fitted estimator in FrozenEstimator instead
+        if FrozenEstimator is not None:
+            cal = CalibratedClassifierCV(FrozenEstimator(base_clf), method=method, cv=None)
+        else:
+            cal = CalibratedClassifierCV(base_clf, method=method, cv='prefit')
         return cal
 
     def train(self, training_data):
