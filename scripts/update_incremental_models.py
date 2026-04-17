@@ -486,8 +486,8 @@ def main():
                         mm.partial_fit_reg(prop, Xr, np.array([float(y)], dtype=float))
 
                     # classifier updates (line aware)
-                # sportsbook-like lines are generally set near expected value (blend recent + season)
-                center = 0.7 * float(last5_avg) + 0.3 * float(season_avg)
+                    # sportsbook-like lines are generally set near expected value (blend recent + season)
+                    center = 0.7 * float(last5_avg) + 0.3 * float(season_avg)
                     for ln in _sample_lines(center, prop):
                         Xc = build_classifier_vector(feats, line=float(ln)).X.values.astype(float)
                         yy = 1 if float(y) > float(ln) else 0
