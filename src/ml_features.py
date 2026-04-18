@@ -498,6 +498,13 @@ NUMERIC_FEATURE_KEYS: list[str] = [
     "line_velocity",
     "stale_line_flag",
     "bookmaker_count",
+    # Intensity / playoff context
+    "is_playoff",
+    "is_play_in",
+    "series_game_num",
+    "team_series_wins_in",
+    "opp_series_wins_in",
+    "is_elimination_game",
 ]
 
 CLASSIFIER_EXTRA_KEYS: list[str] = [
