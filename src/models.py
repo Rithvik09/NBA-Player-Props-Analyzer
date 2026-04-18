@@ -197,15 +197,36 @@ class EnhancedMLPredictor:
         }
 
     def _get_matchup_history(self, player_id, opponent_team_id):
-        """Get this player's historical stats against a specific team."""
-        try:
-            gamefinder = LeagueGameFinder(
-                player_id_nullable=player_id,
-                vs_team_id_nullable=opponent_team_id,
-                season_type_nullable='Regular Season'
-            ).get_data_frames()[0]
+        """Get this player's historical stats against a specific team.
 
-            time.sleep(0.6)
+        Concatenates regular-season AND playoff matchups:
+          - Regular season: covers recent meetings (good sample size, fresh data).
+          - Playoffs: small sample but very high signal during a series, where
+            the same teams meet 4–7 times. Playoff history may be stale (teams
+            might not have met in the playoffs for years), so regular-season
+            data anchors the average; playoff rows just add to it.
+        """
+        try:
+            frames = []
+            for stype in ('Regular Season', 'Playoffs'):
+                try:
+                    df = LeagueGameFinder(
+                        player_id_nullable=player_id,
+                        vs_team_id_nullable=opponent_team_id,
+                        season_type_nullable=stype,
+                    ).get_data_frames()[0]
+                    time.sleep(0.6)
+                    if df is not None and len(df) > 0:
+                        frames.append(df)
+                except Exception as _inner:
+                    # One season type failing shouldn't kill the other
+                    print(f"matchup history ({stype}) fetch failed: {_inner}")
+                    continue
+
+            if not frames:
+                return None
+
+            gamefinder = pd.concat(frames, ignore_index=True)
 
             if len(gamefinder) == 0:
                 return None
