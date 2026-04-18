@@ -1016,6 +1016,56 @@ class BasketballBettingHelper:
             print(f"home/away detection failed: {e}")
             return None
 
+    def _detect_game_type(self, team_id, opponent_team_id):
+        """Classify today's matchup via the NBA GAME_ID prefix.
+
+        GAME_ID prefixes:
+          001 — Preseason
+          002 — Regular Season
+          003 — All-Star
+          004 — Playoffs
+          005 — Play-In Tournament
+
+        Returns a dict like:
+            {'game_type': 'playoffs', 'label': 'Playoffs', 'game_id': '0042400101', 'is_playoff': True}
+        or None if today's scoreboard has no matching game (e.g. called on an
+        off-day, or teams supplied don't actually face each other today).
+        """
+        try:
+            from nba_api.stats.endpoints import ScoreboardV2
+            today = datetime.now().strftime('%Y-%m-%d')
+            games = ScoreboardV2(game_date=today).get_data_frames()[0]
+            time.sleep(0.6)
+            team_id_i = int(team_id)
+            opp_id_i = int(opponent_team_id)
+            for _, game in games.iterrows():
+                home = int(game['HOME_TEAM_ID'])
+                visitor = int(game['VISITOR_TEAM_ID'])
+                pair = {home, visitor}
+                if pair == {team_id_i, opp_id_i}:
+                    game_id = str(game['GAME_ID'])
+                    prefix = game_id[:3] if len(game_id) >= 3 else ''
+                    mapping = {
+                        '001': ('preseason', 'Preseason'),
+                        '002': ('regular_season', 'Regular Season'),
+                        '003': ('all_star', 'All-Star'),
+                        '004': ('playoffs', 'Playoffs'),
+                        '005': ('play_in', 'Play-In Tournament'),
+                    }
+                    game_type, label = mapping.get(prefix, ('unknown', 'Unknown'))
+                    return {
+                        'game_type': game_type,
+                        'label': label,
+                        'game_id': game_id,
+                        'is_playoff': game_type == 'playoffs',
+                        'is_play_in': game_type == 'play_in',
+                        'is_high_intensity': game_type in ('playoffs', 'play_in'),
+                    }
+            return None
+        except Exception as e:
+            print(f"game type detection failed: {e}")
+            return None
+
     def analyze_prop_bet(self, player_id, prop_type, line, opponent_team_id, is_home=None):
         try:
             stats = self.get_player_stats(player_id)
@@ -1036,6 +1086,17 @@ class BasketballBettingHelper:
                     is_home = detected
                     location_detected = True
             location_known = location_detected or user_set_location
+
+            # Classify today's game type (regular / play-in / playoffs) from the
+            # GAME_ID prefix. Used as metadata in the response; no silent
+            # prediction adjustment (models weren't trained with a playoff flag,
+            # so applying one at inference would hurt calibration).
+            game_context = None
+            if team_id:
+                try:
+                    game_context = self._detect_game_type(team_id, opponent_team_id)
+                except Exception as _gc_err:
+                    log.debug(f"game type detection error: {_gc_err}")
             team_context = self.ml_predictor.get_team_context(team_id) if team_id else None
             opponent_context = self.ml_predictor.get_team_context(opponent_team_id)
 
@@ -1782,7 +1843,8 @@ class BasketballBettingHelper:
                     'player': player_context,
                     'team': team_context,
                     'opponent': opponent_context
-                }
+                },
+                'game_context': game_context,
             }
             if sharp_signal:
                 result['sharp_signal'] = sharp_signal
