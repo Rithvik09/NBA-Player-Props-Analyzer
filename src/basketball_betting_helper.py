@@ -1066,6 +1066,59 @@ class BasketballBettingHelper:
             print(f"game type detection failed: {e}")
             return None
 
+    def _compute_series_state(self, team_id, opp_team_id, season=None):
+        """Reconstruct current playoff-series state from nba_api.
+
+        Returns series_game_num (1..7), team_series_wins_in / opp_series_wins_in
+        (0..3 prior wins), and is_elimination_game (1.0 if either side is at 3).
+        All zeros when no prior playoff games vs this opponent this season.
+        """
+        try:
+            from nba_api.stats.endpoints import LeagueGameFinder
+            kwargs = dict(
+                team_id_nullable=team_id,
+                vs_team_id_nullable=opp_team_id,
+                season_type_nullable="Playoffs",
+            )
+            if season:
+                kwargs["season_nullable"] = season
+            df = LeagueGameFinder(**kwargs).get_data_frames()[0]
+            time.sleep(0.6)
+            zeros = {
+                "series_game_num": 0.0,
+                "team_series_wins_in": 0.0,
+                "opp_series_wins_in": 0.0,
+                "is_elimination_game": 0.0,
+            }
+            if df is None or len(df) == 0:
+                return zeros
+            # only games strictly before today (don't count today's game itself)
+            if "GAME_DATE" in df.columns:
+                try:
+                    df["GAME_DATE"] = pd.to_datetime(df["GAME_DATE"], errors="coerce")
+                    today = pd.Timestamp(datetime.now().date())
+                    df = df[df["GAME_DATE"] < today]
+                except Exception:
+                    pass
+            if len(df) == 0:
+                return zeros
+            team_wins = float((df["WL"] == "W").sum()) if "WL" in df.columns else 0.0
+            opp_wins = float((df["WL"] == "L").sum()) if "WL" in df.columns else 0.0
+            return {
+                "series_game_num": float(len(df) + 1),
+                "team_series_wins_in": team_wins,
+                "opp_series_wins_in": opp_wins,
+                "is_elimination_game": 1.0 if team_wins >= 3.0 or opp_wins >= 3.0 else 0.0,
+            }
+        except Exception as e:
+            print(f"series state lookup failed: {e}")
+            return {
+                "series_game_num": 0.0,
+                "team_series_wins_in": 0.0,
+                "opp_series_wins_in": 0.0,
+                "is_elimination_game": 0.0,
+            }
+
     def analyze_prop_bet(self, player_id, prop_type, line, opponent_team_id, is_home=None):
         try:
             stats = self.get_player_stats(player_id)
@@ -1740,6 +1793,27 @@ class BasketballBettingHelper:
                     stat_data.update(_odds_feats)
             except Exception as _odds_err:
                 log.debug(f"Odds features unavailable: {_odds_err}")
+
+            # ---- Intensity / playoff features ----
+            _is_playoff = bool(game_context and game_context.get('is_playoff'))
+            _is_play_in = bool(game_context and game_context.get('is_play_in'))
+            stat_data['is_playoff'] = 1.0 if _is_playoff else 0.0
+            stat_data['is_play_in'] = 1.0 if _is_play_in else 0.0
+            if _is_playoff and team_id:
+                try:
+                    _series = self._compute_series_state(team_id, opponent_team_id)
+                    stat_data.update(_series)
+                except Exception as _ser_err:
+                    log.debug(f"series state error: {_ser_err}")
+                    stat_data['series_game_num'] = 0.0
+                    stat_data['team_series_wins_in'] = 0.0
+                    stat_data['opp_series_wins_in'] = 0.0
+                    stat_data['is_elimination_game'] = 0.0
+            else:
+                stat_data['series_game_num'] = 0.0
+                stat_data['team_series_wins_in'] = 0.0
+                stat_data['opp_series_wins_in'] = 0.0
+                stat_data['is_elimination_game'] = 0.0
 
             features = self.ml_predictor.prepare_features(
                 stat_data, player_context, team_context, opponent_context

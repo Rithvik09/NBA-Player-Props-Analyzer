@@ -340,6 +340,19 @@ def build_training_examples(
         if gl is None or gl.empty:
             continue
 
+        # Also fetch playoff + play-in logs so intensity features have non-zero training exposure
+        for _stype in ("Playoffs", "PlayIn"):
+            try:
+                _extra = playergamelog.PlayerGameLog(
+                    player_id=player_id, season=season,
+                    season_type_all_star=_stype, timeout=60,
+                ).get_data_frames()[0]
+                time.sleep(0.6)
+                if _extra is not None and len(_extra) > 0:
+                    gl = pd.concat([gl, _extra], ignore_index=True)
+            except Exception:
+                pass
+
         gl = gl.copy()
         gl["GAME_DATE"] = pd.to_datetime(gl["GAME_DATE"], format="mixed", errors="coerce")
         gl = gl.sort_values("GAME_DATE")
@@ -401,6 +414,11 @@ def build_training_examples(
             pos_group = "F"
 
 
+        # Default target_col for per-idx features that compute before the STAT_TARGETS loop.
+        # The STAT_TARGETS loop rebinds this each pass; this default only matters for code
+        # paths that reference target_col outside that loop (e.g. home/away split at ~line 691).
+        target_col = "PTS"
+
         for idx in range(10, len(gl)):
           try:
             hist = gl.iloc[:idx]
@@ -411,6 +429,28 @@ def build_training_examples(
             opp_id = _team_id(opp_abbrev)
             if not team_id or not opp_id:
                 continue
+
+            # --- Intensity / playoff context features ---
+            _gid_col = "Game_ID" if "Game_ID" in gl.columns else ("GAME_ID" if "GAME_ID" in gl.columns else None)
+            _gid_str = str(row.get(_gid_col, "")) if _gid_col else ""
+            _prefix = _gid_str[:3] if len(_gid_str) >= 3 else ""
+            is_playoff = 1.0 if _prefix == "004" else 0.0
+            is_play_in = 1.0 if _prefix == "005" else 0.0
+            series_game_num = 0.0
+            team_series_wins_in = 0.0
+            opp_series_wins_in = 0.0
+            is_elimination_game = 0.0
+            if is_playoff == 1.0 and opp_abbrev and _gid_col and "MATCHUP" in hist.columns:
+                _prior_po = hist[
+                    (hist[_gid_col].astype(str).str[:3] == "004")
+                    & hist["MATCHUP"].astype(str).str.contains(opp_abbrev, na=False)
+                ]
+                series_game_num = float(len(_prior_po) + 1)
+                if "WL" in _prior_po.columns and len(_prior_po) > 0:
+                    team_series_wins_in = float((_prior_po["WL"] == "W").sum())
+                    opp_series_wins_in = float((_prior_po["WL"] == "L").sum())
+                if team_series_wins_in >= 3.0 or opp_series_wins_in >= 3.0:
+                    is_elimination_game = 1.0
 
             last5 = hist.tail(5)
             minutes = hist["MIN"].tolist()
@@ -1157,6 +1197,12 @@ def build_training_examples(
                         "line_velocity": 0.0,
                         "stale_line_flag": 0.0,
                         "bookmaker_count": 0.0,
+                        "is_playoff": is_playoff,
+                        "is_play_in": is_play_in,
+                        "series_game_num": series_game_num,
+                        "team_series_wins_in": team_series_wins_in,
+                        "opp_series_wins_in": opp_series_wins_in,
+                        "is_elimination_game": is_elimination_game,
                     }
 
             for prop_type, target_col in STAT_TARGETS.items():
