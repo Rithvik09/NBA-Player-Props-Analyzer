@@ -1371,6 +1371,8 @@ class EnhancedMLPredictor:
         features['team_series_wins_in'] = float(player_stats.get('team_series_wins_in', 0.0) or 0.0)
         features['opp_series_wins_in'] = float(player_stats.get('opp_series_wins_in', 0.0) or 0.0)
         features['is_elimination_game'] = float(player_stats.get('is_elimination_game', 0.0) or 0.0)
+        features['playoff_home'] = float(player_stats.get('playoff_home', 0.0) or 0.0)
+        features['playoff_away'] = float(player_stats.get('playoff_away', 0.0) or 0.0)
 
         return features
 
