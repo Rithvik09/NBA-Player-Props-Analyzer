@@ -451,6 +451,9 @@ def build_training_examples(
                     opp_series_wins_in = float((_prior_po["WL"] == "L").sum())
                 if team_series_wins_in >= 3.0 or opp_series_wins_in >= 3.0:
                     is_elimination_game = 1.0
+            _home_bit = 1.0 if bool(is_home) else 0.0
+            playoff_home = is_playoff * _home_bit
+            playoff_away = is_playoff * (1.0 - _home_bit)
 
             last5 = hist.tail(5)
             minutes = hist["MIN"].tolist()
@@ -1203,6 +1206,8 @@ def build_training_examples(
                         "team_series_wins_in": team_series_wins_in,
                         "opp_series_wins_in": opp_series_wins_in,
                         "is_elimination_game": is_elimination_game,
+                        "playoff_home": playoff_home,
+                        "playoff_away": playoff_away,
                     }
 
             for prop_type, target_col in STAT_TARGETS.items():

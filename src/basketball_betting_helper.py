@@ -1815,6 +1815,18 @@ class BasketballBettingHelper:
                 stat_data['opp_series_wins_in'] = 0.0
                 stat_data['is_elimination_game'] = 0.0
 
+            # Playoff × home/away interaction. When location is unknown we
+            # can't assign the bit, so zero both (matches the feature-vector
+            # default). When location is known, exactly one of the two fires.
+            _po_bit = stat_data['is_playoff']
+            if location_known and is_home is not None:
+                _home_bit_inf = 1.0 if is_home else 0.0
+                stat_data['playoff_home'] = _po_bit * _home_bit_inf
+                stat_data['playoff_away'] = _po_bit * (1.0 - _home_bit_inf)
+            else:
+                stat_data['playoff_home'] = 0.0
+                stat_data['playoff_away'] = 0.0
+
             features = self.ml_predictor.prepare_features(
                 stat_data, player_context, team_context, opponent_context
             )
