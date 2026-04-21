@@ -2,10 +2,10 @@ from flask import Flask, render_template, request, jsonify
 from .basketball_betting_helper import BasketballBettingHelper
 from .data_collector import TrainingDataCollector
 from .game_predictor import GamePredictor
+from .logging_config import configure_logging
 import threading
 import time
 import logging
-from logging.handlers import RotatingFileHandler
 import os
 from nba_api.stats.static import players
 
@@ -14,16 +14,9 @@ app = Flask(__name__,
     static_folder='../static',
     template_folder='../templates')
 
-if not os.path.exists('logs'):
-    os.mkdir('logs')
-
-file_handler = RotatingFileHandler('logs/app.log', maxBytes=10240, backupCount=10)
-file_handler.setFormatter(logging.Formatter(
-    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-))
-file_handler.setLevel(logging.INFO)
-app.logger.addHandler(file_handler)
-app.logger.setLevel(logging.INFO)
+# One-shot logging setup — rotating file + stderr, tuneable via env vars.
+# See src/logging_config.py for knobs (LOG_LEVEL, LOG_JSON, LOG_DIR, …).
+configure_logging(app.logger)
 app.logger.info('app started')
 
 betting_helper = BasketballBettingHelper()
@@ -134,6 +127,29 @@ def test_api():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/cache/stats')
+def cache_stats():
+    """Expose TTL-cache hit rates so the operator can spot a regression."""
+    from .api_cache import all_stats
+    rows = all_stats()
+    total_hits = sum(r["hits"] for r in rows)
+    total_misses = sum(r["misses"] for r in rows)
+    denom = total_hits + total_misses
+    return jsonify({
+        "caches": rows,
+        "overall_hit_rate": (total_hits / denom) if denom else 0.0,
+        "total_hits": total_hits,
+        "total_misses": total_misses,
+    })
+
+
+@app.route('/cache/clear', methods=['POST'])
+def cache_clear():
+    from .api_cache import clear_all
+    clear_all()
+    return jsonify({"cleared": True})
 
 @app.route('/')
 def home():
@@ -432,6 +448,167 @@ def bias_report():
         return jsonify(report)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ── Bankroll + Kelly stake sizing ────────────────────────────────────────────
+from .bankroll import BankrollTracker, kelly_stake, american_to_decimal, devig_two_way
+_bankroll = BankrollTracker(betting_helper.db_name)
+
+
+@app.route('/bankroll', methods=['GET'])
+def bankroll_summary():
+    try:
+        return jsonify(_bankroll.summary())
+    except Exception as e:
+        app.logger.exception('bankroll summary failed')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/bankroll/balance', methods=['POST'])
+def bankroll_set_balance():
+    try:
+        amount = float(request.get_json(force=True)['amount'])
+        return jsonify({'balance': _bankroll.set_balance(amount)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/bankroll/bets', methods=['GET'])
+def bankroll_list_bets():
+    status = request.args.get('status')
+    limit = int(request.args.get('limit', 50))
+    return jsonify(_bankroll.list_bets(status=status, limit=limit))
+
+
+@app.route('/bankroll/bets', methods=['POST'])
+def bankroll_record_bet():
+    data = request.get_json(force=True)
+    try:
+        bet_id = _bankroll.record_bet(
+            player_name=data.get('player_name'),
+            prop_type=data['prop_type'],
+            side=data.get('side', 'over'),
+            line=float(data['line']),
+            american_odds=float(data['american_odds']),
+            our_prob=float(data['our_prob']),
+            stake=float(data['stake']),
+        )
+        return jsonify({'id': bet_id}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/bankroll/bets/<int:bet_id>/settle', methods=['POST'])
+def bankroll_settle_bet(bet_id):
+    data = request.get_json(force=True)
+    try:
+        return jsonify(_bankroll.settle(bet_id, data['result']))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/kelly', methods=['POST'])
+def kelly_recommend():
+    """Return recommended stake for a (prob, odds, bankroll) triple.
+
+    Body: { our_prob, american_odds, bankroll?, kelly_fraction?, max_fraction? }
+    """
+    data = request.get_json(force=True)
+    try:
+        bankroll = float(data.get('bankroll', _bankroll.get_balance()))
+        ks = kelly_stake(
+            our_prob=float(data['our_prob']),
+            american_odds=float(data['american_odds']),
+            bankroll=bankroll,
+            kelly_fraction=float(data.get('kelly_fraction', 0.25)),
+            max_fraction=float(data.get('max_fraction', 0.05)),
+        )
+        return jsonify({
+            'bankroll': bankroll,
+            'edge': ks.edge,
+            'full_kelly': ks.full_kelly,
+            'stake_fraction': ks.stake_fraction,
+            'stake_dollars': ks.stake_dollars,
+            'ev_per_dollar': ks.ev_per_dollar,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/injuries/<team>')
+def injuries_team(team):
+    """Live injury scrape for a single team (ESPN → Rotowire fallback, 30-min TTL)."""
+    from .live_injuries import summarise_team
+    try:
+        return jsonify(summarise_team(team))
+    except Exception as e:
+        app.logger.exception('injury scrape failed')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/injuries/player/<name>')
+def injuries_player(name):
+    """Lookup a single player's current injury status by name."""
+    from .live_injuries import find_player_injury
+    try:
+        hit = find_player_injury(name)
+        return jsonify(hit or {"player": name, "found": False})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/odds/status')
+def odds_status():
+    """Diagnostic: last-poll timestamp, lines stored, error, quota remaining."""
+    from .odds_tracker import last_poll_status
+    status = last_poll_status()
+    # Flag stale polls (> 2h since last successful poll on game days)
+    from datetime import datetime, timezone
+    stale = False
+    if status.get("time"):
+        try:
+            last = datetime.fromisoformat(status["time"])
+            age_min = (datetime.now(timezone.utc) - last).total_seconds() / 60.0
+            stale = age_min > 120
+            status["age_minutes"] = round(age_min, 1)
+        except Exception:
+            pass
+    status["stale"] = stale
+    status["key_configured"] = bool(os.environ.get("ODDS_API_KEY"))
+    return jsonify(status)
+
+
+@app.route('/parlay', methods=['POST'])
+def parlay_estimate():
+    """Correlation-aware parlay probability.
+
+    Body: {
+        legs: [ { prob, american_odds, prop, player_id?, team_id?, side? }, ... ],
+        n_samples?: int (default 20000)
+    }
+    """
+    from .parlay import parlay_probability, ParlayLeg
+    data = request.get_json(force=True)
+    try:
+        raw = data.get('legs') or []
+        if not raw:
+            return jsonify({'error': 'legs must be non-empty'}), 400
+        legs = [
+            ParlayLeg(
+                prob=float(l['prob']),
+                american_odds=float(l['american_odds']),
+                prop=str(l['prop']),
+                player_id=(int(l['player_id']) if l.get('player_id') is not None else None),
+                team_id=(int(l['team_id']) if l.get('team_id') is not None else None),
+                side=str(l.get('side', 'over')),
+            )
+            for l in raw
+        ]
+        n = int(data.get('n_samples', 20_000))
+        return jsonify(parlay_probability(legs, n_samples=n))
+    except Exception as e:
+        app.logger.exception('parlay estimation failed')
+        return jsonify({'error': str(e)}), 400
 
 
 @app.errorhandler(404)

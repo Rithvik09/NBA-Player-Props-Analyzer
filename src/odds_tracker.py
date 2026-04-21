@@ -112,29 +112,31 @@ class OddsTracker:
         """Make a GET request and log quota usage."""
         params = params or {}
         params["apiKey"] = self.api_key
+        resp = None
         try:
             resp = requests.get(url, params=params, timeout=30)
-            # Log quota from headers
             used = resp.headers.get("x-requests-used", "?")
             remaining = resp.headers.get("x-requests-remaining", "?")
-            log.info(f"[odds] API quota: {used} used, {remaining} remaining")
-            print(f"[odds] API quota: {used} used, {remaining} remaining")
+            log.info("[odds] API quota: %s used, %s remaining", used, remaining)
+            # telemetry for /odds/status
+            try:
+                _LAST_POLL["quota_remaining"] = int(remaining) if remaining != "?" else None
+            except ValueError:
+                _LAST_POLL["quota_remaining"] = None
             resp.raise_for_status()
             return resp.json()
         except requests.exceptions.HTTPError as e:
-            if resp.status_code == 429:
+            status = resp.status_code if resp is not None else None
+            if status == 429:
                 log.warning("[odds] Rate limited — backing off")
-                print("[odds] Rate limited — backing off")
-            elif resp.status_code == 401:
-                log.error("[odds] Invalid API key")
-                print("[odds] Invalid API key")
+            elif status == 401:
+                log.error("[odds] Invalid API key — renew ODDS_API_KEY")
+                _LAST_POLL["error"] = "401 unauthorized — key invalid or expired"
             else:
-                log.error(f"[odds] HTTP error: {e}")
-                print(f"[odds] HTTP error: {e}")
+                log.error("[odds] HTTP error: %s", e)
             return None
         except requests.exceptions.RequestException as e:
-            log.error(f"[odds] Request failed: {e}")
-            print(f"[odds] Request failed: {e}")
+            log.error("[odds] Request failed: %s", e)
             return None
 
     def fetch_upcoming_games(self) -> list[dict]:
@@ -541,12 +543,35 @@ class OddsTracker:
 # Polling entry point
 # ---------------------------------------------------------------------------
 
+# Last-poll telemetry consulted by /odds/status. Dict so the health endpoint
+# can distinguish "never polled" from "polled but got zero" from "auth failed".
+_LAST_POLL: dict = {
+    "time": None,
+    "lines_stored": None,
+    "error": None,
+    "quota_remaining": None,
+}
+
+
 def poll_odds(api_key: str, db_path: str = "basketball_data.db") -> int:
     """Single poll cycle — call on a cron/schedule every 30-60 min on game days."""
     tracker = OddsTracker(api_key, db_path)
-    count = tracker.snapshot_all_games()
-    print(f"[odds] Poll complete: {count} lines stored at {datetime.now(timezone.utc).strftime('%H:%M UTC')}")
-    return count
+    _LAST_POLL["time"] = datetime.now(timezone.utc).isoformat()
+    try:
+        count = tracker.snapshot_all_games()
+        _LAST_POLL["lines_stored"] = int(count)
+        _LAST_POLL["error"] = None
+        log.info(f"[odds] Poll complete: {count} lines stored")
+        return count
+    except Exception as exc:  # noqa: BLE001
+        _LAST_POLL["error"] = f"{type(exc).__name__}: {exc}"
+        log.exception("[odds] Poll failed")
+        return 0
+
+
+def last_poll_status() -> dict:
+    """Snapshot of the most recent poll — used by the /odds/status endpoint."""
+    return dict(_LAST_POLL)
 
 
 if __name__ == "__main__":

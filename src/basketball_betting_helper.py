@@ -1000,10 +1000,9 @@ class BasketballBettingHelper:
     def _detect_home_away(self, team_id, opponent_team_id):
         """Checks today's scoreboard to figure out if team_id is home or away. Returns None if no game."""
         try:
-            from nba_api.stats.endpoints import ScoreboardV2
+            from src.api_cache import fetch_scoreboard_v2
             today = datetime.now().strftime('%Y-%m-%d')
-            games = ScoreboardV2(game_date=today).get_data_frames()[0]
-            time.sleep(0.6)
+            games = fetch_scoreboard_v2(today)
             for _, game in games.iterrows():
                 home = int(game['HOME_TEAM_ID'])
                 visitor = int(game['VISITOR_TEAM_ID'])
@@ -1032,10 +1031,9 @@ class BasketballBettingHelper:
         off-day, or teams supplied don't actually face each other today).
         """
         try:
-            from nba_api.stats.endpoints import ScoreboardV2
+            from src.api_cache import fetch_scoreboard_v2
             today = datetime.now().strftime('%Y-%m-%d')
-            games = ScoreboardV2(game_date=today).get_data_frames()[0]
-            time.sleep(0.6)
+            games = fetch_scoreboard_v2(today)
             team_id_i = int(team_id)
             opp_id_i = int(opponent_team_id)
             for _, game in games.iterrows():
@@ -1074,16 +1072,8 @@ class BasketballBettingHelper:
         All zeros when no prior playoff games vs this opponent this season.
         """
         try:
-            from nba_api.stats.endpoints import LeagueGameFinder
-            kwargs = dict(
-                team_id_nullable=team_id,
-                vs_team_id_nullable=opp_team_id,
-                season_type_nullable="Playoffs",
-            )
-            if season:
-                kwargs["season_nullable"] = season
-            df = LeagueGameFinder(**kwargs).get_data_frames()[0]
-            time.sleep(0.6)
+            from src.api_cache import fetch_playoff_games
+            df = fetch_playoff_games(int(team_id), int(opp_team_id), season)
             zeros = {
                 "series_game_num": 0.0,
                 "team_series_wins_in": 0.0,
@@ -2383,8 +2373,8 @@ class BasketballBettingHelper:
 
     def _get_player_team_id(self, player_id):
         try:
-            player_info = CommonPlayerInfo(player_id=player_id).get_data_frames()[0]
-            time.sleep(0.6)
+            from src.api_cache import fetch_player_info
+            player_info = fetch_player_info(int(player_id))
             return int(player_info['TEAM_ID'].iloc[0])
         except Exception as e:
             print(f"couldn't get team id for player {player_id}: {e}")

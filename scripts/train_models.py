@@ -259,12 +259,107 @@ def _team_id(abbrev: str | None) -> int | None:
     return int(t["id"]) if t else None
 
 
+# Defaults — replaced by main() when CLI flags are supplied.
+_TRAIN_CONFIG: dict = {
+    "recency_half_life": None,
+    "minutes_weight": False,
+    "min_sample_weight": 0.1,
+    "prune_features": 0.0,
+}
+
+
 @dataclass
 class Example:
     prop_type: str
     X: pd.DataFrame
     y: float
     game_date: pd.Timestamp
+    # optional: minutes played in the training-source game — used for
+    # minutes-weighted sample weights (filters out garbage-time distortion)
+    minutes: float = 0.0
+
+
+def compute_sample_weights(
+    examples: list,
+    *,
+    recency_half_life_days: float | None = 365.0,
+    minutes_weight: bool = True,
+    min_weight: float = 0.1,
+    today: pd.Timestamp | None = None,
+) -> np.ndarray:
+    """Per-sample weight = recency_weight × minutes_weight, floored at ``min_weight``.
+
+    Parameters
+    ----------
+    recency_half_life_days
+        Half-life for exponential decay. ``None`` disables recency weighting
+        (all samples equal). 365 ≈ last season counts half as much as this one.
+    minutes_weight
+        If True, scale by ``clip(minutes / typical_minutes, 0.4, 1.5)`` so
+        blowout/injury games with <10 mins don't get full weight.
+    min_weight
+        Lower bound on the final weight — prevents ancient/garbage-time rows
+        from collapsing to ~0 and starving the optimiser.
+    """
+    today = today or pd.Timestamp.utcnow().normalize()
+    minutes_list = [float(getattr(e, "minutes", 0.0) or 0.0) for e in examples]
+    typical_min = float(np.median([m for m in minutes_list if m > 0]) or 28.0)
+
+    weights = np.empty(len(examples), dtype=float)
+    for i, e in enumerate(examples):
+        w = 1.0
+        # recency
+        if recency_half_life_days and recency_half_life_days > 0 and e.game_date is not None:
+            days_old = max(0.0, (today - pd.to_datetime(e.game_date)).days)
+            # half-life decay: 2 ** (-days/half_life)
+            w *= 2.0 ** (-days_old / float(recency_half_life_days))
+        # minutes
+        if minutes_weight:
+            mins = float(getattr(e, "minutes", 0.0) or 0.0)
+            scale = 1.0 if mins <= 0 else max(0.4, min(1.5, mins / typical_min))
+            w *= scale
+        weights[i] = max(min_weight, w)
+    return weights
+
+
+def prune_low_importance_features(
+    X_train: pd.DataFrame,
+    y_train: np.ndarray,
+    *,
+    drop_fraction: float = 0.30,
+    sample_weight: np.ndarray | None = None,
+) -> tuple[list[str], dict]:
+    """Fit a cheap XGB regressor, return columns in the TOP (1-drop_fraction).
+
+    Returns ``(keep_cols, report)`` where report contains per-feature gain.
+    Fail-safe: on any error returns all columns + empty report.
+    """
+    if not XGBOOST_AVAILABLE or X_train.empty:
+        return list(X_train.columns), {}
+    try:
+        probe = XGBRegressor(
+            n_estimators=200, max_depth=5, learning_rate=0.08,
+            subsample=0.8, colsample_bytree=0.8, random_state=42,
+            tree_method="hist", verbosity=0,
+        )
+        probe.fit(X_train, y_train, sample_weight=sample_weight)
+        importances = np.asarray(probe.feature_importances_, dtype=float)
+        total = importances.sum() or 1.0
+        share = importances / total
+        order = np.argsort(share)[::-1]  # high → low
+        cumulative = np.cumsum(share[order])
+        # Keep features up to (1 - drop_fraction) cumulative gain
+        cutoff_idx = int(np.searchsorted(cumulative, 1.0 - float(drop_fraction)))
+        cutoff_idx = max(cutoff_idx, 10)  # always keep at least 10 features
+        keep_idx = sorted(order[: cutoff_idx + 1].tolist())
+        keep_cols = [X_train.columns[i] for i in keep_idx]
+        report = {
+            X_train.columns[i]: float(share[i])
+            for i in range(len(share))
+        }
+        return keep_cols, report
+    except Exception:
+        return list(X_train.columns), {}
 
 
 def build_training_examples(
@@ -1230,7 +1325,10 @@ def build_training_examples(
                 stddev = float(np.std(values))
                 X = build_feature_vector(make_features(values, last5_avg, season_avg, stddev)).X
                 y = float(row[target_col])
-                examples.append(Example(prop_type=prop_type, X=X, y=y, game_date=pd.to_datetime(row["GAME_DATE"])))
+                _mins = float(row.get("MIN", 0.0) or 0.0)
+                examples.append(Example(prop_type=prop_type, X=X, y=y,
+                                        game_date=pd.to_datetime(row["GAME_DATE"]),
+                                        minutes=_mins))
 
             for combo_prop, cols in COMBO_TARGETS.items():
                 combo_series = hist[cols].sum(axis=1)
@@ -1242,7 +1340,10 @@ def build_training_examples(
                 stddev = float(np.std(values))
                 X = build_feature_vector(make_features(values, last5_avg, season_avg, stddev)).X
                 y = float(sum(float(row.get(c, 0.0)) for c in cols))
-                examples.append(Example(prop_type=combo_prop, X=X, y=y, game_date=pd.to_datetime(row["GAME_DATE"])))
+                _mins_c = float(row.get("MIN", 0.0) or 0.0)
+                examples.append(Example(prop_type=combo_prop, X=X, y=y,
+                                        game_date=pd.to_datetime(row["GAME_DATE"]),
+                                        minutes=_mins_c))
 
             stats_now = [float(row.get(c, 0.0)) for c in ["PTS", "REB", "AST", "STL", "BLK"]]
             dd_y = 1.0 if sum(1 for s in stats_now if s >= 10.0) >= 2 else 0.0
@@ -1253,8 +1354,13 @@ def build_training_examples(
                 season_avg = float(hist["PTS"].mean())
                 stddev = float(np.std(pts_values))
                 X = build_feature_vector(make_features(pts_values, last5_avg, season_avg, stddev)).X
-                examples.append(Example(prop_type="double_double", X=X, y=dd_y, game_date=pd.to_datetime(row["GAME_DATE"])))
-                examples.append(Example(prop_type="triple_double", X=X, y=td_y, game_date=pd.to_datetime(row["GAME_DATE"])))
+                _mins_b = float(row.get("MIN", 0.0) or 0.0)
+                examples.append(Example(prop_type="double_double", X=X, y=dd_y,
+                                        game_date=pd.to_datetime(row["GAME_DATE"]),
+                                        minutes=_mins_b))
+                examples.append(Example(prop_type="triple_double", X=X, y=td_y,
+                                        game_date=pd.to_datetime(row["GAME_DATE"]),
+                                        minutes=_mins_b))
 
           except Exception as _row_err:
             print(f"[train] skipping row idx={idx} player={player_id}: {_row_err}")
@@ -1459,6 +1565,29 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
         X_train = X_train.loc[:, ~X_train.columns.duplicated()]
         X_test  = X_test.loc[:,  ~X_test.columns.duplicated()]
 
+        # Per-sample weights: recency-decay × minutes-weight (both opt-in).
+        # Applied to regression + classification fits below.
+        _reg_sample_weight = compute_sample_weights(
+            train_exs,
+            recency_half_life_days=_TRAIN_CONFIG.get("recency_half_life"),
+            minutes_weight=bool(_TRAIN_CONFIG.get("minutes_weight")),
+            min_weight=float(_TRAIN_CONFIG.get("min_sample_weight", 0.1)),
+        ) if len(train_exs) else None
+
+        # Optional: prune low-importance features to speed up fits + reduce
+        # overfitting. Returns the subset of ``X_train.columns`` to keep.
+        _prune_frac = float(_TRAIN_CONFIG.get("prune_features", 0.0) or 0.0)
+        if _prune_frac > 0 and len(X_train) > 100:
+            keep_cols, importance_report = prune_low_importance_features(
+                X_train, y_train,
+                drop_fraction=_prune_frac,
+                sample_weight=_reg_sample_weight,
+            )
+            X_train = X_train[keep_cols]
+            X_test = X_test[keep_cols]
+            metadata["props"].setdefault(prop, {})["pruned_feature_count"] = len(keep_cols)
+            print(f"[prune] {prop}: kept {len(keep_cols)}/{X_train.shape[1] + len(keep_cols) - X_train.shape[1]} features")
+
         metadata["props"].setdefault(prop, {})
         metadata["props"][prop].update({
             "n_examples": int(len(exs)),
@@ -1571,7 +1700,11 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
                     print(f"[optuna] Best params: {optimized_params}")
             
             reg = create_regressor(use_xgboost=True, optimized_params=optimized_params)
-            reg.fit(X_train, y_train)
+            # Recency/minutes weighting supplied via CLI flags; None disables.
+            try:
+                reg.fit(X_train, y_train, sample_weight=_reg_sample_weight)
+            except TypeError:  # older sklearn/XGB without sample_weight in .fit
+                reg.fit(X_train, y_train)
             pred = reg.predict(X_test)
             rmse = float(np.sqrt(mean_squared_error(y_test, pred))) if len(y_test) else 0.0
 
@@ -1599,12 +1732,15 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
 
         Xc_train_parts = []
         yc_train_parts = []
-        for e, yv in zip(train_exs, y_train):
+        _clf_train_weights: list[float] = []
+        for i, (e, yv) in enumerate(zip(train_exs, y_train)):
             raw = e.X.iloc[0].to_dict()
             center = _sportsbook_center(raw)
+            _w = float(_reg_sample_weight[i]) if _reg_sample_weight is not None else 1.0
             for ln in _sample_lines(float(center), prop):
                 Xc_train_parts.append(build_classifier_vector(raw, line=ln).X)
                 yc_train_parts.append(1 if float(yv) > float(ln) else 0)
+                _clf_train_weights.append(_w)
 
         Xc_test_parts = []
         yc_test_parts = []
@@ -1638,7 +1774,17 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
                     print(f"[optuna] Best params: {optimized_params}")
             
             clf = create_classifier(use_xgboost=True, optimized_params=optimized_params)
-            clf.fit(Xc_train, yc_train)
+            _clf_w_arr = np.array(_clf_train_weights, dtype=float) if _clf_train_weights else None
+            if _clf_w_arr is not None and len(_clf_w_arr) != len(Xc_train):
+                # Defensive: mismatch means something changed upstream — fall back to unweighted
+                _clf_w_arr = None
+            try:
+                if _clf_w_arr is not None:
+                    clf.fit(Xc_train, yc_train, sample_weight=_clf_w_arr)
+                else:
+                    clf.fit(Xc_train, yc_train)
+            except TypeError:
+                clf.fit(Xc_train, yc_train)
 
             proba = clf.predict_proba(Xc_test)[:, 1]
             auc = _safe_auc(yc_test, proba)
@@ -1653,7 +1799,16 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
             yc_fit, yc_cal = yc_train[:cal_cut], yc_train[cal_cut:]
 
             clf2 = create_classifier(use_xgboost=True, optimized_params=optimized_params)
-            clf2.fit(Xc_fit, yc_fit)
+            _clf_w_fit = None
+            if _clf_w_arr is not None:
+                _clf_w_fit = _clf_w_arr[:cal_cut]
+            try:
+                if _clf_w_fit is not None:
+                    clf2.fit(Xc_fit, yc_fit, sample_weight=_clf_w_fit)
+                else:
+                    clf2.fit(Xc_fit, yc_fit)
+            except TypeError:
+                clf2.fit(Xc_fit, yc_fit)
             raw_cal = clf2.predict_proba(Xc_cal)[:, 1]
             iso = IsotonicRegression(out_of_bounds="clip")
             iso.fit(raw_cal, yc_cal)
@@ -1703,7 +1858,25 @@ def main():
     ap.add_argument("--max-players", type=int, default=200)
     ap.add_argument("--models-dir", default="models")
     ap.add_argument("--db", default="basketball_data.db")
+    # Sample-weight knobs — set to None/0 to disable a dimension.
+    ap.add_argument("--recency-half-life", type=float, default=365.0,
+                    help="Half-life (days) for exponential recency decay. 0 to disable.")
+    ap.add_argument("--minutes-weight", action="store_true",
+                    help="Scale sample weight by clip(minutes/median, 0.4, 1.5).")
+    ap.add_argument("--min-sample-weight", type=float, default=0.1,
+                    help="Floor on per-sample weight.")
+    ap.add_argument("--prune-features", type=float, default=0.0,
+                    help="Drop this fraction of least-important features (0.30 = drop bottom 30%%).")
     args = ap.parse_args()
+
+    # Stash on module-level so train_and_save can read without threading a param
+    global _TRAIN_CONFIG
+    _TRAIN_CONFIG = {
+        "recency_half_life": args.recency_half_life if args.recency_half_life > 0 else None,
+        "minutes_weight": bool(args.minutes_weight),
+        "min_sample_weight": args.min_sample_weight,
+        "prune_features": float(args.prune_features),
+    }
 
     if args.seasons:
         seasons = [s.strip() for s in str(args.seasons).split(",") if s.strip()]
