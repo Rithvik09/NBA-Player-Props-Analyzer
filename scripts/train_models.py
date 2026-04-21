@@ -693,16 +693,27 @@ def build_training_examples(
             _vs_opp_games = hist[hist["MATCHUP"].str.contains(str(opp_abbrev), na=False)] if ("MATCHUP" in hist.columns and opp_abbrev) else pd.DataFrame()
             _vs_team_win_pct = float((_vs_opp_games["WL"] == "W").mean()) if (len(_vs_opp_games) > 0 and "WL" in _vs_opp_games.columns) else 0.5
 
-            # 4 & 5. Home/away performance split for target_col
+            # 4 & 5. Home/away performance split (target_col-dependent part moved
+            # inside make_features so each prop gets its OWN home/away split instead
+            # of everything defaulting to PTS).
             _home_games = hist[hist["MATCHUP"].str.contains("vs.", na=False)] if "MATCHUP" in hist.columns else pd.DataFrame()
             _away_games = hist[hist["MATCHUP"].str.contains("@", na=False)] if "MATCHUP" in hist.columns else pd.DataFrame()
-            _home_avg_target = float(_home_games[target_col].mean()) if (len(_home_games) > 0 and target_col in _home_games.columns) else float(pts_mean)
-            _away_avg_target = float(_away_games[target_col].mean()) if (len(_away_games) > 0 and target_col in _away_games.columns) else float(pts_mean)
-            _vs_team_home_away_split = _home_avg_target - _away_avg_target
             _is_away_now = "@" in str(row.get("MATCHUP", ""))
-            _player_vs_arena = (_away_avg_target - float(pts_mean)) if _is_away_now else (_home_avg_target - float(pts_mean))
 
             def make_features(stat_values, last5_avg, season_avg, stddev):
+                # Per-prop home/away target split (target_col is bound in the enclosing
+                # STAT_TARGETS/COMBO_TARGETS loop when make_features is called).
+                _target_mean = float(season_avg)
+                if target_col in _home_games.columns:
+                    _home_avg_target = float(_home_games[target_col].mean()) if len(_home_games) > 0 else _target_mean
+                else:
+                    _home_avg_target = _target_mean
+                if target_col in _away_games.columns:
+                    _away_avg_target = float(_away_games[target_col].mean()) if len(_away_games) > 0 else _target_mean
+                else:
+                    _away_avg_target = _target_mean
+                _vs_team_home_away_split = _home_avg_target - _away_avg_target
+                _player_vs_arena = (_away_avg_target - _target_mean) if _is_away_now else (_home_avg_target - _target_mean)
                 # --- Prop-specific time-series features (computed from stat_values) ---
                 _sv = stat_values  # shorthand
                 # EWM
