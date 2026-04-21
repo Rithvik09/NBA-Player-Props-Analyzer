@@ -1364,6 +1364,16 @@ class EnhancedMLPredictor:
         features.setdefault('stale_line_flag', 0.0)
         features.setdefault('bookmaker_count', 0.0)
 
+        # Intensity / playoff context — sourced from player_stats (populated upstream)
+        features['is_playoff'] = float(player_stats.get('is_playoff', 0.0) or 0.0)
+        features['is_play_in'] = float(player_stats.get('is_play_in', 0.0) or 0.0)
+        features['series_game_num'] = float(player_stats.get('series_game_num', 0.0) or 0.0)
+        features['team_series_wins_in'] = float(player_stats.get('team_series_wins_in', 0.0) or 0.0)
+        features['opp_series_wins_in'] = float(player_stats.get('opp_series_wins_in', 0.0) or 0.0)
+        features['is_elimination_game'] = float(player_stats.get('is_elimination_game', 0.0) or 0.0)
+        features['playoff_home'] = float(player_stats.get('playoff_home', 0.0) or 0.0)
+        features['playoff_away'] = float(player_stats.get('playoff_away', 0.0) or 0.0)
+
         return features
 
     def predict(self, features, line, prop_type=None):

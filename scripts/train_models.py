@@ -340,6 +340,19 @@ def build_training_examples(
         if gl is None or gl.empty:
             continue
 
+        # Also fetch playoff + play-in logs so intensity features have non-zero training exposure
+        for _stype in ("Playoffs", "PlayIn"):
+            try:
+                _extra = playergamelog.PlayerGameLog(
+                    player_id=player_id, season=season,
+                    season_type_all_star=_stype, timeout=60,
+                ).get_data_frames()[0]
+                time.sleep(0.6)
+                if _extra is not None and len(_extra) > 0:
+                    gl = pd.concat([gl, _extra], ignore_index=True)
+            except Exception:
+                pass
+
         gl = gl.copy()
         gl["GAME_DATE"] = pd.to_datetime(gl["GAME_DATE"], format="mixed", errors="coerce")
         gl = gl.sort_values("GAME_DATE")
@@ -401,6 +414,11 @@ def build_training_examples(
             pos_group = "F"
 
 
+        # Default target_col for per-idx features that compute before the STAT_TARGETS loop.
+        # The STAT_TARGETS loop rebinds this each pass; this default only matters for code
+        # paths that reference target_col outside that loop (e.g. home/away split at ~line 691).
+        target_col = "PTS"
+
         for idx in range(10, len(gl)):
           try:
             hist = gl.iloc[:idx]
@@ -411,6 +429,31 @@ def build_training_examples(
             opp_id = _team_id(opp_abbrev)
             if not team_id or not opp_id:
                 continue
+
+            # --- Intensity / playoff context features ---
+            _gid_col = "Game_ID" if "Game_ID" in gl.columns else ("GAME_ID" if "GAME_ID" in gl.columns else None)
+            _gid_str = str(row.get(_gid_col, "")) if _gid_col else ""
+            _prefix = _gid_str[:3] if len(_gid_str) >= 3 else ""
+            is_playoff = 1.0 if _prefix == "004" else 0.0
+            is_play_in = 1.0 if _prefix == "005" else 0.0
+            series_game_num = 0.0
+            team_series_wins_in = 0.0
+            opp_series_wins_in = 0.0
+            is_elimination_game = 0.0
+            if is_playoff == 1.0 and opp_abbrev and _gid_col and "MATCHUP" in hist.columns:
+                _prior_po = hist[
+                    (hist[_gid_col].astype(str).str[:3] == "004")
+                    & hist["MATCHUP"].astype(str).str.contains(opp_abbrev, na=False)
+                ]
+                series_game_num = float(len(_prior_po) + 1)
+                if "WL" in _prior_po.columns and len(_prior_po) > 0:
+                    team_series_wins_in = float((_prior_po["WL"] == "W").sum())
+                    opp_series_wins_in = float((_prior_po["WL"] == "L").sum())
+                if team_series_wins_in >= 3.0 or opp_series_wins_in >= 3.0:
+                    is_elimination_game = 1.0
+            _home_bit = 1.0 if bool(is_home) else 0.0
+            playoff_home = is_playoff * _home_bit
+            playoff_away = is_playoff * (1.0 - _home_bit)
 
             last5 = hist.tail(5)
             minutes = hist["MIN"].tolist()
@@ -650,16 +693,27 @@ def build_training_examples(
             _vs_opp_games = hist[hist["MATCHUP"].str.contains(str(opp_abbrev), na=False)] if ("MATCHUP" in hist.columns and opp_abbrev) else pd.DataFrame()
             _vs_team_win_pct = float((_vs_opp_games["WL"] == "W").mean()) if (len(_vs_opp_games) > 0 and "WL" in _vs_opp_games.columns) else 0.5
 
-            # 4 & 5. Home/away performance split for target_col
+            # 4 & 5. Home/away performance split (target_col-dependent part moved
+            # inside make_features so each prop gets its OWN home/away split instead
+            # of everything defaulting to PTS).
             _home_games = hist[hist["MATCHUP"].str.contains("vs.", na=False)] if "MATCHUP" in hist.columns else pd.DataFrame()
             _away_games = hist[hist["MATCHUP"].str.contains("@", na=False)] if "MATCHUP" in hist.columns else pd.DataFrame()
-            _home_avg_target = float(_home_games[target_col].mean()) if (len(_home_games) > 0 and target_col in _home_games.columns) else float(pts_mean)
-            _away_avg_target = float(_away_games[target_col].mean()) if (len(_away_games) > 0 and target_col in _away_games.columns) else float(pts_mean)
-            _vs_team_home_away_split = _home_avg_target - _away_avg_target
             _is_away_now = "@" in str(row.get("MATCHUP", ""))
-            _player_vs_arena = (_away_avg_target - float(pts_mean)) if _is_away_now else (_home_avg_target - float(pts_mean))
 
             def make_features(stat_values, last5_avg, season_avg, stddev):
+                # Per-prop home/away target split (target_col is bound in the enclosing
+                # STAT_TARGETS/COMBO_TARGETS loop when make_features is called).
+                _target_mean = float(season_avg)
+                if target_col in _home_games.columns:
+                    _home_avg_target = float(_home_games[target_col].mean()) if len(_home_games) > 0 else _target_mean
+                else:
+                    _home_avg_target = _target_mean
+                if target_col in _away_games.columns:
+                    _away_avg_target = float(_away_games[target_col].mean()) if len(_away_games) > 0 else _target_mean
+                else:
+                    _away_avg_target = _target_mean
+                _vs_team_home_away_split = _home_avg_target - _away_avg_target
+                _player_vs_arena = (_away_avg_target - _target_mean) if _is_away_now else (_home_avg_target - _target_mean)
                 # --- Prop-specific time-series features (computed from stat_values) ---
                 _sv = stat_values  # shorthand
                 # EWM
@@ -1157,6 +1211,14 @@ def build_training_examples(
                         "line_velocity": 0.0,
                         "stale_line_flag": 0.0,
                         "bookmaker_count": 0.0,
+                        "is_playoff": is_playoff,
+                        "is_play_in": is_play_in,
+                        "series_game_num": series_game_num,
+                        "team_series_wins_in": team_series_wins_in,
+                        "opp_series_wins_in": opp_series_wins_in,
+                        "is_elimination_game": is_elimination_game,
+                        "playoff_home": playoff_home,
+                        "playoff_away": playoff_away,
                     }
 
             for prop_type, target_col in STAT_TARGETS.items():
