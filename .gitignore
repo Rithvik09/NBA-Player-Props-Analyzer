@@ -24,6 +24,8 @@ logs/
 
 # Broken/old model snapshots
 models/incremental.broken_*/
+# Calibration-swap backups (scripts/fix_calibration.py)
+*.joblib.bak
 
 # IDE
 .idea/

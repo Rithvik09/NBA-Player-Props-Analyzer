@@ -482,16 +482,28 @@ def bankroll_list_bets():
 
 @app.route('/bankroll/bets', methods=['POST'])
 def bankroll_record_bet():
+    """Record a placed bet.
+
+    Accepts either 'prop_type' or 'prop' for the prop identifier, and either
+    'stake' or 'stake_dollars' for the stake amount (parity with other
+    endpoints).
+    """
     data = request.get_json(force=True)
     try:
+        prop_val = data.get('prop_type', data.get('prop'))
+        stake_val = data.get('stake', data.get('stake_dollars'))
+        if prop_val is None:
+            return jsonify({'error': "missing 'prop_type' (or 'prop')"}), 400
+        if stake_val is None:
+            return jsonify({'error': "missing 'stake' (or 'stake_dollars')"}), 400
         bet_id = _bankroll.record_bet(
             player_name=data.get('player_name'),
-            prop_type=data['prop_type'],
+            prop_type=str(prop_val),
             side=data.get('side', 'over'),
             line=float(data['line']),
             american_odds=float(data['american_odds']),
             our_prob=float(data['our_prob']),
-            stake=float(data['stake']),
+            stake=float(stake_val),
         )
         return jsonify({'id': bet_id}), 201
     except Exception as e:
@@ -583,9 +595,12 @@ def parlay_estimate():
     """Correlation-aware parlay probability.
 
     Body: {
-        legs: [ { prob, american_odds, prop, player_id?, team_id?, side? }, ... ],
+        legs: [ { our_prob|prob, american_odds, prop,
+                  player_id?, team_id?, side? }, ... ],
         n_samples?: int (default 20000)
     }
+
+    Accepts either 'prob' or 'our_prob' on each leg for parity with /kelly.
     """
     from .parlay import parlay_probability, ParlayLeg
     data = request.get_json(force=True)
@@ -593,17 +608,24 @@ def parlay_estimate():
         raw = data.get('legs') or []
         if not raw:
             return jsonify({'error': 'legs must be non-empty'}), 400
-        legs = [
-            ParlayLeg(
-                prob=float(l['prob']),
+        legs = []
+        for idx, l in enumerate(raw):
+            # Accept either 'prob' (parlay-native) or 'our_prob' (Kelly-native)
+            pval = l.get('prob', l.get('our_prob'))
+            if pval is None:
+                return jsonify({'error': f"leg[{idx}] missing 'prob' or 'our_prob'"}), 400
+            if l.get('american_odds') is None:
+                return jsonify({'error': f"leg[{idx}] missing 'american_odds'"}), 400
+            if l.get('prop') is None:
+                return jsonify({'error': f"leg[{idx}] missing 'prop'"}), 400
+            legs.append(ParlayLeg(
+                prob=float(pval),
                 american_odds=float(l['american_odds']),
                 prop=str(l['prop']),
                 player_id=(int(l['player_id']) if l.get('player_id') is not None else None),
                 team_id=(int(l['team_id']) if l.get('team_id') is not None else None),
                 side=str(l.get('side', 'over')),
-            )
-            for l in raw
-        ]
+            ))
         n = int(data.get('n_samples', 20_000))
         return jsonify(parlay_probability(legs, n_samples=n))
     except Exception as e:
