@@ -301,7 +301,14 @@ def compute_sample_weights(
         Lower bound on the final weight — prevents ancient/garbage-time rows
         from collapsing to ~0 and starving the optimiser.
     """
-    today = today or pd.Timestamp.utcnow().normalize()
+    # Use tz-naive "today" — game dates from nba_api are tz-naive strings
+    # (e.g. '2024-11-21'), so subtracting a tz-aware Timestamp raises TypeError.
+    if today is None:
+        today = pd.Timestamp.now().normalize()
+    else:
+        today = pd.Timestamp(today)
+        if today.tzinfo is not None:
+            today = today.tz_localize(None)
     minutes_list = [float(getattr(e, "minutes", 0.0) or 0.0) for e in examples]
     typical_min = float(np.median([m for m in minutes_list if m > 0]) or 28.0)
 
@@ -310,7 +317,11 @@ def compute_sample_weights(
         w = 1.0
         # recency
         if recency_half_life_days and recency_half_life_days > 0 and e.game_date is not None:
-            days_old = max(0.0, (today - pd.to_datetime(e.game_date)).days)
+            gd = pd.to_datetime(e.game_date)
+            # Defensive: strip tz if the source ever produces aware timestamps
+            if getattr(gd, "tzinfo", None) is not None:
+                gd = gd.tz_localize(None)
+            days_old = max(0.0, (today - gd).days)
             # half-life decay: 2 ** (-days/half_life)
             w *= 2.0 ** (-days_old / float(recency_half_life_days))
         # minutes
