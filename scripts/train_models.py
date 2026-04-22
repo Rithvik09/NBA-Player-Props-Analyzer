@@ -1589,6 +1589,7 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
         # overfitting. Returns the subset of ``X_train.columns`` to keep.
         _prune_frac = float(_TRAIN_CONFIG.get("prune_features", 0.0) or 0.0)
         if _prune_frac > 0 and len(X_train) > 100:
+            _pre_prune_n = X_train.shape[1]  # capture BEFORE subsetting
             keep_cols, importance_report = prune_low_importance_features(
                 X_train, y_train,
                 drop_fraction=_prune_frac,
@@ -1597,7 +1598,9 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
             X_train = X_train[keep_cols]
             X_test = X_test[keep_cols]
             metadata["props"].setdefault(prop, {})["pruned_feature_count"] = len(keep_cols)
-            print(f"[prune] {prop}: kept {len(keep_cols)}/{X_train.shape[1] + len(keep_cols) - X_train.shape[1]} features")
+            metadata["props"][prop]["pre_prune_feature_count"] = _pre_prune_n
+            print(f"[prune] {prop}: kept {len(keep_cols)}/{_pre_prune_n} features "
+                  f"({100.0 * (1 - len(keep_cols)/_pre_prune_n):.1f}% dropped)")
 
         metadata["props"].setdefault(prop, {})
         metadata["props"][prop].update({
