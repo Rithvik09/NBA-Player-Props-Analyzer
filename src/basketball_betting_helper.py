@@ -1140,8 +1140,14 @@ class BasketballBettingHelper:
                     game_context = self._detect_game_type(team_id, opponent_team_id)
                 except Exception as _gc_err:
                     log.debug(f"game type detection error: {_gc_err}")
-            team_context = self.ml_predictor.get_team_context(team_id) if team_id else None
-            opponent_context = self.ml_predictor.get_team_context(opponent_team_id)
+            # Both team_context calls hit nba_api independently — fan them out
+            # in parallel so a typical analyze_prop_bet shaves ~300-600ms.
+            from concurrent.futures import ThreadPoolExecutor as _Pool
+            with _Pool(max_workers=2) as _pool:
+                _f_team = _pool.submit(self.ml_predictor.get_team_context, team_id) if team_id else None
+                _f_opp  = _pool.submit(self.ml_predictor.get_team_context, opponent_team_id)
+                team_context = _f_team.result() if _f_team is not None else None
+                opponent_context = _f_opp.result()
 
             prop_trend_key_map = {
                 'points': 'pts', 'assists': 'ast', 'rebounds': 'reb',

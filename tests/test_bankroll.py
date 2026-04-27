@@ -288,6 +288,46 @@ def test_schema_migrates_legacy_v1_database(tmp_path):
     conn.close()
 
 
+def test_record_bet_persists_analytics_fields(tmp_path):
+    """v2/v3 columns (kelly_fraction, edge, ev_per_dollar, prediction_log_id,
+    model_version) round-trip through record_bet → DB."""
+    import sqlite3
+    br = BankrollTracker(str(tmp_path / "bankroll.db"))
+    br.set_balance(1000.0)
+    bet_id = br.record_bet(
+        player_name="Tatum", prop_type="points", side="over",
+        line=27.5, american_odds=-110, our_prob=0.58, stake=25.0,
+        kelly_fraction=0.0295, edge=0.056, ev_per_dollar=0.107,
+        prediction_log_id=42, model_version="v2026.04.27-bb1",
+    )
+    conn = sqlite3.connect(br.db_path)
+    row = conn.execute(
+        "SELECT kelly_fraction, edge, ev_per_dollar, prediction_log_id, model_version "
+        "FROM bankroll_bets WHERE id = ?", (bet_id,)
+    ).fetchone()
+    assert row[0] == pytest.approx(0.0295)
+    assert row[1] == pytest.approx(0.056)
+    assert row[2] == pytest.approx(0.107)
+    assert row[3] == 42
+    assert row[4] == "v2026.04.27-bb1"
+
+
+def test_record_bet_optional_fields_default_to_null(tmp_path):
+    import sqlite3
+    br = BankrollTracker(str(tmp_path / "bankroll.db"))
+    br.set_balance(1000.0)
+    bet_id = br.record_bet(
+        player_name=None, prop_type="points", side="over",
+        line=1, american_odds=-110, our_prob=0.5, stake=10,
+    )
+    conn = sqlite3.connect(br.db_path)
+    row = conn.execute(
+        "SELECT kelly_fraction, edge, ev_per_dollar, prediction_log_id, model_version "
+        "FROM bankroll_bets WHERE id = ?", (bet_id,)
+    ).fetchone()
+    assert all(v is None for v in row)
+
+
 def test_summary_rolls_up(tmp_path):
     br = BankrollTracker(str(tmp_path / "bankroll.db"))
     br.set_balance(1000.0)

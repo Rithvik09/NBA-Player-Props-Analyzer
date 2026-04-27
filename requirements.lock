@@ -1,0 +1,33 @@
+# Pinned production dependencies — generated from a known-good environment.
+# Regenerate via:
+#   pip install -r requirements.txt && pip freeze > requirements.lock
+#
+# CI installs from this file when present so deploy environments don't drift.
+# Hand edits should match versions used by the project; do not bump without
+# running the full test suite.
+beautifulsoup4==4.14.3
+blinker==1.9.0
+certifi==2026.2.25
+charset-normalizer==3.4.7
+click==8.1.8
+Flask==3.1.3
+gunicorn==23.0.0
+idna==3.11
+itsdangerous==2.2.0
+Jinja2==3.1.6
+joblib==1.5.3
+MarkupSafe==3.0.3
+nba_api==1.10.2
+numpy==2.0.2
+pandas==2.3.3
+python-dateutil==2.9.0.post0
+pytz==2026.1.post1
+requests==2.32.5
+scikit-learn==1.6.1
+scipy==1.13.1
+six==1.15.0
+soupsieve==2.8.3
+threadpoolctl==3.6.0
+tzdata==2026.1
+urllib3==2.6.3
+Werkzeug==3.1.8

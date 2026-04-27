@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, g
 from .basketball_betting_helper import BasketballBettingHelper
 from .data_collector import TrainingDataCollector
 from .game_predictor import GamePredictor
@@ -7,6 +7,7 @@ import threading
 import time
 import logging
 import os
+import uuid
 from nba_api.stats.static import players
 
 app = Flask(__name__,
@@ -18,6 +19,42 @@ app = Flask(__name__,
 # See src/logging_config.py for knobs (LOG_LEVEL, LOG_JSON, LOG_DIR, …).
 configure_logging(app.logger)
 app.logger.info('app started')
+
+
+# ── Request-ID tracing ──────────────────────────────────────────────────────
+# Every inbound request gets a short ULID-ish ID (or whatever the upstream
+# proxy sent in X-Request-ID). The ID is:
+#   - attached to ``flask.g.request_id`` for code that wants to log it
+#   - emitted in the response as ``X-Request-ID`` so curl/clients can grep
+#   - included in a one-line access log per request, with status + duration
+# This is what makes "find every log line for the bet that mispriced LeBron
+# last Tuesday" tractable in production.
+@app.before_request
+def _assign_request_id():
+    rid = request.headers.get("X-Request-ID")
+    if not rid:
+        rid = uuid.uuid4().hex[:12]
+    g.request_id = rid
+    g._req_started = time.time()
+
+
+@app.after_request
+def _emit_request_log(response):
+    rid = getattr(g, "request_id", None)
+    if rid:
+        response.headers["X-Request-ID"] = rid
+    started = getattr(g, "_req_started", None)
+    duration_ms = (time.time() - started) * 1000.0 if started else None
+    try:
+        app.logger.info(
+            "req rid=%s method=%s path=%s status=%s dur_ms=%s",
+            rid, request.method, request.path,
+            response.status_code,
+            f"{duration_ms:.1f}" if duration_ms is not None else "?",
+        )
+    except Exception:  # noqa: BLE001 — never crash the request
+        pass
+    return response
 
 betting_helper = BasketballBettingHelper()
 game_predictor = GamePredictor(betting_helper)
@@ -129,6 +166,80 @@ def test_api():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/healthz')
+def healthz():
+    """Liveness + readiness probe.
+
+    Returns 200 only when:
+      - The bankroll DB is at the expected schema version
+      - At least one classifier model artifact exists in models/
+      - All required props have a regressor or classifier loaded
+
+    Returns 503 with a per-check breakdown otherwise. ``ready=false``
+    in the body so a load-balancer can drain traffic during retrains.
+    """
+    import json as _json
+    import os as _os
+    from datetime import datetime as _dt, timezone as _tz
+    from .bankroll import _TARGET_VERSION, BankrollTracker as _BT
+    from .api_cache import all_stats as _cache_stats
+
+    checks: dict = {}
+
+    # 1. Bankroll DB schema
+    try:
+        bt = _BT(betting_helper.db_name)
+        import sqlite3 as _s
+        conn = _s.connect(bt.db_path)
+        v = int(conn.execute("PRAGMA user_version").fetchone()[0])
+        conn.close()
+        checks["bankroll_db"] = {
+            "ok": v == _TARGET_VERSION,
+            "version": v,
+            "target": _TARGET_VERSION,
+        }
+    except Exception as e:  # noqa: BLE001
+        checks["bankroll_db"] = {"ok": False, "error": str(e)}
+
+    # 2. Model artifacts on disk
+    models_dir = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "models")
+    meta_path = _os.path.join(models_dir, "model_metadata.json")
+    try:
+        meta = _json.loads(open(meta_path).read()) if _os.path.exists(meta_path) else {}
+        props = list((meta.get("props") or {}).keys())
+        artifact_present = []
+        for p in props:
+            cal = _os.path.join(models_dir, f"clf_cal_{p}.joblib")
+            reg = _os.path.join(models_dir, f"reg_{p}.joblib")
+            if _os.path.exists(cal) or _os.path.exists(reg):
+                artifact_present.append(p)
+        last_trained = meta.get("trained_utc") or meta.get("trained_at")
+        checks["models"] = {
+            "ok": len(artifact_present) > 0,
+            "metadata_present": _os.path.exists(meta_path),
+            "props_with_artifact": len(artifact_present),
+            "props_total": len(props),
+            "last_trained": last_trained,
+        }
+    except Exception as e:  # noqa: BLE001
+        checks["models"] = {"ok": False, "error": str(e)}
+
+    # 3. Cache subsystem (always alive — just a liveness sanity check)
+    try:
+        rows = _cache_stats()
+        checks["cache"] = {"ok": True, "registered": len(rows)}
+    except Exception as e:  # noqa: BLE001
+        checks["cache"] = {"ok": False, "error": str(e)}
+
+    overall_ok = all(c.get("ok") for c in checks.values())
+    payload = {
+        "ready": overall_ok,
+        "checked_utc": _dt.now(_tz.utc).isoformat(),
+        "checks": checks,
+    }
+    return jsonify(payload), (200 if overall_ok else 503)
+
+
 @app.route('/cache/stats')
 def cache_stats():
     """Expose TTL-cache hit rates so the operator can spot a regression."""
@@ -143,6 +254,48 @@ def cache_stats():
         "total_hits": total_hits,
         "total_misses": total_misses,
     })
+
+
+def _check_admin_token() -> bool:
+    """Constant-time bearer-token gate for /admin/* endpoints.
+
+    The token is read from the ``ADMIN_TOKEN`` env var. If unset, the
+    endpoint refuses (closed by default). Compared with ``hmac.compare_digest``
+    to defeat timing attacks — paranoid given this is on the open internet
+    and the token guards a destructive operation.
+    """
+    import hmac as _hmac
+    expected = os.environ.get("ADMIN_TOKEN")
+    if not expected:
+        return False
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        provided = auth[len("Bearer "):]
+    else:
+        provided = request.headers.get("X-Admin-Token", "")
+    if not provided:
+        return False
+    return _hmac.compare_digest(str(expected), str(provided))
+
+
+@app.route('/admin/cache/clear', methods=['POST'])
+def admin_cache_clear():
+    """Drop every TTL/disk cache. Token-gated.
+
+    Use case: a stale roster cache after a midday trade, or after a
+    player_id mapping change. Cheaper than a full restart.
+    """
+    if not _check_admin_token():
+        return jsonify({"error": "unauthorised"}), 401
+    from .api_cache import clear_all, all_stats
+    before = sum(r.get("size", 0) for r in all_stats())
+    clear_all()
+    after = sum(r.get("size", 0) for r in all_stats())
+    app.logger.warning(
+        "admin cache cleared rid=%s before=%d after=%d",
+        getattr(g, "request_id", None), before, after,
+    )
+    return jsonify({"cleared": True, "entries_before": before, "entries_after": after})
 
 
 @app.route('/cache/clear', methods=['POST'])
@@ -496,6 +649,15 @@ def bankroll_record_bet():
             return jsonify({'error': "missing 'prop_type' (or 'prop')"}), 400
         if stake_val is None:
             return jsonify({'error': "missing 'stake' (or 'stake_dollars')"}), 400
+        # Optional analytics fields — silently coerce or skip
+        def _maybe_float(k):
+            v = data.get(k)
+            return None if v is None else float(v)
+
+        def _maybe_int(k):
+            v = data.get(k)
+            return None if v is None else int(v)
+
         bet_id = _bankroll.record_bet(
             player_name=data.get('player_name'),
             prop_type=str(prop_val),
@@ -504,6 +666,11 @@ def bankroll_record_bet():
             american_odds=float(data['american_odds']),
             our_prob=float(data['our_prob']),
             stake=float(stake_val),
+            kelly_fraction=_maybe_float('kelly_fraction'),
+            edge=_maybe_float('edge'),
+            ev_per_dollar=_maybe_float('ev_per_dollar'),
+            prediction_log_id=_maybe_int('prediction_log_id'),
+            model_version=data.get('model_version'),
         )
         return jsonify({'id': bet_id}), 201
     except Exception as e:

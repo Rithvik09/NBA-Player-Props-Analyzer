@@ -55,6 +55,59 @@ def devig_two_way(over_american: float, under_american: float) -> tuple[float, f
     return o / total, u / total
 
 
+def devig_shin(
+    over_american: float,
+    under_american: float,
+    max_iter: int = 50,
+    tol: float = 1e-9,
+) -> tuple[float, float, float]:
+    """Shin's (1992) two-way devig — a sharper alternative to multiplicative.
+
+    The vig isn't uniformly distributed across both sides: bookmakers price
+    in adverse-selection risk, which falls disproportionately on the
+    perceived favourite. Shin parameterises the book's "z" (insider-trader
+    fraction) and inverts to recover the fair probability:
+
+        π_i = (sqrt(z² + 4·(1−z)·q_i² / Σq) − z) / (2·(1−z))
+
+    where ``q_i`` is the raw implied probability of side i. We solve for z
+    by binary search on the constraint ``π_o + π_u = 1``.
+
+    Returns ``(p_over_fair, p_under_fair, z)``. Falls back to multiplicative
+    devig if Shin doesn't converge (e.g. equal odds — z is undefined).
+    """
+    q_o = american_to_implied_prob(over_american)
+    q_u = american_to_implied_prob(under_american)
+    overround = q_o + q_u
+    if overround <= 1.0 + 1e-12 or abs(q_o - q_u) < 1e-12:
+        # No vig (or perfectly symmetric) → Shin is degenerate; fall back
+        po, pu = devig_two_way(over_american, under_american)
+        return po, pu, 0.0
+
+    def _pi(q: float, z: float, denom: float) -> float:
+        # denom = q_o + q_u (the overround)
+        radicand = z * z + 4.0 * (1.0 - z) * q * q / denom
+        return (math.sqrt(max(0.0, radicand)) - z) / (2.0 * (1.0 - z))
+
+    lo, hi = 0.0, min(0.999, overround - 1.0 + 0.5)  # z ∈ [0, vig + buffer)
+    for _ in range(max_iter):
+        z = 0.5 * (lo + hi)
+        po = _pi(q_o, z, overround)
+        pu = _pi(q_u, z, overround)
+        s = po + pu
+        if abs(s - 1.0) < tol:
+            return po, pu, z
+        # The function π_o(z) + π_u(z) is monotone decreasing in z over [0,1).
+        # If sum is too high, push z higher; too low, lower.
+        if s > 1.0:
+            lo = z
+        else:
+            hi = z
+    # Did not converge — fall back to safe devig
+    po, pu = devig_two_way(over_american, under_american)
+    return po, pu, 0.0
+
+
 # ---------------------------------------------------------------------------
 # Kelly stake sizing
 # ---------------------------------------------------------------------------
@@ -340,6 +393,15 @@ _MIGRATIONS: list[tuple[int, str]] = [
     (3, """
         ALTER TABLE bankroll_bets ADD COLUMN model_version TEXT;
     """),
+    # v4: closing line value tracking. ``closing_*`` columns are filled in
+    # after the bet is placed (e.g. via a tip-off cron); CLV = our_prob -
+    # implied(closing_odds) and is the single best leading indicator that the
+    # model is sharper than the market.
+    (4, """
+        ALTER TABLE bankroll_bets ADD COLUMN closing_line REAL;
+        ALTER TABLE bankroll_bets ADD COLUMN closing_odds REAL;
+        ALTER TABLE bankroll_bets ADD COLUMN clv REAL;
+    """),
 ]
 
 _TARGET_VERSION = max(v for v, _ in _MIGRATIONS)
@@ -434,15 +496,32 @@ class BankrollTracker:
         american_odds: float,
         our_prob: float,
         stake: float,
+        kelly_fraction: float | None = None,
+        edge: float | None = None,
+        ev_per_dollar: float | None = None,
+        prediction_log_id: int | None = None,
+        model_version: str | None = None,
     ) -> int:
+        """Record a placed bet. The optional kwargs are populated by v2/v3
+        schema columns; passing them at write-time enables ROI-by-model
+        and joins back to ``prediction_logs`` for explainability.
+        """
         now = datetime.now(timezone.utc).isoformat()
         with _LOCK, self._conn() as conn:
             cur = conn.execute(
                 """INSERT INTO bankroll_bets
-                   (placed_utc, player_name, prop_type, side, line, american_odds, our_prob, stake)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (placed_utc, player_name, prop_type, side, line,
+                    american_odds, our_prob, stake,
+                    kelly_fraction, edge, ev_per_dollar,
+                    prediction_log_id, model_version)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (now, player_name, prop_type, side, float(line),
-                 float(american_odds), float(our_prob), float(stake)),
+                 float(american_odds), float(our_prob), float(stake),
+                 None if kelly_fraction is None else float(kelly_fraction),
+                 None if edge is None else float(edge),
+                 None if ev_per_dollar is None else float(ev_per_dollar),
+                 None if prediction_log_id is None else int(prediction_log_id),
+                 model_version),
             )
             # debit bankroll
             conn.execute(
@@ -450,6 +529,59 @@ class BankrollTracker:
                 (float(stake), now),
             )
             return int(cur.lastrowid)
+
+    def record_closing_line(
+        self,
+        bet_id: int,
+        *,
+        closing_line: float | None = None,
+        closing_odds: float | None = None,
+    ) -> dict:
+        """Stamp a bet with the line/odds that closed the market.
+
+        CLV is computed as ``our_prob − implied(closing_odds)``. A consistently
+        positive CLV is the strongest evidence the model is profitably ahead
+        of the market — far stronger than realised ROI on a small sample.
+        """
+        with _LOCK, self._conn() as conn:
+            row = conn.execute(
+                "SELECT our_prob FROM bankroll_bets WHERE id = ?",
+                (int(bet_id),),
+            ).fetchone()
+            if row is None:
+                raise KeyError(f"no bet {bet_id}")
+            our_prob = float(row[0]) if row[0] is not None else None
+            clv = None
+            if our_prob is not None and closing_odds is not None:
+                clv = our_prob - american_to_implied_prob(float(closing_odds))
+            conn.execute(
+                """UPDATE bankroll_bets
+                   SET closing_line = ?, closing_odds = ?, clv = ?
+                   WHERE id = ?""",
+                (
+                    None if closing_line is None else float(closing_line),
+                    None if closing_odds is None else float(closing_odds),
+                    None if clv is None else float(clv),
+                    int(bet_id),
+                ),
+            )
+            return {"bet_id": int(bet_id), "clv": clv}
+
+    def clv_summary(self) -> dict:
+        """Mean CLV across bets where closing odds have been recorded."""
+        with _LOCK, self._conn() as conn:
+            row = conn.execute(
+                """SELECT COUNT(*), AVG(clv), MIN(clv), MAX(clv)
+                   FROM bankroll_bets
+                   WHERE clv IS NOT NULL"""
+            ).fetchone()
+        n, mean_clv, min_clv, max_clv = row
+        return {
+            "n": int(n or 0),
+            "mean_clv": float(mean_clv) if mean_clv is not None else 0.0,
+            "min_clv": float(min_clv) if min_clv is not None else 0.0,
+            "max_clv": float(max_clv) if max_clv is not None else 0.0,
+        }
 
     def settle(self, bet_id: int, result: str) -> dict:
         """Settle a bet. ``result`` ∈ {'win', 'loss', 'push'}."""

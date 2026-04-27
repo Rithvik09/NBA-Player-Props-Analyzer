@@ -21,6 +21,43 @@ def client(tmp_path, monkeypatch):
     return _app.app.test_client()
 
 
+def test_healthz_returns_structured_payload(client):
+    """The endpoint must always respond with the standard payload shape,
+    regardless of whether the system is fully ready or partially degraded."""
+    r = client.get("/healthz")
+    assert r.status_code in (200, 503)
+    j = r.get_json()
+    assert "ready" in j and isinstance(j["ready"], bool)
+    assert "checked_utc" in j
+    assert "checks" in j
+    for key in ("bankroll_db", "models", "cache"):
+        assert key in j["checks"]
+        assert "ok" in j["checks"][key]
+    # Bankroll DB and cache should always pass in a normal test env
+    assert j["checks"]["bankroll_db"]["ok"] is True
+    assert j["checks"]["cache"]["ok"] is True
+
+
+def test_healthz_503_when_models_missing(client, monkeypatch):
+    """If no model artifacts can be located, healthz must report 503 + ready=false."""
+    import os as _os
+    real_exists = _os.path.exists
+
+    def fake_exists(p):
+        # Hide both the metadata file and any model joblib artifacts
+        sp = str(p)
+        if sp.endswith("model_metadata.json") or "/models/" in sp:
+            return False
+        return real_exists(p)
+
+    monkeypatch.setattr(_os.path, "exists", fake_exists)
+    r = client.get("/healthz")
+    assert r.status_code == 503
+    j = r.get_json()
+    assert j["ready"] is False
+    assert j["checks"]["models"]["ok"] is False
+
+
 def test_cache_stats(client):
     r = client.get("/cache/stats")
     assert r.status_code == 200
@@ -148,6 +185,39 @@ def test_injuries_endpoint_mocked(client):
     assert r.status_code == 200
     j = r.get_json()
     assert j["count"] == 1
+
+
+def test_request_id_round_trips_in_response_header(client):
+    r = client.get("/cache/stats", headers={"X-Request-ID": "test-rid-123"})
+    assert r.status_code == 200
+    assert r.headers.get("X-Request-ID") == "test-rid-123"
+
+
+def test_request_id_auto_assigned_when_absent(client):
+    r = client.get("/cache/stats")
+    rid = r.headers.get("X-Request-ID")
+    assert rid is not None and len(rid) >= 8
+
+
+def test_admin_cache_clear_requires_token(client, monkeypatch):
+    monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+    r = client.post("/admin/cache/clear")
+    assert r.status_code == 401
+
+
+def test_admin_cache_clear_accepts_bearer_token(client, monkeypatch):
+    monkeypatch.setenv("ADMIN_TOKEN", "shh-secret")
+    r = client.post("/admin/cache/clear",
+                    headers={"Authorization": "Bearer shh-secret"})
+    assert r.status_code == 200, r.get_json()
+    assert r.get_json()["cleared"] is True
+
+
+def test_admin_cache_clear_rejects_wrong_token(client, monkeypatch):
+    monkeypatch.setenv("ADMIN_TOKEN", "shh-secret")
+    r = client.post("/admin/cache/clear",
+                    headers={"Authorization": "Bearer wrong-token"})
+    assert r.status_code == 401
 
 
 def test_injuries_player_endpoint_mocked(client):
