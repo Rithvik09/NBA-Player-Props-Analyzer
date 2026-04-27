@@ -310,7 +310,9 @@ def compute_sample_weights(
         if today.tzinfo is not None:
             today = today.tz_localize(None)
     minutes_list = [float(getattr(e, "minutes", 0.0) or 0.0) for e in examples]
-    typical_min = float(np.median([m for m in minutes_list if m > 0]) or 28.0)
+    nonzero_mins = [m for m in minutes_list if m > 0]
+    # np.median raises RuntimeWarning on empty input — guard explicitly.
+    typical_min = float(np.median(nonzero_mins)) if nonzero_mins else 28.0
 
     weights = np.empty(len(examples), dtype=float)
     for i, e in enumerate(examples):

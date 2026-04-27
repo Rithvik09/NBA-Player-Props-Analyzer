@@ -31,7 +31,7 @@ import os
 import sqlite3
 import sys
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 
@@ -116,7 +116,7 @@ def main() -> int:
     result = fit(args.db, min_samples=args.min_samples)
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w") as f:
-        json.dump({"fitted_utc": datetime.utcnow().isoformat(),
+        json.dump({"fitted_utc": datetime.now(timezone.utc).isoformat(),
                    "min_samples": args.min_samples,
                    "pairs": result}, f, indent=2)
     print(f"[fit] wrote {args.out}")
