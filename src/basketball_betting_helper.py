@@ -1839,6 +1839,16 @@ class BasketballBettingHelper:
                 location_avg_val = float(stat_data.get('avg', 0))
             features['location_avg'] = location_avg_val
 
+            # Inject live-injury features into the feature vector. The current
+            # model wasn't trained with these (they'll be zero-filled by
+            # _align_to_model), but future retrains pick them up automatically.
+            try:
+                from .live_injuries import matchup_injury_context as _mic
+                _inj_feats = _mic(team_id, opponent_team_id)
+                features.update(_inj_feats)
+            except Exception as _ie:  # noqa: BLE001 — best-effort
+                log.debug(f"injury feature injection failed: {_ie}")
+
             ml_prediction = self.ml_predictor.predict(features, line, prop_type=prop_type)
 
             if not ml_prediction:
@@ -1924,6 +1934,17 @@ class BasketballBettingHelper:
             }
             if sharp_signal:
                 result['sharp_signal'] = sharp_signal
+
+            # Injury context — surfaces the live-scraper output on every
+            # prediction. Cheap (cached 30 min). Best-effort: a scraper
+            # failure must never block a prediction.
+            try:
+                from .live_injuries import matchup_injury_context
+                injury_features = matchup_injury_context(team_id, opponent_team_id)
+                result['injury_context'] = injury_features
+            except Exception as _ie:
+                log.debug(f"injury context fetch failed: {_ie}")
+
             return result
 
         except Exception as e:

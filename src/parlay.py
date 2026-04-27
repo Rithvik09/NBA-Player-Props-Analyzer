@@ -27,11 +27,16 @@ empirical residuals from your graded history once you have enough rows.
 """
 from __future__ import annotations
 
+import json
+import logging
 import math
+import os
 from dataclasses import dataclass
 from typing import Sequence
 
 import numpy as np
+
+log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -77,9 +82,70 @@ def _canonical(a: str, b: str) -> tuple[str, str]:
     return (a, b) if a <= b else (b, a)
 
 
+# ---------------------------------------------------------------------------
+# Empirical overlay: scripts/fit_parlay_correlations.py writes JSON of
+# residual-correlations from graded predictions. If present, these override
+# hand-tuned priors per pair.
+# ---------------------------------------------------------------------------
+
+EMPIRICAL_CORRELATIONS: dict[tuple[str, str, str], float] = {}
+EMPIRICAL_PATH_DEFAULT = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "models", "empirical_correlations.json",
+)
+
+
+def load_empirical_correlations(path: str | None = None) -> int:
+    """Load fitted correlations from disk. Returns count loaded.
+
+    Idempotent: re-loading replaces the in-memory overlay.
+    """
+    global EMPIRICAL_CORRELATIONS
+    p = path or EMPIRICAL_PATH_DEFAULT
+    if not os.path.exists(p):
+        EMPIRICAL_CORRELATIONS = {}
+        return 0
+    try:
+        with open(p) as f:
+            blob = json.load(f)
+    except (OSError, ValueError) as e:
+        log.warning("[parlay] failed to load empirical correlations: %s", e)
+        EMPIRICAL_CORRELATIONS = {}
+        return 0
+    pairs = blob.get("pairs", {}) if isinstance(blob, dict) else {}
+    overlay: dict[tuple[str, str, str], float] = {}
+    for key, val in pairs.items():
+        try:
+            scope, a, b = key.split("|")
+            r = float(val.get("r", 0.0)) if isinstance(val, dict) else float(val)
+            overlay[(scope, a.lower(), b.lower())] = r
+        except (ValueError, TypeError, AttributeError):
+            continue
+    EMPIRICAL_CORRELATIONS = overlay
+    log.info("[parlay] loaded %d empirical correlations from %s", len(overlay), p)
+    return len(overlay)
+
+
+# Try once at import — fails silently if file absent
+try:
+    load_empirical_correlations()
+except Exception:  # noqa: BLE001
+    pass
+
+
 def default_correlation(scope: str, prop_a: str, prop_b: str) -> float:
-    """Look up prior; fall back to 0 for unseen pairs or unknown scope."""
+    """Look up prior, with empirical overlay taking precedence.
+
+    Resolution order:
+      1. EMPIRICAL_CORRELATIONS (fitted from graded history)
+      2. CORRELATION_PRIORS (hand-tuned)
+      3. Same-prop-same-player → 1.0
+      4. 0.0
+    """
     a, b = _canonical(prop_a.lower(), prop_b.lower())
+    v = EMPIRICAL_CORRELATIONS.get((scope, a, b))
+    if v is not None:
+        return v
     v = CORRELATION_PRIORS.get((scope, a, b))
     if v is not None:
         return v

@@ -196,3 +196,63 @@ def summarise_team(team_abbr_or_name: str) -> dict:
         "questionable_count": q_count,
         "players": hits,
     }
+
+
+# ---------------------------------------------------------------------------
+# Feature-vector helpers — for inference-time risk-context injection and for
+# the next training run to consume as model features.
+# ---------------------------------------------------------------------------
+
+INJURY_FEATURE_KEYS = [
+    "team_severity_max",
+    "team_out_count",
+    "team_questionable_count",
+    "team_total_injuries",
+]
+
+
+def team_severity_features(team_id: int | None,
+                           prefix: str = "team_") -> dict:
+    """Numeric injury features for a team, keyed for ML feature injection.
+
+    Resolves ``team_id`` -> NBA full name -> injury summary, with safe
+    fallbacks (returns zeroed features when nba_api or scrape fails).
+
+    ``prefix`` is prepended to every key (default ``team_``); pass
+    ``opp_`` to namespace opponent features alongside.
+    """
+    zero = {
+        f"{prefix}severity_max": 0.0,
+        f"{prefix}out_count": 0,
+        f"{prefix}questionable_count": 0,
+        f"{prefix}total_injuries": 0,
+    }
+    if team_id is None:
+        return zero
+    try:
+        from nba_api.stats.static import teams as _teams_static
+        info = _teams_static.find_team_name_by_id(int(team_id))
+        if not info:
+            return zero
+        full = info.get("full_name") or info.get("nickname")
+        if not full:
+            return zero
+        s = summarise_team(full)
+        return {
+            f"{prefix}severity_max":       float(s.get("max_severity", 0.0)),
+            f"{prefix}out_count":          int(s.get("out_count", 0)),
+            f"{prefix}questionable_count": int(s.get("questionable_count", 0)),
+            f"{prefix}total_injuries":     int(s.get("count", 0)),
+        }
+    except Exception as e:  # noqa: BLE001 — best-effort fallback
+        log.debug("[injuries] team_severity_features failed for %s: %s",
+                  team_id, e)
+        return zero
+
+
+def matchup_injury_context(team_id: int | None,
+                           opp_team_id: int | None) -> dict:
+    """Combined team + opponent injury features for a matchup."""
+    a = team_severity_features(team_id, prefix="team_")
+    b = team_severity_features(opp_team_id, prefix="opp_")
+    return {**a, **b}

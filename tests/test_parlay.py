@@ -79,3 +79,36 @@ def test_default_correlation_symmetric():
 def test_empty_legs():
     r = parlay_probability([])
     assert r["correlated_prob"] == 0.0
+
+
+def test_empirical_correlations_override_priors(tmp_path, monkeypatch):
+    """Empirical overlay JSON should win over hand-tuned priors per pair."""
+    import json
+    import src.parlay as parlay_mod
+
+    p = tmp_path / "empirical.json"
+    p.write_text(json.dumps({
+        "fitted_utc": "x",
+        "min_samples": 30,
+        "pairs": {
+            "same_player|points|rebounds": {"r": 0.99, "n": 100},
+        },
+    }))
+    saved = dict(parlay_mod.EMPIRICAL_CORRELATIONS)
+    try:
+        parlay_mod.load_empirical_correlations(str(p))
+        assert default_correlation("same_player", "points", "rebounds") == 0.99
+        # Pairs not in overlay still come from priors
+        assert default_correlation("same_player", "assists", "points") == 0.35
+    finally:
+        parlay_mod.EMPIRICAL_CORRELATIONS = saved
+
+
+def test_empirical_correlations_missing_file_safe(tmp_path):
+    import src.parlay as parlay_mod
+    saved = dict(parlay_mod.EMPIRICAL_CORRELATIONS)
+    try:
+        n = parlay_mod.load_empirical_correlations(str(tmp_path / "nope.json"))
+        assert n == 0
+    finally:
+        parlay_mod.EMPIRICAL_CORRELATIONS = saved

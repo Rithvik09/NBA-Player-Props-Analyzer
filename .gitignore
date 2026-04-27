@@ -22,6 +22,9 @@ logs/
 # Databases (runtime data, not source code)
 *.db
 
+# Disk-persisted API cache (regenerable)
+.cache/
+
 # Broken/old model snapshots
 models/incremental.broken_*/
 # Calibration-swap backups (scripts/fix_calibration.py)

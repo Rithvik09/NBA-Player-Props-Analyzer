@@ -83,3 +83,70 @@ def test_clear_all_resets():
     clear_all()
     stats_after = [s for s in all_stats() if s["name"] == "t5"][0]
     assert stats_after["size"] == 0
+
+
+def test_stampede_protection_serialises_misses():
+    """Concurrent threads asking for same uncached key fire fn once."""
+    import threading
+    calls = {"n": 0}
+    counter_lock = threading.Lock()
+
+    @ttl_cache(ttl_seconds=60, name="t_stampede")
+    def slow(x):
+        # Hold long enough for siblings to queue up on the per-key lock
+        with counter_lock:
+            calls["n"] += 1
+        time.sleep(0.15)
+        return x * 10
+
+    results = [None] * 5
+
+    def worker(i):
+        results[i] = slow(7)
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(5)]
+    for t in threads:
+        t.start()
+        # Tiny stagger so they all start before the first finishes
+        time.sleep(0.005)
+    for t in threads:
+        t.join(timeout=5.0)
+
+    assert all(r == 70 for r in results)
+    # Only ONE thread should have actually executed slow's body.
+    assert calls["n"] == 1
+    stats = [s for s in all_stats() if s["name"] == "t_stampede"][0]
+    # The other 4 should have been blocked by the per-key lock.
+    assert stats["stampede_blocks"] == 4
+
+
+def test_disk_cache_persists_across_instances(tmp_path, monkeypatch):
+    """A disk-backed cache should survive a fresh import."""
+    monkeypatch.setenv("NBA_CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("NBA_CACHE_DISABLE", "0")
+    import importlib
+    import src.api_cache as ac
+    importlib.reload(ac)
+
+    calls = {"n": 0}
+
+    @ac.ttl_cache(ttl_seconds=3600, name="t_disk", disk=True)
+    def f(x):
+        calls["n"] += 1
+        return x + 100
+
+    assert f(5) == 105
+    assert f(5) == 105
+    assert calls["n"] == 1
+
+    # Re-import module to simulate process restart
+    importlib.reload(ac)
+    calls2 = {"n": 0}
+
+    @ac.ttl_cache(ttl_seconds=3600, name="t_disk", disk=True)
+    def f2(x):
+        calls2["n"] += 1
+        return x + 100
+
+    assert f2(5) == 105  # served from disk snapshot, no fn call
+    assert calls2["n"] == 0

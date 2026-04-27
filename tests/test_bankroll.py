@@ -11,6 +11,8 @@ from src.bankroll import (
     american_to_implied_prob,
     devig_two_way,
     kelly_stake,
+    kelly_stake_correlated,
+    kelly_stake_three_outcome,
 )
 
 
@@ -68,6 +70,110 @@ def test_ev_per_dollar_consistent():
     assert math.isclose(ks.ev_per_dollar, expected, rel_tol=1e-6)
 
 
+# ---------------- three-outcome Kelly ------------------------------------
+
+def test_three_outcome_reduces_to_classic_when_no_push():
+    a = kelly_stake_three_outcome(p_win=0.60, p_push=0.0, american_odds=-110,
+                                   bankroll=1000, kelly_fraction=0.25)
+    b = kelly_stake(our_prob=0.60, american_odds=-110, bankroll=1000,
+                    kelly_fraction=0.25)
+    assert math.isclose(a.full_kelly, b.full_kelly, rel_tol=1e-9)
+    assert math.isclose(a.stake_dollars, b.stake_dollars, rel_tol=1e-6)
+
+
+def test_three_outcome_push_dampens_stake():
+    # Holding p_loss fixed, converting win mass into push mass shrinks Kelly
+    # (push neither grows nor decays bankroll, but you give up positive EV).
+    no_push = kelly_stake_three_outcome(p_win=0.60, p_push=0.00,
+                                         american_odds=-110, bankroll=1000,
+                                         kelly_fraction=1.0, max_fraction=1.0)
+    with_push = kelly_stake_three_outcome(p_win=0.50, p_push=0.10,
+                                           american_odds=-110, bankroll=1000,
+                                           kelly_fraction=1.0, max_fraction=1.0)
+    # Same p_loss=0.40, but with_push has lower p_win → smaller stake
+    assert with_push.full_kelly < no_push.full_kelly
+    assert with_push.full_kelly > 0
+
+
+def test_three_outcome_no_edge_zero_stake():
+    ks = kelly_stake_three_outcome(p_win=0.40, p_push=0.10,
+                                    american_odds=-110, bankroll=1000)
+    assert ks.stake_dollars == 0.0
+
+
+def test_three_outcome_renormalises_inconsistent_probs():
+    # p_win + p_push > 1 → should renormalise rather than crash
+    ks = kelly_stake_three_outcome(p_win=0.7, p_push=0.6,
+                                    american_odds=-110, bankroll=1000)
+    # Should not raise; ev_per_dollar finite
+    assert math.isfinite(ks.ev_per_dollar)
+
+
+# ---------------- correlation-aware Kelly --------------------------------
+
+def test_correlated_kelly_independence_matches_solo():
+    import numpy as np
+    bets = [
+        {"prob": 0.60, "american_odds": -110},
+        {"prob": 0.58, "american_odds": -110},
+    ]
+    ind = kelly_stake_correlated(bets, bankroll=1000,
+                                  correlation_matrix=np.eye(2),
+                                  kelly_fraction=0.25, max_fraction_per_bet=0.05,
+                                  max_total_fraction=1.0, n_samples=10_000,
+                                  seed=1)
+    # Solo Kelly for each
+    a = kelly_stake(our_prob=0.60, american_odds=-110, bankroll=1000,
+                    kelly_fraction=0.25, max_fraction=0.05)
+    b = kelly_stake(our_prob=0.58, american_odds=-110, bankroll=1000,
+                    kelly_fraction=0.25, max_fraction=0.05)
+    # MC noise ± a few percent of stake
+    assert abs(ind[0]["stake_dollars"] - a.stake_dollars) <= 5.0
+    assert abs(ind[1]["stake_dollars"] - b.stake_dollars) <= 5.0
+
+
+def test_correlated_kelly_high_corr_shrinks():
+    import numpy as np
+    bets = [
+        {"prob": 0.60, "american_odds": -110},
+        {"prob": 0.60, "american_odds": -110},
+    ]
+    independent = kelly_stake_correlated(bets, bankroll=1000,
+                                          correlation_matrix=np.eye(2),
+                                          kelly_fraction=0.25,
+                                          max_fraction_per_bet=0.05,
+                                          max_total_fraction=1.0,
+                                          n_samples=10_000, seed=2)
+    corr_high = np.array([[1.0, 0.95], [0.95, 1.0]])
+    correlated = kelly_stake_correlated(bets, bankroll=1000,
+                                         correlation_matrix=corr_high,
+                                         kelly_fraction=0.25,
+                                         max_fraction_per_bet=0.05,
+                                         max_total_fraction=1.0,
+                                         n_samples=10_000, seed=2)
+    # Highly correlated → joint stake should not exceed independent total
+    sum_ind = sum(b["stake_fraction"] for b in independent)
+    sum_corr = sum(b["stake_fraction"] for b in correlated)
+    assert sum_corr <= sum_ind + 1e-6
+
+
+def test_correlated_kelly_respects_total_cap():
+    import numpy as np
+    bets = [{"prob": 0.65, "american_odds": -110} for _ in range(5)]
+    res = kelly_stake_correlated(bets, bankroll=1000,
+                                  correlation_matrix=np.eye(5),
+                                  kelly_fraction=1.0,
+                                  max_fraction_per_bet=0.10,
+                                  max_total_fraction=0.20,
+                                  n_samples=5_000, seed=3)
+    total_frac = sum(b["stake_fraction"] for b in res)
+    assert total_frac <= 0.20 + 1e-6
+
+
+def test_correlated_kelly_empty_input():
+    assert kelly_stake_correlated([], bankroll=1000) == []
+
+
 # ---------------- bankroll ledger -----------------------------------------
 
 def test_bankroll_win_flow(tmp_path):
@@ -122,6 +228,64 @@ def test_double_settle_rejected(tmp_path):
     br.settle(bid, "win")
     with pytest.raises(ValueError):
         br.settle(bid, "loss")
+
+
+def test_schema_migrations_idempotent(tmp_path):
+    """Re-instantiating BankrollTracker on the same DB must be a no-op."""
+    import sqlite3
+    from src.bankroll import _TARGET_VERSION
+    db = str(tmp_path / "bankroll.db")
+    BankrollTracker(db)
+    BankrollTracker(db)  # second time — must not raise
+    BankrollTracker(db)  # third time — must not raise
+
+    conn = sqlite3.connect(db)
+    v = conn.execute("PRAGMA user_version").fetchone()[0]
+    assert v == _TARGET_VERSION
+
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(bankroll_bets)").fetchall()]
+    # New columns from v2/v3 should be present
+    for must in ("kelly_fraction", "edge", "ev_per_dollar",
+                  "prediction_log_id", "model_version"):
+        assert must in cols, f"missing column {must}"
+    conn.close()
+
+
+def test_schema_migrates_legacy_v1_database(tmp_path):
+    """Bootstrap a v1-only DB by hand, then open via tracker → should fast-forward."""
+    import sqlite3
+    from src.bankroll import _TARGET_VERSION
+    db = str(tmp_path / "legacy.db")
+    conn = sqlite3.connect(db)
+    conn.executescript("""
+        CREATE TABLE bankroll_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            balance REAL NOT NULL,
+            currency TEXT NOT NULL DEFAULT 'USD',
+            updated_utc TEXT NOT NULL
+        );
+        CREATE TABLE bankroll_bets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            placed_utc TEXT NOT NULL,
+            player_name TEXT, prop_type TEXT, side TEXT,
+            line REAL, american_odds REAL, our_prob REAL,
+            stake REAL NOT NULL,
+            status TEXT NOT NULL DEFAULT 'open',
+            result TEXT, pnl REAL, settled_utc TEXT
+        );
+        PRAGMA user_version = 1;
+    """)
+    conn.commit()
+    conn.close()
+
+    BankrollTracker(db)  # should run v2, v3 migrations
+
+    conn = sqlite3.connect(db)
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == _TARGET_VERSION
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(bankroll_bets)").fetchall()]
+    assert "kelly_fraction" in cols
+    assert "model_version" in cols
+    conn.close()
 
 
 def test_summary_rolls_up(tmp_path):

@@ -68,6 +68,179 @@ class KellyStake:
     ev_per_dollar: float    # expected value per $1 staked
 
 
+def kelly_stake_three_outcome(
+    p_win: float,
+    p_push: float,
+    american_odds: float,
+    bankroll: float,
+    kelly_fraction: float = 0.25,
+    max_fraction: float = 0.05,
+) -> KellyStake:
+    """Push-aware Kelly for three-outcome bets (win / push / lose).
+
+    Maximises ``E[log(1 + f·X)]`` where the random return X is:
+        +b  with prob p_win
+         0  with prob p_push   (stake refunded — no growth, no decay)
+        -1  with prob p_loss = 1 − p_win − p_push
+
+    Closed-form optimum:
+        f* = (p_win · b − p_loss) / (b · (p_win + p_loss))
+
+    Reduces to classic Kelly when p_push == 0.
+    """
+    p_w = max(0.0, min(1.0, float(p_win)))
+    p_p = max(0.0, min(1.0, float(p_push)))
+    if p_w + p_p > 1.0:
+        # Renormalise — caller passed inconsistent probs
+        s = p_w + p_p
+        p_w, p_p = p_w / s, p_p / s
+    p_l = max(0.0, 1.0 - p_w - p_p)
+    b = american_to_decimal(american_odds) - 1.0
+    if b <= 0:
+        return KellyStake(edge=0.0, full_kelly=0.0, stake_fraction=0.0,
+                          stake_dollars=0.0, ev_per_dollar=0.0)
+    implied = 1.0 / (b + 1.0)
+    edge = p_w - implied
+    ev_per_dollar = p_w * b - p_l  # push contributes 0
+    denom = b * (p_w + p_l)
+    full_kelly = ((p_w * b) - p_l) / denom if denom > 0 else 0.0
+    if full_kelly <= 0 or bankroll <= 0:
+        return KellyStake(edge=edge, full_kelly=full_kelly, stake_fraction=0.0,
+                          stake_dollars=0.0, ev_per_dollar=ev_per_dollar)
+    fraction = min(full_kelly * kelly_fraction, max_fraction)
+    fraction = max(0.0, fraction)
+    return KellyStake(
+        edge=edge,
+        full_kelly=full_kelly,
+        stake_fraction=fraction,
+        stake_dollars=round(bankroll * fraction, 2),
+        ev_per_dollar=ev_per_dollar,
+    )
+
+
+def kelly_stake_correlated(
+    bets: list[dict],
+    bankroll: float,
+    correlation_matrix=None,
+    kelly_fraction: float = 0.25,
+    max_fraction_per_bet: float = 0.05,
+    max_total_fraction: float = 0.20,
+    n_samples: int = 20_000,
+    seed: int = 42,
+) -> list[dict]:
+    """Joint-Kelly stake sizing for N simultaneous correlated bets.
+
+    Single-bet Kelly oversizes when bets are positively correlated:
+    losing on one bet makes losing on the others more likely, so the
+    growth-optimal joint stake is smaller than the sum of solo stakes.
+
+    Approach: Monte-Carlo simulate joint win/loss outcomes via the
+    Gaussian copula on the supplied correlation matrix, then climb
+    ``E[log(1 + Σ f_i X_i)]`` by coordinate-wise solo-Kelly shrinkage.
+    Doesn't need scipy — closed-form per-step.
+
+    Parameters
+    ----------
+    bets
+        List of ``{"prob": p, "american_odds": odds}`` dicts.
+    correlation_matrix
+        ``N×N`` numpy-like; ``None`` → identity (independence). Diagonals 1.
+    max_total_fraction
+        Hard cap on Σ f_i. Stops over-exposure when many small edges pile up.
+
+    Returns a list of dicts mirroring ``bets`` augmented with
+    ``stake_fraction`` and ``stake_dollars``. Single-bet input reduces to
+    ``kelly_stake`` (within MC noise).
+    """
+    import numpy as np
+    if not bets:
+        return []
+    n = len(bets)
+    p = np.array([max(1e-9, min(1 - 1e-9, float(b["prob"]))) for b in bets])
+    b_payout = np.array([american_to_decimal(float(bb["american_odds"])) - 1.0
+                          for bb in bets])
+
+    # Solo full-Kelly per bet — starting point + shrinkage anchor
+    solo_full = np.maximum(0.0, (b_payout * p - (1 - p)) / np.maximum(b_payout, 1e-12))
+
+    if correlation_matrix is None:
+        corr = np.eye(n)
+    else:
+        corr = np.asarray(correlation_matrix, dtype=float)
+        if corr.shape != (n, n):
+            corr = np.eye(n)
+
+    # Sample correlated win/loss outcomes via Gaussian copula
+    rng = np.random.default_rng(seed)
+    try:
+        L = np.linalg.cholesky(corr + 1e-9 * np.eye(n))
+    except np.linalg.LinAlgError:
+        w, v = np.linalg.eigh(corr)
+        L = v @ np.diag(np.sqrt(np.maximum(w, 0)))
+    z = rng.standard_normal(size=(n_samples, n)) @ L.T
+    # Sample wins iff Z_i <= Φ⁻¹(p_i). Use scipy if available, else AS241.
+    try:
+        from scipy.stats import norm
+        thresholds = norm.ppf(p)
+    except Exception:  # noqa: BLE001
+        from .parlay import _std_normal_ppf
+        thresholds = np.array([_std_normal_ppf(float(pi)) for pi in p])
+    win_mat = (z <= thresholds).astype(float)  # shape (S, n) ∈ {0, 1}
+    # Per-bet returns: +b_i on win, -1 on loss
+    X = win_mat * b_payout + (1.0 - win_mat) * (-1.0)  # (S, n)
+
+    def neg_log_growth(f: np.ndarray) -> float:
+        port = 1.0 + X @ f
+        port = np.maximum(port, 1e-9)  # guard against bankrupt sample
+        return -float(np.mean(np.log(port)))
+
+    # First find UNSCALED joint full-Kelly via coordinate descent. Then
+    # apply ``kelly_fraction`` as the safety multiplier and cap.
+    # Bound each f_i at solo_full[i] (full-Kelly never exceeds solo Kelly under
+    # positive correlation), but allow up to 1.0 in the rare zero-correlation
+    # multi-bet case.
+    upper_per_bet = np.minimum(np.maximum(solo_full, 1e-12), 1.0)
+    f = solo_full.copy()  # starting point
+    for _ in range(10):
+        improved = False
+        for i in range(n):
+            base_obj = neg_log_growth(f)
+            best_obj, best_fi = base_obj, f[i]
+            # Search 8 grid points between 0 and the per-bet upper bound
+            for frac_of_upper in (0.0, 0.25, 0.5, 0.75, 1.0):
+                trial = float(frac_of_upper * upper_per_bet[i])
+                f_try = f.copy()
+                f_try[i] = trial
+                obj = neg_log_growth(f_try)
+                if obj < best_obj - 1e-9:
+                    best_obj, best_fi = obj, trial
+            if abs(best_fi - f[i]) > 1e-12:
+                f[i] = best_fi
+                improved = True
+        if not improved:
+            break
+
+    # f is now the unscaled joint-Kelly optimum. Apply safety multiplier + caps.
+    f_scaled = f * kelly_fraction
+    f_scaled = np.minimum(f_scaled, max_fraction_per_bet)
+    f_scaled = np.maximum(f_scaled, 0.0)
+    total = f_scaled.sum()
+    if total > max_total_fraction and total > 0:
+        f_scaled *= max_total_fraction / total
+
+    out = []
+    for i, bb in enumerate(bets):
+        frac = float(f_scaled[i])
+        out.append({
+            **bb,
+            "solo_full_kelly": float(solo_full[i]),
+            "joint_full_kelly": float(f[i]),
+            "stake_fraction": frac,
+            "stake_dollars": round(float(bankroll) * frac, 2) if bankroll > 0 else 0.0,
+        })
+    return out
+
+
 def kelly_stake(
     our_prob: float,
     american_odds: float,
@@ -121,32 +294,67 @@ def kelly_stake(
 # Bankroll tracker (thin SQLite wrapper)
 # ---------------------------------------------------------------------------
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS bankroll_state (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    balance REAL NOT NULL,
-    currency TEXT NOT NULL DEFAULT 'USD',
-    updated_utc TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS bankroll_bets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    placed_utc TEXT NOT NULL,
-    player_name TEXT,
-    prop_type TEXT,
-    side TEXT,
-    line REAL,
-    american_odds REAL,
-    our_prob REAL,
-    stake REAL NOT NULL,
-    status TEXT NOT NULL DEFAULT 'open',
-    result TEXT,                -- 'win' | 'loss' | 'push' | null while open
-    pnl REAL,                   -- realised P&L once settled
-    settled_utc TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_bankroll_bets_status ON bankroll_bets(status);
-"""
+# ---------------------------------------------------------------------------
+# Schema migrations
+#
+# Versioned, append-only list of (version, ddl) pairs. ``_ensure_schema``
+# fast-forwards from whatever version the DB is at to ``_TARGET_VERSION``.
+# Adding a new field? Append a new tuple — never edit a past one.
+# ---------------------------------------------------------------------------
+
+_MIGRATIONS: list[tuple[int, str]] = [
+    (1, """
+        CREATE TABLE IF NOT EXISTS bankroll_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            balance REAL NOT NULL,
+            currency TEXT NOT NULL DEFAULT 'USD',
+            updated_utc TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS bankroll_bets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            placed_utc TEXT NOT NULL,
+            player_name TEXT,
+            prop_type TEXT,
+            side TEXT,
+            line REAL,
+            american_odds REAL,
+            our_prob REAL,
+            stake REAL NOT NULL,
+            status TEXT NOT NULL DEFAULT 'open',
+            result TEXT,
+            pnl REAL,
+            settled_utc TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_bankroll_bets_status ON bankroll_bets(status);
+    """),
+    # v2: track Kelly metadata + originating prediction for analytics
+    (2, """
+        ALTER TABLE bankroll_bets ADD COLUMN kelly_fraction REAL;
+        ALTER TABLE bankroll_bets ADD COLUMN edge REAL;
+        ALTER TABLE bankroll_bets ADD COLUMN ev_per_dollar REAL;
+        ALTER TABLE bankroll_bets ADD COLUMN prediction_log_id INTEGER;
+        CREATE INDEX IF NOT EXISTS idx_bankroll_bets_placed_utc
+            ON bankroll_bets(placed_utc);
+    """),
+    # v3: tag bets with the model version that produced them (for ROI-by-model)
+    (3, """
+        ALTER TABLE bankroll_bets ADD COLUMN model_version TEXT;
+    """),
+]
+
+_TARGET_VERSION = max(v for v, _ in _MIGRATIONS)
 
 _LOCK = threading.Lock()
+
+
+def _current_user_version(conn: sqlite3.Connection) -> int:
+    return int(conn.execute("PRAGMA user_version").fetchone()[0])
+
+
+def _set_user_version(conn: sqlite3.Connection, v: int) -> None:
+    # PRAGMA doesn't accept parameters — but we control v inside this module,
+    # so f-string is safe (and only ints).
+    conn.execute(f"PRAGMA user_version = {int(v)}")
 
 
 class BankrollTracker:
@@ -164,8 +372,29 @@ class BankrollTracker:
         return conn
 
     def _ensure_schema(self) -> None:
+        """Apply pending migrations idempotently.
+
+        Uses ``PRAGMA user_version`` as the version pin. Each migration
+        runs in its own transaction so a partial failure leaves the DB
+        at the last successful version.
+        """
         with _LOCK, self._conn() as conn:
-            conn.executescript(_SCHEMA)
+            current = _current_user_version(conn)
+            for version, ddl in _MIGRATIONS:
+                if version <= current:
+                    continue
+                # ALTER TABLE ADD COLUMN is idempotent-by-error-handling: on
+                # a partially-migrated DB (where someone created columns
+                # outside the migration system), swallow "duplicate column".
+                for stmt in [s.strip() for s in ddl.split(";") if s.strip()]:
+                    try:
+                        conn.execute(stmt)
+                    except sqlite3.OperationalError as e:
+                        if "duplicate column" in str(e).lower():
+                            continue
+                        raise
+                _set_user_version(conn, version)
+                conn.commit()
 
     # ------------------------------------------------------------------ state
 

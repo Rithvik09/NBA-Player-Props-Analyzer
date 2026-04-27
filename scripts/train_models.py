@@ -1747,14 +1747,27 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
         Xc_train_parts = []
         yc_train_parts = []
         _clf_train_weights: list[float] = []
+        _clf_train_bands: list[int] = []  # line-distance band per row, for stratified cal split
         for i, (e, yv) in enumerate(zip(train_exs, y_train)):
             raw = e.X.iloc[0].to_dict()
             center = _sportsbook_center(raw)
             _w = float(_reg_sample_weight[i]) if _reg_sample_weight is not None else 1.0
+            _c_safe = max(float(center), 1.0)
             for ln in _sample_lines(float(center), prop):
                 Xc_train_parts.append(build_classifier_vector(raw, line=ln).X)
                 yc_train_parts.append(1 if float(yv) > float(ln) else 0)
                 _clf_train_weights.append(_w)
+                # Bucket by relative distance from sportsbook center.
+                # Bands: 0=center (<5%), 1=near (5-15%), 2=mid (15-30%), 3=far (>=30%).
+                _rel = abs(float(ln) - float(center)) / _c_safe
+                if _rel < 0.05:
+                    _clf_train_bands.append(0)
+                elif _rel < 0.15:
+                    _clf_train_bands.append(1)
+                elif _rel < 0.30:
+                    _clf_train_bands.append(2)
+                else:
+                    _clf_train_bands.append(3)
 
         Xc_test_parts = []
         yc_test_parts = []
@@ -1808,14 +1821,46 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
             vig = 0.045
             ev = float(np.mean((proba * (100/110)) - ((1 - proba) * (110/100)))) if len(proba) > 0 else 0.0
 
-            cal_cut = int(len(Xc_train) * 0.8)
-            Xc_fit, Xc_cal = Xc_train.iloc[:cal_cut], Xc_train.iloc[cal_cut:]
-            yc_fit, yc_cal = yc_train[:cal_cut], yc_train[cal_cut:]
+            # ------------------------------------------------------------------
+            # Stratified calibration split by line-distance band.
+            # Naive prefix-cut (.iloc[:80%]) lets the cal slice be dominated by
+            # whatever band happens to land at the tail, poisoning isotonic fit
+            # on extreme lines (which classify trivially as 0 or 1). Strat-sample
+            # by band so cal has representative slice across the whole curve.
+            # ------------------------------------------------------------------
+            _bands_arr = np.array(_clf_train_bands, dtype=int) if _clf_train_bands else None
+            if _bands_arr is not None and len(_bands_arr) == len(Xc_train) and len(np.unique(_bands_arr)) >= 2:
+                rng = np.random.default_rng(42)
+                fit_mask = np.zeros(len(Xc_train), dtype=bool)
+                for b in np.unique(_bands_arr):
+                    idx = np.where(_bands_arr == b)[0]
+                    rng.shuffle(idx)
+                    n_fit = max(1, int(len(idx) * 0.8))
+                    fit_mask[idx[:n_fit]] = True
+                cal_mask = ~fit_mask
+                # Edge case: degenerate split (one side empty) -> fall back to prefix
+                if cal_mask.sum() == 0 or fit_mask.sum() == 0:
+                    cal_cut = int(len(Xc_train) * 0.8)
+                    fit_mask = np.zeros(len(Xc_train), dtype=bool)
+                    fit_mask[:cal_cut] = True
+                    cal_mask = ~fit_mask
+                Xc_fit = Xc_train.iloc[fit_mask]
+                Xc_cal = Xc_train.iloc[cal_mask]
+                yc_fit = yc_train[fit_mask]
+                yc_cal = yc_train[cal_mask]
+            else:
+                # Fallback: original prefix-cut behaviour
+                cal_cut = int(len(Xc_train) * 0.8)
+                fit_mask = np.zeros(len(Xc_train), dtype=bool)
+                fit_mask[:cal_cut] = True
+                cal_mask = ~fit_mask
+                Xc_fit, Xc_cal = Xc_train.iloc[:cal_cut], Xc_train.iloc[cal_cut:]
+                yc_fit, yc_cal = yc_train[:cal_cut], yc_train[cal_cut:]
 
             clf2 = create_classifier(use_xgboost=True, optimized_params=optimized_params)
             _clf_w_fit = None
             if _clf_w_arr is not None:
-                _clf_w_fit = _clf_w_arr[:cal_cut]
+                _clf_w_fit = _clf_w_arr[fit_mask]
             try:
                 if _clf_w_fit is not None:
                     clf2.fit(Xc_fit, yc_fit, sample_weight=_clf_w_fit)
