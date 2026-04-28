@@ -343,6 +343,105 @@ def kelly_stake(
     )
 
 
+def kelly_stake_crra(
+    our_prob: float,
+    american_odds: float,
+    bankroll: float,
+    risk_aversion: float = 2.0,
+    max_fraction: float = 0.05,
+) -> KellyStake:
+    """CRRA-utility (constant relative risk aversion) Kelly variant.
+
+    Pure log-utility (γ=1) is "full Kelly" — but log-utility is risk-neutral
+    in a log sense, which is more aggressive than most humans actually are
+    when their savings are on the line. CRRA with γ>1 (typical empirical
+    estimate γ≈2-4) penalises bankroll variance, producing a smaller stake
+    than full Kelly.
+
+    For a binary bet with payoff b on win (prob p) and -1 on loss (prob q):
+      U(f) = p · ((1+fb)^(1-γ)) / (1-γ)  +  q · ((1-f)^(1-γ)) / (1-γ)
+    Maximising over f gives the closed form (γ != 1):
+      f* = [ (p·b)^(1/γ) − q^(1/γ) ] / [ b · q^(1/γ) + (p·b)^(1/γ) ]
+
+    γ=1 reduces to log-Kelly (handled via fallback). Output is otherwise
+    interface-compatible with kelly_stake_two_outcome.
+    """
+    p = max(0.0, min(1.0, float(our_prob)))
+    q = 1.0 - p
+    b = american_to_decimal(american_odds) - 1.0
+    gamma = float(risk_aversion)
+    if b <= 0 or bankroll <= 0:
+        return KellyStake(0.0, 0.0, 0.0, 0.0, 0.0)
+    implied = 1.0 / (b + 1.0)
+    edge = p - implied
+    ev_per_dollar = p * b - q
+    if abs(gamma - 1.0) < 1e-9:
+        # Log-utility — falls back to standard Kelly
+        full = (b * p - q) / b
+    else:
+        # Closed-form CRRA: f* = (A − B) / (b·B + A) where A = (pb)^(1/γ),
+        # B = q^(1/γ). Numerically stable for any γ > 0.
+        if p <= 0 or q <= 0:
+            full = 0.0
+        else:
+            A = (p * b) ** (1.0 / gamma)
+            B = q ** (1.0 / gamma)
+            denom = b * B + A
+            full = (A - B) / denom if denom > 0 else 0.0
+    if full <= 0:
+        return KellyStake(edge, full, 0.0, 0.0, ev_per_dollar)
+    fraction = min(full, max_fraction)
+    return KellyStake(
+        edge=edge,
+        full_kelly=full,
+        stake_fraction=fraction,
+        stake_dollars=round(bankroll * fraction, 2),
+        ev_per_dollar=ev_per_dollar,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Risk limits — concentration / drawdown / exposure circuit breakers
+# ---------------------------------------------------------------------------
+
+@dataclass
+class RiskLimits:
+    """Guardrails enforced at ``record_bet`` time.
+
+    All three default to off (None). Set via env vars from the app entry
+    point or pass explicitly to ``BankrollTracker(...)``. When a limit
+    fires, ``record_bet`` raises ``RiskLimitError`` and does NOT debit
+    the bankroll — the caller decides whether to reduce stake and retry.
+    """
+    # Pause new bets when (peak − current) / peak exceeds this. Default 0.25.
+    max_drawdown: float | None = None
+    # Cap total open stake placed today as a fraction of bankroll.
+    max_daily_exposure_pct: float | None = None
+    # Cap total open stake on any single player as a fraction of bankroll.
+    max_player_concentration_pct: float | None = None
+
+    @classmethod
+    def from_env(cls) -> "RiskLimits":
+        """Build from env vars (all optional). Empty/missing = no limit."""
+        def _f(key: str) -> float | None:
+            raw = os.environ.get(key, "").strip()
+            if not raw:
+                return None
+            try:
+                return float(raw)
+            except ValueError:
+                return None
+        return cls(
+            max_drawdown=_f("MAX_DRAWDOWN"),
+            max_daily_exposure_pct=_f("MAX_DAILY_EXPOSURE_PCT"),
+            max_player_concentration_pct=_f("MAX_PLAYER_CONCENTRATION_PCT"),
+        )
+
+
+class RiskLimitError(ValueError):
+    """Raised when a circuit breaker refuses a bet. Message names the rule."""
+
+
 # ---------------------------------------------------------------------------
 # Bankroll tracker (thin SQLite wrapper)
 # ---------------------------------------------------------------------------
@@ -402,6 +501,11 @@ _MIGRATIONS: list[tuple[int, str]] = [
         ALTER TABLE bankroll_bets ADD COLUMN closing_odds REAL;
         ALTER TABLE bankroll_bets ADD COLUMN clv REAL;
     """),
+    # v5: peak-balance tracker so drawdown can be computed without a full scan
+    # of the bet log. Updated whenever balance moves up; never reset by code.
+    (5, """
+        ALTER TABLE bankroll_state ADD COLUMN peak_balance REAL;
+    """),
 ]
 
 _TARGET_VERSION = max(v for v, _ in _MIGRATIONS)
@@ -422,8 +526,12 @@ def _set_user_version(conn: sqlite3.Connection, v: int) -> None:
 class BankrollTracker:
     """SQLite-backed bankroll + bet ledger. Single-row ``bankroll_state``."""
 
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: str, risk_limits: RiskLimits | None = None):
         self.db_path = db_path
+        # Default to env-driven limits so a deploy can flip on circuit
+        # breakers without code changes. Pass an explicit ``risk_limits=``
+        # to override (useful in tests).
+        self.risk_limits = risk_limits if risk_limits is not None else RiskLimits.from_env()
         self._ensure_schema()
 
     # ------------------------------------------------------------------ infra
@@ -468,8 +576,9 @@ class BankrollTracker:
             if row is None:
                 now = datetime.now(timezone.utc).isoformat()
                 conn.execute(
-                    "INSERT INTO bankroll_state (id, balance, updated_utc) VALUES (1, ?, ?)",
-                    (float(default), now),
+                    "INSERT INTO bankroll_state (id, balance, updated_utc, peak_balance) "
+                    "VALUES (1, ?, ?, ?)",
+                    (float(default), now, float(default)),
                 )
                 return float(default)
             return float(row[0])
@@ -477,12 +586,118 @@ class BankrollTracker:
     def set_balance(self, amount: float) -> float:
         now = datetime.now(timezone.utc).isoformat()
         with _LOCK, self._conn() as conn:
+            # Peak is the running high-water mark. We seed it on first write
+            # (so a brand-new bankroll has a sensible peak from minute 1) and
+            # bump it whenever the new balance exceeds the prior peak.
             conn.execute(
-                "INSERT INTO bankroll_state (id, balance, updated_utc) VALUES (1, ?, ?) "
-                "ON CONFLICT(id) DO UPDATE SET balance = excluded.balance, updated_utc = excluded.updated_utc",
-                (float(amount), now),
+                """INSERT INTO bankroll_state (id, balance, updated_utc, peak_balance)
+                   VALUES (1, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE
+                     SET balance = excluded.balance,
+                         updated_utc = excluded.updated_utc,
+                         peak_balance = MAX(COALESCE(peak_balance, 0), excluded.balance)""",
+                (float(amount), now, float(amount)),
             )
         return float(amount)
+
+    def get_peak_balance(self) -> float:
+        """Return the all-time-high balance recorded by ``set_balance`` /
+        bumped by the ``settle()`` credit path. Used for drawdown."""
+        with _LOCK, self._conn() as conn:
+            row = conn.execute(
+                "SELECT balance, peak_balance FROM bankroll_state WHERE id = 1"
+            ).fetchone()
+        if row is None:
+            return 0.0
+        bal, peak = row
+        # Defensive: if peak was never set on a legacy row, treat current as peak.
+        return float(peak) if peak is not None else float(bal or 0.0)
+
+    def get_drawdown(self) -> dict:
+        """Compute current peak-to-trough drawdown.
+
+        Returns ``{peak, current, drawdown}`` where ``drawdown`` is in
+        ``[0, 1)`` — 0 means we're at the peak, 0.25 means down a quarter.
+        """
+        with _LOCK, self._conn() as conn:
+            row = conn.execute(
+                "SELECT balance, peak_balance FROM bankroll_state WHERE id = 1"
+            ).fetchone()
+        if row is None:
+            return {"peak": 0.0, "current": 0.0, "drawdown": 0.0}
+        cur = float(row[0] or 0.0)
+        peak = float(row[1]) if row[1] is not None else cur
+        if peak <= 0:
+            return {"peak": peak, "current": cur, "drawdown": 0.0}
+        return {
+            "peak": peak,
+            "current": cur,
+            "drawdown": max(0.0, (peak - cur) / peak),
+        }
+
+    def daily_exposure(self, *, date_iso: str | None = None) -> float:
+        """Sum of stake on bets placed today (UTC) regardless of status.
+
+        Used to enforce ``max_daily_exposure_pct``. We deliberately count
+        already-settled bets too — that's "intent to risk", which is what
+        the cap is meant to limit; otherwise a fast-settling slate would
+        let a user blow through the cap by churning bets.
+        """
+        day = (date_iso or datetime.now(timezone.utc).date().isoformat())[:10]
+        with _LOCK, self._conn() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(stake), 0) FROM bankroll_bets "
+                "WHERE substr(placed_utc, 1, 10) = ?",
+                (day,),
+            ).fetchone()
+        return float(row[0] or 0.0)
+
+    def player_open_exposure(self, player_name: str) -> float:
+        """Sum of stake on currently-open bets for one player. Used for
+        per-player concentration limits."""
+        with _LOCK, self._conn() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(stake), 0) FROM bankroll_bets "
+                "WHERE status = 'open' AND player_name = ?",
+                (str(player_name),),
+            ).fetchone()
+        return float(row[0] or 0.0)
+
+    def _check_risk_limits(self, *, player_name: str | None, stake: float) -> None:
+        """Apply ``self.risk_limits`` to a proposed bet. Raises on violation.
+
+        Order: drawdown (cheapest, killswitch) → daily exposure → per-player
+        concentration. Raised errors carry which rule fired so the caller
+        can build a useful HTTP 4xx response.
+        """
+        rl = self.risk_limits
+        if rl is None:
+            return
+        bal = self.get_balance()
+        if rl.max_drawdown is not None:
+            dd = self.get_drawdown()["drawdown"]
+            if dd >= float(rl.max_drawdown):
+                raise RiskLimitError(
+                    f"drawdown circuit breaker: current drawdown {dd:.3f} "
+                    f">= cap {float(rl.max_drawdown):.3f}"
+                )
+        if rl.max_daily_exposure_pct is not None and bal > 0:
+            today = self.daily_exposure()
+            cap = float(rl.max_daily_exposure_pct) * bal
+            if today + float(stake) > cap:
+                raise RiskLimitError(
+                    f"daily exposure cap: today's stake {today + stake:.2f} "
+                    f"would exceed cap {cap:.2f} ({rl.max_daily_exposure_pct:.2%} of bankroll)"
+                )
+        if rl.max_player_concentration_pct is not None and bal > 0 and player_name:
+            on_player = self.player_open_exposure(player_name)
+            cap = float(rl.max_player_concentration_pct) * bal
+            if on_player + float(stake) > cap:
+                raise RiskLimitError(
+                    f"player concentration cap: open stake on {player_name} "
+                    f"{on_player + stake:.2f} would exceed cap {cap:.2f} "
+                    f"({rl.max_player_concentration_pct:.2%} of bankroll)"
+                )
 
     # -------------------------------------------------------------------- bets
 
@@ -505,7 +720,14 @@ class BankrollTracker:
         """Record a placed bet. The optional kwargs are populated by v2/v3
         schema columns; passing them at write-time enables ROI-by-model
         and joins back to ``prediction_logs`` for explainability.
+
+        Risk limits (``self.risk_limits``) are evaluated BEFORE the row is
+        inserted; a violation raises ``RiskLimitError`` and leaves the
+        bankroll untouched.
         """
+        # Circuit-breaker checks happen outside the lock — they only read.
+        # On violation, raise before we touch the DB.
+        self._check_risk_limits(player_name=player_name, stake=float(stake))
         now = datetime.now(timezone.utc).isoformat()
         with _LOCK, self._conn() as conn:
             cur = conn.execute(
@@ -616,9 +838,15 @@ class BankrollTracker:
                    WHERE id = ?""",
                 (result, pnl, now, int(bet_id)),
             )
+            # Credit the bankroll, then bump peak_balance if this settlement
+            # set a new high-water mark (drives the drawdown calculation).
             conn.execute(
-                "UPDATE bankroll_state SET balance = balance + ?, updated_utc = ? WHERE id = 1",
-                (credit, now),
+                """UPDATE bankroll_state
+                   SET balance = balance + ?,
+                       updated_utc = ?,
+                       peak_balance = MAX(COALESCE(peak_balance, 0), balance + ?)
+                   WHERE id = 1""",
+                (credit, now, credit),
             )
 
             balance = conn.execute(

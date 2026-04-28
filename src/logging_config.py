@@ -50,6 +50,29 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, separators=(",", ":"))
 
 
+class RequestContextFilter(logging.Filter):
+    """Logging filter that auto-injects ``request_id`` from ``flask.g``.
+
+    Without this, every log line that wants the request id has to remember
+    to pass ``extra={"request_id": g.request_id}`` — they don't, so log
+    lines generated inside library code (data_collector, kelly, …) lose
+    the trace breadcrumb. This filter reads ``flask.g.request_id`` if a
+    request context is active and stitches it onto the record. No-op
+    outside a request (e.g. background threads, scripts).
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:  # noqa: D401
+        try:
+            from flask import g, has_request_context
+        except ImportError:
+            return True
+        if has_request_context():
+            rid = getattr(g, "request_id", None)
+            if rid and not hasattr(record, "request_id"):
+                record.request_id = rid
+        return True
+
+
 _CONFIGURED = False
 
 
@@ -72,10 +95,14 @@ def configure_logging(app_logger: logging.Logger | None = None) -> logging.Logge
     fmt_text = "%(asctime)s %(levelname)-5s %(name)s: %(message)s"
     formatter: logging.Formatter = JsonFormatter() if use_json else logging.Formatter(fmt_text)
 
+    # Auto-inject ``request_id`` from flask.g when in request context
+    request_filter = RequestContextFilter()
+
     # Console — stderr, respects LOG_LEVEL
     stream = logging.StreamHandler(sys.stderr)
     stream.setFormatter(formatter)
     stream.setLevel(level)
+    stream.addFilter(request_filter)
     root.addHandler(stream)
 
     # Rotating file handler — always text even if console is JSON, for grepability
@@ -89,6 +116,7 @@ def configure_logging(app_logger: logging.Logger | None = None) -> logging.Logge
         )
         file_handler.setFormatter(formatter)
         file_handler.setLevel(level)
+        file_handler.addFilter(request_filter)
         root.addHandler(file_handler)
     except Exception as e:  # noqa: BLE001
         root.warning(f"file handler setup failed: {e}")

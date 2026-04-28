@@ -54,7 +54,28 @@ def _emit_request_log(response):
         )
     except Exception:  # noqa: BLE001 — never crash the request
         pass
+    # Prometheus instrumentation — record on the route rule, not the literal
+    # path, to keep label cardinality bounded. Skip /metrics itself so the
+    # scraper doesn't pollute its own histogram.
+    try:
+        from . import metrics as _metrics
+        rule = getattr(request.url_rule, "rule", None) or request.path
+        if rule != "/metrics":
+            duration_s = (time.time() - started) if started else 0.0
+            _metrics.observe_request(
+                request.method, rule, response.status_code, duration_s,
+            )
+    except Exception:  # noqa: BLE001
+        pass
     return response
+
+
+@app.route('/metrics')
+def metrics_endpoint():
+    """Prometheus scrape endpoint. Returns text exposition format."""
+    from . import metrics as _metrics
+    body = _metrics.render()
+    return (body, 200, {"Content-Type": "text/plain; version=0.0.4; charset=utf-8"})
 
 betting_helper = BasketballBettingHelper()
 game_predictor = GamePredictor(betting_helper)
@@ -240,6 +261,93 @@ def healthz():
     return jsonify(payload), (200 if overall_ok else 503)
 
 
+@app.route('/healthz/drift')
+def healthz_drift():
+    """Brier decay + drift snapshot. Cheap operator dashboard.
+
+    Reads training-time Brier from ``models/model_metadata.json`` (under
+    ``walk_forward.brier_cal_mean`` per prop) and compares to the rolling
+    Brier over ``?window_days=`` (default 30) of graded predictions.
+    """
+    import json as _json
+    import os as _os
+    from .monitoring import rolling_brier, brier_decay_check
+    window_days = int(request.args.get("window_days", 30))
+    threshold = float(request.args.get("threshold", 0.20))
+
+    rolling = rolling_brier(betting_helper.db_name, window_days=window_days)
+
+    meta_path = _os.path.join(
+        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+        "models", "model_metadata.json",
+    )
+    training_brier: dict[str, float] = {}
+    try:
+        if _os.path.exists(meta_path):
+            meta = _json.loads(open(meta_path).read())
+            for prop, info in (meta.get("props") or {}).items():
+                wf = info.get("walk_forward") or {}
+                if "brier_cal_mean" in wf:
+                    training_brier[prop] = float(wf["brier_cal_mean"])
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"could not read model metadata: {e}"}), 500
+
+    decay = brier_decay_check(rolling, training_brier, degradation_threshold=threshold)
+    any_decayed = any(d.get("decayed") for d in decay)
+    return jsonify({
+        "window_days": window_days,
+        "threshold": threshold,
+        "rolling": rolling,
+        "training_brier": training_brier,
+        "decay": decay,
+        "any_decayed": any_decayed,
+    }), (503 if any_decayed else 200)
+
+
+@app.route('/monitor/anomalies')
+def monitor_anomalies():
+    """Recent served predictions that are >Nσ from the posted line.
+
+    Per-prop residual σ comes from model_metadata.json (training-time RMSE
+    is a serviceable proxy for residual σ when the regressor is unbiased).
+    """
+    import json as _json
+    import os as _os
+    from .monitoring import find_anomalies
+    window_days = int(request.args.get("window_days", 7))
+    sigma = float(request.args.get("sigma", 3.0))
+    limit = int(request.args.get("limit", 50))
+
+    meta_path = _os.path.join(
+        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+        "models", "model_metadata.json",
+    )
+    stds: dict[str, float] = {}
+    try:
+        if _os.path.exists(meta_path):
+            meta = _json.loads(open(meta_path).read())
+            for prop, info in (meta.get("props") or {}).items():
+                # Fall back across whatever the metadata exposes.
+                rmse = (info.get("regressor", {}) or {}).get("rmse")
+                if rmse is None:
+                    rmse = info.get("rmse")
+                if rmse is not None:
+                    stds[prop] = float(rmse)
+    except Exception:  # noqa: BLE001
+        pass
+
+    anomalies = find_anomalies(
+        betting_helper.db_name, stds,
+        window_days=window_days, sigma_threshold=sigma, limit=limit,
+    )
+    return jsonify({
+        "window_days": window_days,
+        "sigma": sigma,
+        "n_anomalies": len(anomalies),
+        "anomalies": anomalies,
+    })
+
+
 @app.route('/cache/stats')
 def cache_stats():
     """Expose TTL-cache hit rates so the operator can spot a regression."""
@@ -384,7 +492,17 @@ def get_player_stats(player_id):
         app.logger.error(f'Error getting player stats: {e}')
         return jsonify({'error': str(e)}), 500
 
+from .rate_limit import rate_limited as _rate_limited
+
+# /analyze_prop is the most expensive endpoint (multi-model load + NBA API call).
+# Cap any single client to ~30 calls/minute. Configurable via env so tests
+# can disable it without monkey-patching the decorator.
+_ANALYZE_RATE = int(os.environ.get("ANALYZE_RATE_LIMIT", "30"))
+_ANALYZE_WINDOW = float(os.environ.get("ANALYZE_RATE_WINDOW_SECONDS", "60"))
+
+
 @app.route('/analyze_prop', methods=['POST'])
+@_rate_limited("analyze_prop", rate=_ANALYZE_RATE, per_seconds=_ANALYZE_WINDOW)
 def analyze_prop():
     try:
         data = request.get_json()
