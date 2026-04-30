@@ -81,7 +81,24 @@ class QuantileEnsemble:
             m = self._make(q)
             m.fit(X, y, sample_weight=sample_weight)
             self._models[name] = m
+        # Mimic sklearn's regressor interface so this can be slotted into
+        # downstream code that does estimator.feature_names_in_ inspection
+        # for column alignment (see EnhancedMLPredictor._align_to_model).
+        if hasattr(X, "columns"):
+            self.feature_names_in_ = np.array(list(X.columns))
         return self
+
+    def predict(self, X) -> np.ndarray:
+        """Drop-in regressor interface — returns the median forecast (q_mid).
+
+        Why median rather than mean: heavy-tailed prop distributions (3PM, blocks,
+        steals) have right-skewed real distributions where mean overshoots the
+        bulk. Median is robust to those tails and produces a saner point estimate
+        for downstream blending with the line-distance probability.
+        """
+        if not self._models:
+            raise RuntimeError("call .fit() first")
+        return self._models["mid"].predict(X)
 
     @staticmethod
     def _repair_crossings(lo, mid, hi):

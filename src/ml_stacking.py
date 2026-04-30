@@ -111,3 +111,44 @@ class StackingBlender:
         if len(names) == coefs.shape[0]:
             return {n: float(c) for n, c in zip(names, coefs)}
         return {f"x{i}": float(c) for i, c in enumerate(coefs)}
+
+
+class StackedCalibratedClassifier:
+    """Sklearn-shaped adapter exposing ``predict_proba(X) -> (n, 2)`` over a
+    StackingBlender on top of two calibrated base classifiers.
+
+    Why this wrapper exists: downstream inference code (e.g.
+    ``EnhancedMLPredictor.predict_prop`` in src/models.py) does
+    ``classifier.predict_proba(X)[:, 1]`` and reads ``feature_names_in_``
+    for column alignment. By mirroring that interface, the blender slots
+    into existing inference paths with zero call-site changes.
+
+    The two base classifiers are expected to be FITTED + CALIBRATED already
+    (we don't re-fit them). The blender consumes their probabilities for
+    class 1 and produces a single combined probability that we expand into
+    the (n, 2) form sklearn callers expect.
+    """
+
+    def __init__(self, base_a, base_b, blender: "StackingBlender"):
+        self.base_a = base_a
+        self.base_b = base_b
+        self.blender = blender
+        # Inherit feature names from base_a — both bases see the same X
+        names = getattr(base_a, "feature_names_in_", None)
+        if names is None:
+            inner = getattr(base_a, "estimator", getattr(base_a, "base_estimator", None))
+            names = getattr(inner, "feature_names_in_", None)
+        if names is not None:
+            self.feature_names_in_ = np.asarray(names)
+        # Sklearn duck-typing: many internal helpers check ``classes_``
+        self.classes_ = np.array([0, 1])
+
+    def predict_proba(self, X) -> np.ndarray:
+        p_a = self.base_a.predict_proba(X)[:, 1]
+        p_b = self.base_b.predict_proba(X)[:, 1]
+        bp = np.column_stack([p_a, p_b])
+        p_combined = self.blender.predict_proba(bp)
+        return np.column_stack([1.0 - p_combined, p_combined])
+
+    def predict(self, X) -> np.ndarray:
+        return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)

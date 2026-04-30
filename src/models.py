@@ -1,4 +1,7 @@
-from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
+from sklearn.ensemble import (
+    GradientBoostingClassifier, GradientBoostingRegressor,
+    HistGradientBoostingClassifier,
+)
 from sklearn.preprocessing import StandardScaler, FunctionTransformer
 from sklearn.calibration import CalibratedClassifierCV
 try:
@@ -7,7 +10,8 @@ try:
 except ImportError:  # older sklearn — caller falls back to cv='prefit' path below
     FrozenEstimator = None
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score, mean_squared_error
+from sklearn.metrics import roc_auc_score, mean_squared_error, brier_score_loss
+from sklearn.inspection import permutation_importance
 from nba_api.stats.endpoints import TeamGameLog, CommonPlayerInfo, LeagueGameFinder
 from nba_api.stats.endpoints import playergamelog, LeagueDashPtDefend
 import scipy.stats
@@ -16,8 +20,12 @@ import pandas as pd
 import joblib
 import os
 import time
-from datetime import datetime
+import json
+from datetime import datetime, timezone
 from .injury_tracker import InjuryTracker
+from .ml_quantile import QuantileEnsemble
+from .ml_stacking import StackingBlender, StackedCalibratedClassifier
+from .ml_validation import out_of_time_split, parse_iso
 
 class EnhancedMLPredictor:
     def __init__(self, model_dir='models'):
@@ -1374,6 +1382,18 @@ class EnhancedMLPredictor:
         features['playoff_home'] = float(player_stats.get('playoff_home', 0.0) or 0.0)
         features['playoff_away'] = float(player_stats.get('playoff_away', 0.0) or 0.0)
 
+        # B1 schedule/usage features — neutral defaults at serve time so the
+        # column alignment in _align_to_model still finds them. Training-time
+        # values come from data_collector.py.
+        features.setdefault('three_in_four_flag', 0.0)
+        features.setdefault(
+            'minutes_last3_avg',
+            float(features.get('recent_minutes', 24.0) or 24.0),
+        )
+        features.setdefault('minutes_trend_5', 0.0)
+        features.setdefault('team_script_volatility_10', 0.0)
+        features.setdefault('garbage_time_pct_5', 0.0)
+
         return features
 
     def predict(self, features, line, prop_type=None):
@@ -1600,53 +1620,337 @@ class EnhancedMLPredictor:
             cal = CalibratedClassifierCV(base_clf, method=method, cv='prefit')
         return cal
 
+    # ────────────────────────────────────────────────────────────────────
+    # Calibration audit helper
+    # ────────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _reliability_bins(probs, y_true, n_bins=10):
+        """Per-bin (mean_pred, mean_actual, n) for a reliability diagram.
+
+        A perfectly calibrated model has mean_pred ≈ mean_actual in every
+        non-empty bin. Large gaps in any bin → that probability range is
+        miscalibrated and is a candidate for isotonic re-fit (item C2).
+
+        Returns a list of dicts so it serialises cleanly to JSON.
+        """
+        probs = np.asarray(probs, dtype=float)
+        y = np.asarray(y_true, dtype=float)
+        if probs.size == 0:
+            return []
+        edges = np.linspace(0.0, 1.0, n_bins + 1)
+        out = []
+        for k in range(n_bins):
+            lo, hi = edges[k], edges[k + 1]
+            mask = (probs >= lo) & (probs < hi if k < n_bins - 1 else probs <= hi)
+            n = int(mask.sum())
+            if n == 0:
+                continue
+            out.append({
+                "bin_lo": float(lo),
+                "bin_hi": float(hi),
+                "n": n,
+                "mean_pred": float(probs[mask].mean()),
+                "mean_actual": float(y[mask].mean()),
+            })
+        return out
+
+    @staticmethod
+    def _expected_calibration_error(reliability_bins):
+        """Sample-weighted L1 gap between predicted and observed rates (ECE).
+
+        ECE = Σ_b (n_b / N) · |mean_pred_b - mean_actual_b|
+
+        Lower is better. <0.03 is well-calibrated for prop markets; >0.07 is
+        a red flag that suggests an isotonic refit on the calibration split
+        would help (item C2). The flag is advisory — it's written into
+        model_metadata.json so the training pipeline can be re-run with
+        ``method='isotonic'`` next time around without changing the train()
+        signature.
+        """
+        if not reliability_bins:
+            return None
+        total = sum(b["n"] for b in reliability_bins)
+        if total <= 0:
+            return None
+        return float(
+            sum(
+                (b["n"] / total) * abs(b["mean_pred"] - b["mean_actual"])
+                for b in reliability_bins
+            )
+        )
+
+    # ────────────────────────────────────────────────────────────────────
+    # Training helpers — sample weighting + temporal split
+    # ────────────────────────────────────────────────────────────────────
+    def _compute_recency_weights(self, timestamps, halflife_days=None):
+        """Exponential-decay sample weights based on game age.
+
+        Weight at age=0 is 1.0; at age=halflife_days it's 0.5; at 2× halflife it's
+        0.25; etc. Why decay rather than uniform: the league is non-stationary
+        (rule changes, role shifts, pace drift), so a 2021 game is *less*
+        informative than a 2025 game about how the player will perform tomorrow.
+        Forcing the model to ignore recency wastes signal in the recent tail.
+
+        Falls back to uniform weights if any timestamp is missing — the OOT
+        split is the more important guarantee, weighting is the boost on top.
+        """
+        if halflife_days is None:
+            halflife_days = float(os.environ.get("RECENCY_HALFLIFE_DAYS", 365.0))
+        if halflife_days <= 0:
+            return np.ones(len(timestamps))
+        parsed = []
+        for t in timestamps:
+            if t is None:
+                return np.ones(len(timestamps))
+            try:
+                parsed.append(parse_iso(t))
+            except Exception:
+                return np.ones(len(timestamps))
+        if not parsed:
+            return np.ones(0)
+        ref = max(parsed)
+        ages_days = np.array([
+            max(0.0, (ref - t).total_seconds() / 86400.0) for t in parsed
+        ])
+        return np.power(0.5, ages_days / float(halflife_days))
+
+    def _temporal_split_indices(self, timestamps, n, holdout_days=None):
+        """Return (train_idx, test_idx, mode_str). OOT if all timestamps are
+        present and produce both non-empty sides; random fallback otherwise.
+
+        We ALWAYS need both halves to be non-empty. If the OOT holdout would
+        produce an empty train set (rare — happens with synthetic test data
+        where every row has the same timestamp), we fall back to random.
+        """
+        if holdout_days is None:
+            holdout_days = int(os.environ.get("OOT_HOLDOUT_DAYS", 30))
+        if all(t is not None for t in timestamps):
+            try:
+                train_mask, oot_mask = out_of_time_split(
+                    timestamps, holdout_days=holdout_days
+                )
+                if train_mask.any() and oot_mask.any():
+                    idx = np.arange(n)
+                    return idx[train_mask], idx[oot_mask], "oot"
+            except Exception:
+                pass
+        # Fallback: random 80/20 with a fixed seed for reproducibility
+        rng = np.random.default_rng(42)
+        perm = rng.permutation(n)
+        cut = int(0.8 * n)
+        return perm[:cut], perm[cut:], "random"
+
+    @staticmethod
+    def _three_way_split(idx, weights, rng_seed=42):
+        """Split indices 60/20/20 into (fit, cal, blend) with stable shuffling.
+
+        Why three slices: we need disjoint data for (a) fitting base models,
+        (b) calibrating their probability outputs, and (c) training the
+        stacking blender on the calibrated outputs. Any overlap leaks
+        optimism into downstream metrics.
+        """
+        rng = np.random.default_rng(rng_seed)
+        shuffled = rng.permutation(idx)
+        n = len(shuffled)
+        c1 = int(0.6 * n)
+        c2 = int(0.8 * n)
+        i_fit, i_cal, i_blend = shuffled[:c1], shuffled[c1:c2], shuffled[c2:]
+        return i_fit, i_cal, i_blend, weights[i_fit], weights[i_cal], weights[i_blend]
+
+    def _make_alt_classifier(self):
+        """Second base classifier for the stacking ensemble.
+
+        Different algorithm family (HGBC vs GBC) → different bias-variance
+        profile → blender has something to actually choose between. Same
+        family with different hyperparameters tends to produce highly
+        correlated probabilities; the blender then trivially picks one.
+        """
+        return HistGradientBoostingClassifier(
+            learning_rate=0.05,
+            max_iter=200,
+            max_depth=5,
+            random_state=43,  # deliberately != 42 so it sees a different fit
+        )
+
     def train(self, training_data):
-        """Train both models and save them to disk."""
+        """Train classifier + regressor + stacking blender, save artefacts.
+
+        Pipeline (per global and per-prop loops):
+          1. Build X, y_class, y_reg, timestamps from training_data.
+          2. Temporal split → train_idx / test_idx (OOT preferred).
+          3. Recency-weighted sample weights from timestamps.
+          4. Three-way split inside train: fit / cal / blend (60/20/20).
+          5. Fit base A (GBC) + base B (HGBC) on fit split.
+          6. Calibrate each on cal split.
+          7. Fit StackingBlender on blend split using calibrated probs.
+          8. Wrap (base_a_cal, base_b_cal, blender) into StackedCalibratedClassifier.
+          9. Fit QuantileEnsemble regressor on the FULL train set.
+         10. Compute test-set Brier + reliability + feature importances.
+         11. Save models + write metadata for drift monitoring.
+        """
         if not training_data:
             raise ValueError("No training data provided")
 
         # build feature matrix and both target arrays
         X = pd.DataFrame([data['features'] for data in training_data])
         X = X.fillna(0)  # guard against NaN from mismatched feature sets across sample sources
-        y_class = [1 if data['result'] > data['line'] else 0 for data in training_data]
-        y_reg = [data['result'] for data in training_data]
+        y_class = np.array([1 if d['result'] > d['line'] else 0 for d in training_data])
+        y_reg = np.array([d['result'] for d in training_data], dtype=float)
+        timestamps = [d.get('timestamp') for d in training_data]
 
-        X_train, X_test, y_class_train, y_class_test, y_reg_train, y_reg_test = train_test_split(
-            X, y_class, y_reg, test_size=0.2, random_state=42
+        # ── A2: temporal split (OOT preferred, random fallback) ──────────
+        train_idx, test_idx, split_mode = self._temporal_split_indices(
+            timestamps, len(X)
         )
+        print(f"split mode: {split_mode}  train={len(train_idx)}  test={len(test_idx)}")
 
-        # split train further so calibration uses held-out data
-        X_fit, X_cal, y_class_fit, y_class_cal = train_test_split(
-            X_train, y_class_train, test_size=0.2, random_state=42
+        # ── A3: recency-weighted sample weights ──────────────────────────
+        weights_all = self._compute_recency_weights(timestamps)
+
+        # Apply both index splits
+        X_train = X.iloc[train_idx].reset_index(drop=True)
+        X_test = X.iloc[test_idx].reset_index(drop=True)
+        y_class_train, y_class_test = y_class[train_idx], y_class[test_idx]
+        y_reg_train, y_reg_test = y_reg[train_idx], y_reg[test_idx]
+        w_train, w_test = weights_all[train_idx], weights_all[test_idx]
+
+        # Three-way split inside train: fit / cal / blend
+        (i_fit, i_cal, i_blend,
+         w_fit, w_cal, w_blend) = self._three_way_split(
+            np.arange(len(X_train)), w_train,
         )
+        X_fit = X_train.iloc[i_fit]
+        X_cal = X_train.iloc[i_cal]
+        X_blend = X_train.iloc[i_blend]
+        y_fit = y_class_train[i_fit]
+        y_cal = y_class_train[i_cal]
+        y_blend = y_class_train[i_blend]
 
+        # ── Scaler (fit on the fit split only, never on test) ────────────
         X_fit_scaled = self.scaler.fit_transform(X_fit)
         X_cal_scaled = self.scaler.transform(X_cal)
+        X_blend_scaled = self.scaler.transform(X_blend)
         X_test_scaled = self.scaler.transform(X_test)
-        X_train_scaled = self.scaler.transform(X_train)  # for regressor below
+        X_train_scaled = self.scaler.transform(X_train)
 
-        # classifier — fit on 80% of train, calibrate on held-out 20%
-        self.classification_model.fit(X_fit_scaled, y_class_fit)
-        cal_clf = self._make_calibrated_clf(self.classification_model, len(X_cal))
-        cal_clf.fit(X_cal_scaled, y_class_cal)
-        class_auc = roc_auc_score(y_class_test,
-            cal_clf.predict_proba(X_test_scaled)[:, 1])
+        # ── A5: two base classifiers + calibration + blender ────────────
+        # Base A: existing GradientBoostingClassifier
+        self.classification_model.fit(X_fit_scaled, y_fit, sample_weight=w_fit)
+        cal_a = self._make_calibrated_clf(self.classification_model, len(X_cal))
+        cal_a.fit(X_cal_scaled, y_cal, sample_weight=w_cal)
 
-        # regressor
-        self.regression_model.fit(X_train_scaled, y_reg_train)
-        reg_rmse = np.sqrt(mean_squared_error(y_reg_test,
-            self.regression_model.predict(X_test_scaled)))
+        # Base B: HistGradientBoostingClassifier (different family)
+        base_b = self._make_alt_classifier()
+        base_b.fit(X_fit_scaled, y_fit, sample_weight=w_fit)
+        cal_b = self._make_calibrated_clf(base_b, len(X_cal))
+        cal_b.fit(X_cal_scaled, y_cal, sample_weight=w_cal)
 
-        print(f"Classification AUC: {class_auc:.3f}")
-        print(f"Regression RMSE: {reg_rmse:.3f}")
+        # Train the blender on disjoint blend split using calibrated probs
+        try:
+            p_a_blend = cal_a.predict_proba(X_blend_scaled)[:, 1]
+            p_b_blend = cal_b.predict_proba(X_blend_scaled)[:, 1]
+            base_probs_blend = np.column_stack([p_a_blend, p_b_blend])
+            if len(np.unique(y_blend)) >= 2:
+                blender = StackingBlender(
+                    base_names=["gbc_cal", "hgbc_cal"]
+                ).fit(base_probs_blend, y_blend, sample_weight=w_blend)
+                stacked_clf = StackedCalibratedClassifier(cal_a, cal_b, blender)
+            else:
+                # Blend split is single-class — degenerate case; fall back to base A
+                print("blender fit skipped: blend split has only one class")
+                stacked_clf = cal_a
+        except Exception as e:
+            print(f"blender training failed, falling back to single classifier: {e}")
+            stacked_clf = cal_a
 
-        # store calibrated classifier as the active global classifier
-        self.classification_model = cal_clf
+        # Inner classifiers were fit on scaled numpy arrays so they don't carry
+        # feature_names_in_. Backfill from the scaler so downstream column-
+        # alignment code in inference still works (see _align_to_model).
+        if hasattr(self.scaler, "feature_names_in_"):
+            stacked_clf.feature_names_in_ = np.array(list(self.scaler.feature_names_in_))
+
+        # Test metrics on the held-out test split
+        test_probs = stacked_clf.predict_proba(X_test_scaled)[:, 1]
+        class_auc = roc_auc_score(y_class_test, test_probs) if len(np.unique(y_class_test)) >= 2 else float('nan')
+        # Brier with sample weights so recent test points dominate the measure
+        try:
+            class_brier = float(brier_score_loss(y_class_test, test_probs, sample_weight=w_test))
+        except Exception:
+            class_brier = float('nan')
+
+        # ── A4: QuantileEnsemble regressor ───────────────────────────────
+        quantile_reg = QuantileEnsemble().fit(
+            X_train_scaled, y_reg_train, sample_weight=w_train,
+        )
+        # Wrap into a thin estimator that exposes feature_names_in_ matching
+        # the scaler so the inference-side _align_to_model works unchanged
+        if hasattr(self.scaler, "feature_names_in_"):
+            quantile_reg.feature_names_in_ = np.array(list(self.scaler.feature_names_in_))
+        reg_predictions = quantile_reg.predict(X_test_scaled)
+        reg_rmse = float(np.sqrt(mean_squared_error(y_reg_test, reg_predictions)))
+        # Interval coverage at the configured (lo, hi) — sanity-check on calibration
+        intervals = quantile_reg.predict_intervals(X_test_scaled)
+        coverage_80 = float(np.mean(
+            (y_reg_test >= intervals["lower"]) & (y_reg_test <= intervals["upper"])
+        ))
+
+        # ── C2: global reliability bins + Expected Calibration Error audit ──
+        # An ECE above ~0.07 is our advisory threshold to refit calibration with
+        # ``method='isotonic'`` next round. We just record the flag in metadata;
+        # the operator (or CI) can read it and re-train accordingly.
+        global_reliability = self._reliability_bins(test_probs, y_class_test)
+        global_ece = self._expected_calibration_error(global_reliability)
+        global_needs_recal = bool(global_ece is not None and global_ece > 0.07)
+
+        print(f"Classification AUC: {class_auc:.3f}  Brier: {class_brier:.4f}")
+        print(f"Regression RMSE (median): {reg_rmse:.3f}  PI80 coverage: {coverage_80:.3f}")
+        if global_ece is not None:
+            print(
+                f"Calibration ECE: {global_ece:.4f}"
+                + ("  ⚠ recommend isotonic refit" if global_needs_recal else "")
+            )
+
+        # Replace globals with the new artefacts (downstream code keeps working
+        # because StackedCalibratedClassifier mimics the sklearn classifier API)
+        self.classification_model = stacked_clf
+        self.regression_model = quantile_reg
 
         joblib.dump(self.classification_model, f'{self.model_dir}/classification_model.joblib')
         joblib.dump(self.regression_model, f'{self.model_dir}/regression_model.joblib')
         joblib.dump(self.scaler, f'{self.model_dir}/scaler.joblib')
         self.models_trained = True
+
+        # ── A7: feature importances (HGB-native + permutation on test) ──
+        # HGB's split-gain importance is fast but biased toward high-cardinality
+        # features; permutation importance is slow but is the right answer for
+        # "what does the model actually rely on at predict time." We dump both
+        # and let the operator compare.
+        feat_importance_dump = {}
+        try:
+            hgb_importance = getattr(base_b, "feature_importances_", None)
+            if hgb_importance is None and hasattr(base_b, "_predictors"):
+                # HistGradientBoostingClassifier doesn't expose feature_importances_
+                # directly — skip the native one.
+                hgb_importance = None
+            if hgb_importance is not None:
+                feat_importance_dump["hgbc_native"] = {
+                    str(c): float(v) for c, v in zip(X.columns, hgb_importance)
+                }
+        except Exception:
+            pass
+        try:
+            # Permutation importance on a sample of test rows for speed
+            sample_n = min(500, len(X_test_scaled))
+            if sample_n >= 30:
+                perm = permutation_importance(
+                    base_b, X_test_scaled[:sample_n], y_class_test[:sample_n],
+                    n_repeats=3, random_state=42, n_jobs=1,
+                )
+                feat_importance_dump["permutation"] = {
+                    str(c): float(v) for c, v in zip(X.columns, perm.importances_mean)
+                }
+        except Exception as e:
+            print(f"permutation importance skipped: {e}")
 
         # ------------------------------------------------------------------ #
         # per-prop models                                                      #
@@ -1670,51 +1974,138 @@ class EnhancedMLPredictor:
             try:
                 Xp = pd.DataFrame([s['features'] for s in samples])
                 Xp = Xp.fillna(0)  # same NaN guard as global training
-                yp_class = [1 if s['result'] > s['line'] else 0 for s in samples]
-                yp_reg = [s['result'] for s in samples]
+                yp_class = np.array([1 if s['result'] > s['line'] else 0 for s in samples])
+                yp_reg = np.array([s['result'] for s in samples], dtype=float)
+                p_timestamps = [s.get('timestamp') for s in samples]
 
-                Xp_train, Xp_test, ypc_train, ypc_test, ypr_train, ypr_test = train_test_split(
-                    Xp, yp_class, yp_reg, test_size=0.2, random_state=42
+                # Apply the same OOT split + recency weighting + 3-way fit/cal/blend
+                # treatment as the global model. Per-prop sample counts are smaller,
+                # so the OOT holdout window must clip down for sparse props.
+                p_train_idx, p_test_idx, p_split_mode = self._temporal_split_indices(
+                    p_timestamps, len(Xp),
                 )
+                p_weights_all = self._compute_recency_weights(p_timestamps)
+
+                Xp_train = Xp.iloc[p_train_idx].reset_index(drop=True)
+                Xp_test = Xp.iloc[p_test_idx].reset_index(drop=True)
+                ypc_train, ypc_test = yp_class[p_train_idx], yp_class[p_test_idx]
+                ypr_train, ypr_test = yp_reg[p_train_idx], yp_reg[p_test_idx]
+                wp_train, wp_test = p_weights_all[p_train_idx], p_weights_all[p_test_idx]
+
+                # If a prop's blend split would be tiny (< 10 rows), skip stacking
+                # for that prop and fall back to a single calibrated classifier.
+                use_stacking = len(Xp_train) >= 80
 
                 prop_scaler = StandardScaler()
+                if use_stacking:
+                    (pi_fit, pi_cal, pi_blend,
+                     wp_fit, wp_cal, wp_blend) = self._three_way_split(
+                        np.arange(len(Xp_train)), wp_train,
+                    )
+                else:
+                    # 80/20 fit/cal — no blender
+                    cut = int(0.8 * len(Xp_train))
+                    rng = np.random.default_rng(42)
+                    perm = rng.permutation(len(Xp_train))
+                    pi_fit, pi_cal = perm[:cut], perm[cut:]
+                    wp_fit, wp_cal = wp_train[pi_fit], wp_train[pi_cal]
 
-                # split train further for held-out calibration
-                Xp_fit, Xp_cal, ypc_fit, ypc_cal = train_test_split(
-                    Xp_train, ypc_train, test_size=0.2, random_state=42
-                )
-                Xp_fit_s = prop_scaler.fit_transform(Xp_fit)
-                Xp_cal_s = prop_scaler.transform(Xp_cal)
+                Xp_fit_s = prop_scaler.fit_transform(Xp_train.iloc[pi_fit])
+                Xp_cal_s = prop_scaler.transform(Xp_train.iloc[pi_cal])
                 Xp_test_s = prop_scaler.transform(Xp_test)
-
-                prop_clf = GradientBoostingClassifier(
-                    n_estimators=200, learning_rate=0.1, max_depth=5, random_state=42
-                )
-                prop_clf.fit(Xp_fit_s, ypc_fit)
-                prop_cal = self._make_calibrated_clf(prop_clf, len(Xp_cal))
-                prop_cal.fit(Xp_cal_s, ypc_cal)
-
-                # regressor uses the full train set (no calibration needed)
                 Xp_train_s_full = prop_scaler.transform(Xp_train)
-                prop_reg = GradientBoostingRegressor(
+                ypc_fit, ypc_cal = ypc_train[pi_fit], ypc_train[pi_cal]
+
+                # Base A
+                prop_clf_a = GradientBoostingClassifier(
                     n_estimators=200, learning_rate=0.1, max_depth=5, random_state=42
                 )
-                prop_reg.fit(Xp_train_s_full, ypr_train)
+                prop_clf_a.fit(Xp_fit_s, ypc_fit, sample_weight=wp_fit)
+                prop_cal_a = self._make_calibrated_clf(prop_clf_a, len(pi_cal))
+                prop_cal_a.fit(Xp_cal_s, ypc_cal, sample_weight=wp_cal)
 
-                prop_auc = roc_auc_score(ypc_test, prop_cal.predict_proba(Xp_test_s)[:, 1])
-                prop_rmse = np.sqrt(mean_squared_error(ypr_test, prop_reg.predict(Xp_test_s)))
-                print(f"[{prop_type}] AUC: {prop_auc:.3f}, RMSE: {prop_rmse:.3f}")
+                if use_stacking and len(np.unique(ypc_train[pi_blend])) >= 2:
+                    Xp_blend_s = prop_scaler.transform(Xp_train.iloc[pi_blend])
+                    ypc_blend = ypc_train[pi_blend]
+                    # Base B
+                    prop_clf_b = self._make_alt_classifier()
+                    prop_clf_b.fit(Xp_fit_s, ypc_fit, sample_weight=wp_fit)
+                    prop_cal_b = self._make_calibrated_clf(prop_clf_b, len(pi_cal))
+                    prop_cal_b.fit(Xp_cal_s, ypc_cal, sample_weight=wp_cal)
+                    # Blender
+                    bp_blend = np.column_stack([
+                        prop_cal_a.predict_proba(Xp_blend_s)[:, 1],
+                        prop_cal_b.predict_proba(Xp_blend_s)[:, 1],
+                    ])
+                    prop_blender = StackingBlender(
+                        base_names=["gbc_cal", "hgbc_cal"]
+                    ).fit(bp_blend, ypc_blend, sample_weight=wp_blend)
+                    prop_stacked = StackedCalibratedClassifier(
+                        prop_cal_a, prop_cal_b, prop_blender,
+                    )
+                else:
+                    prop_stacked = prop_cal_a
 
-                joblib.dump(prop_cal,   os.path.join(self.model_dir, f'clf_cal_{prop_type}.joblib'))
-                joblib.dump(prop_reg,   os.path.join(self.model_dir, f'reg_{prop_type}.joblib'))
+                # Backfill feature names from scaler (inner classifiers were fit
+                # on scaled numpy arrays and don't carry them otherwise)
+                if hasattr(prop_scaler, "feature_names_in_"):
+                    prop_stacked.feature_names_in_ = np.array(
+                        list(prop_scaler.feature_names_in_)
+                    )
+
+                # Quantile regressor on full train (unweighted features in fit data)
+                prop_reg = QuantileEnsemble().fit(
+                    Xp_train_s_full, ypr_train, sample_weight=wp_train,
+                )
+                if hasattr(prop_scaler, "feature_names_in_"):
+                    prop_reg.feature_names_in_ = np.array(list(prop_scaler.feature_names_in_))
+
+                # Test metrics
+                test_probs_p = prop_stacked.predict_proba(Xp_test_s)[:, 1]
+                prop_auc = float(
+                    roc_auc_score(ypc_test, test_probs_p)
+                    if len(np.unique(ypc_test)) >= 2 else float('nan')
+                )
+                try:
+                    prop_brier = float(brier_score_loss(ypc_test, test_probs_p, sample_weight=wp_test))
+                except Exception:
+                    prop_brier = float('nan')
+                prop_rmse = float(np.sqrt(
+                    mean_squared_error(ypr_test, prop_reg.predict(Xp_test_s))
+                ))
+                # ── C1/C2: reliability bins + ECE audit per prop ──
+                prop_reliability = self._reliability_bins(test_probs_p, ypc_test)
+                prop_ece = self._expected_calibration_error(prop_reliability)
+                prop_needs_recal = bool(prop_ece is not None and prop_ece > 0.07)
+                # Residual std for anomaly detection in monitoring
+                resid_std = float(np.std(ypr_test - prop_reg.predict(Xp_test_s)))
+
+                print(f"[{prop_type}] AUC: {prop_auc:.3f}, Brier: {prop_brier:.4f}, "
+                      f"RMSE: {prop_rmse:.3f}  ({p_split_mode} split, "
+                      f"stacked={use_stacking})")
+
+                joblib.dump(prop_stacked, os.path.join(self.model_dir, f'clf_cal_{prop_type}.joblib'))
+                joblib.dump(prop_reg, os.path.join(self.model_dir, f'reg_{prop_type}.joblib'))
                 joblib.dump(prop_scaler, os.path.join(self.model_dir, f'scaler_{prop_type}.joblib'))
 
                 self.prop_models[prop_type] = {
-                    'calibrated_clf': prop_cal,
+                    'calibrated_clf': prop_stacked,
                     'regression_model': prop_reg,
                     'scaler': prop_scaler,
                 }
-                prop_results[prop_type] = {'auc': float(prop_auc), 'rmse': float(prop_rmse)}
+                prop_results[prop_type] = {
+                    'auc': prop_auc,
+                    'rmse': prop_rmse,
+                    'training_brier': prop_brier,
+                    'resid_std': resid_std,
+                    'split_mode': p_split_mode,
+                    'n_train': int(len(Xp_train)),
+                    'n_test': int(len(Xp_test)),
+                    'stacked': bool(use_stacking),
+                    'reliability': prop_reliability,
+                    'ece': prop_ece,
+                    'needs_recal': prop_needs_recal,
+                }
 
             except Exception as e:
                 print(f"error training per-prop model for '{prop_type}': {e}")
@@ -1731,9 +2122,54 @@ class EnhancedMLPredictor:
             _vf.write(self._model_version)
         print(f"model version incremented to {self._model_version}")
 
+        # ── A6: write per-prop training Brier + reliability + importances ──
+        # The drift endpoint (/healthz/drift) reads training_brier from this
+        # file to detect decay. Without it, the endpoint silently no-ops.
+        # We also extend each prop dict with the reliability bins so the
+        # operator can spot mis-calibration without re-running anything.
+        try:
+            metadata_path = os.path.join(self.model_dir, "model_metadata.json")
+            try:
+                with open(metadata_path, "r") as _mf:
+                    metadata = json.load(_mf)
+            except (FileNotFoundError, json.JSONDecodeError):
+                metadata = {"schema": 1, "props": {}}
+            metadata.setdefault("props", {})
+            for prop_type, info in prop_results.items():
+                # Merge into existing per-prop metadata; don't blow away
+                # historic fields like feature_count
+                metadata["props"].setdefault(prop_type, {})
+                for k, v in info.items():
+                    metadata["props"][prop_type][k] = v
+            metadata["global"] = {
+                "auc": float(class_auc) if not np.isnan(class_auc) else None,
+                "training_brier": float(class_brier) if not np.isnan(class_brier) else None,
+                "rmse": float(reg_rmse),
+                "pi80_coverage": float(coverage_80),
+                "split_mode": split_mode,
+                "n_train": int(len(train_idx)),
+                "n_test": int(len(test_idx)),
+                "halflife_days": float(os.environ.get("RECENCY_HALFLIFE_DAYS", 365.0)),
+                "model_version": self._model_version,
+                "trained_at": datetime.now(timezone.utc).isoformat(),
+                "reliability": global_reliability,
+                "ece": global_ece,
+                "needs_recal": global_needs_recal,
+            }
+            if feat_importance_dump:
+                metadata["feature_importance"] = feat_importance_dump
+            with open(metadata_path, "w") as _mf:
+                json.dump(metadata, _mf, indent=2, default=float)
+            print(f"wrote training metadata to {metadata_path}")
+        except Exception as e:  # never let metadata I/O fail the training run
+            print(f"failed to write model_metadata.json: {e}")
+
         return {
-            'auc': float(class_auc),
+            'auc': float(class_auc) if not np.isnan(class_auc) else None,
             'rmse': float(reg_rmse),
+            'training_brier': float(class_brier) if not np.isnan(class_brier) else None,
+            'pi80_coverage': float(coverage_80),
+            'split_mode': split_mode,
             'prop_results': prop_results,
             'model_version': self._model_version,
         }

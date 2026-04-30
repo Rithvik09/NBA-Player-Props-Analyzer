@@ -611,6 +611,66 @@ class TrainingDataCollector:
                 features.setdefault('season_phase_numeric', 0.5)
                 features.setdefault('games_remaining_approx', 40.0)
 
+            # ---- B1: Tight-window schedule + recent-minutes features ----
+            # These are cheap derivatives of game_dates and min_vals that we
+            # already have in memory. The existing zoo of features covers
+            # rest_days / b2b_flag / games_in_last_7_days, but doesn't break
+            # out the specific patterns that move tomorrow's minutes the most.
+            try:
+                # Three-in-four (B2B2): the player has played 2+ of the previous
+                # 3 nights. Strongly correlated with a minutes haircut from the
+                # coach for star players, opposite effect for bench players.
+                _last3_dates = game_dates[max(0, i - 3):i]
+                if len(_last3_dates) >= 2:
+                    _span_days = float(
+                        (game_dates[i] - _last3_dates[0]) / np.timedelta64(1, 'D')
+                    )
+                    features['three_in_four_flag'] = float(
+                        len(_last3_dates) >= 2 and _span_days <= 4
+                    )
+                else:
+                    features['three_in_four_flag'] = 0.0
+
+                # Last-3-games minutes mean: a tighter recency signal than
+                # `recent_minutes` (last 5). Catches a fresh role change.
+                if i >= 3 and len(min_vals[:i]) >= 3:
+                    features['minutes_last3_avg'] = float(np.mean(min_vals[max(0, i - 3):i]))
+                else:
+                    features['minutes_last3_avg'] = features.get('recent_minutes', 0.0)
+
+                # Minutes trend slope (last 5 games). Positive = role expanding.
+                if i >= 3:
+                    _m5 = min_vals[max(0, i - 5):i]
+                    if len(_m5) >= 3:
+                        features['minutes_trend_5'] = float(np.polyfit(range(len(_m5)), _m5, 1)[0])
+                    else:
+                        features['minutes_trend_5'] = 0.0
+                else:
+                    features['minutes_trend_5'] = 0.0
+
+                # PLUS_MINUS dispersion last 10: high = team has been in lots
+                # of variable-script games, which produces erratic stat lines.
+                if i >= 5:
+                    _pm10 = plus_minus_v[max(0, i - 10):i]
+                    features['team_script_volatility_10'] = float(np.std(_pm10)) if len(_pm10) >= 2 else 0.0
+                else:
+                    features['team_script_volatility_10'] = 0.0
+
+                # Garbage-time exposure proxy: blowouts in last 5 games. When the
+                # player's recent games have had margin > 20, the late-game stats
+                # are partially noise (subs, garbage shots). Down-weights signal.
+                if i >= 1:
+                    _pm_recent = plus_minus_v[max(0, i - 5):i]
+                    features['garbage_time_pct_5'] = float(np.mean(np.abs(_pm_recent) > 20)) if len(_pm_recent) > 0 else 0.0
+                else:
+                    features['garbage_time_pct_5'] = 0.0
+            except Exception:
+                features.setdefault('three_in_four_flag', 0.0)
+                features.setdefault('minutes_last3_avg', 0.0)
+                features.setdefault('minutes_trend_5', 0.0)
+                features.setdefault('team_script_volatility_10', 0.0)
+                features.setdefault('garbage_time_pct_5', 0.0)
+
             # ---- Return-from-injury trajectory (from game log gaps) ----
             try:
                 _games_since_return = 0
@@ -818,11 +878,22 @@ class TrainingDataCollector:
             except Exception:
                 pass  # keep defaults
 
+            # Game timestamp — ISO 8601 with Z. Required by the OOT splitter
+            # (src/ml_validation.py:out_of_time_split) so we can train on
+            # earlier games and validate on the most-recent N days. Without
+            # this column, the splitter falls back to random and we leak
+            # future information into training.
+            try:
+                _ts_iso = pd.Timestamp(game_dates[i]).tz_localize("UTC").isoformat()
+            except (TypeError, ValueError):
+                # Already tz-aware or naive datetime — handle both
+                _ts_iso = pd.Timestamp(game_dates[i]).isoformat()
             samples.append({
                 'features':  features,
                 'result':    result,
                 'line':      line,
                 'prop_type': prop_type,
+                'timestamp': _ts_iso,
             })
 
         return samples
