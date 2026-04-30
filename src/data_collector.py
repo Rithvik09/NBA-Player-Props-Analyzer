@@ -671,6 +671,70 @@ class TrainingDataCollector:
                 features.setdefault('team_script_volatility_10', 0.0)
                 features.setdefault('garbage_time_pct_5', 0.0)
 
+            # ---- B2 lite: rotation-disruption proxies ----
+            # We don't have historical injury reports, but a player whose
+            # role just expanded (likely because a teammate is out) shows
+            # up as a minutes/usage jump in their own game log. These four
+            # features proxy "is this player getting more touches than
+            # their long-run baseline?" which is the on-court consequence
+            # of a teammate's absence — what we actually care about.
+            try:
+                # Minutes jump: trailing 3-game avg vs the 10 games before
+                # that. >1 means a recent role expansion. We compare to a
+                # *non-overlapping* baseline (i-13..i-3) so a sustained
+                # bump averages to 1.0 once it's the new normal.
+                if i >= 13:
+                    _recent3 = min_vals[i - 3:i]
+                    _baseline = min_vals[i - 13:i - 3]
+                    _r = float(np.mean(_recent3)) if len(_recent3) else 0.0
+                    _b = float(np.mean(_baseline)) if len(_baseline) else 0.0
+                    features['minutes_jump_3v10'] = float(_r / _b) if _b > 1e-6 else 1.0
+                else:
+                    features['minutes_jump_3v10'] = 1.0
+
+                # Usage jump (FGA + 0.44*FTA + TOV). Captures offensive
+                # role change even when minutes stay flat (e.g. a guard
+                # who was deferring becomes the primary handler).
+                if i >= 13:
+                    _ru = usage_vals[i - 3:i]
+                    _bu = usage_vals[i - 13:i - 3]
+                    _ru_m = float(np.mean(_ru)) if len(_ru) else 0.0
+                    _bu_m = float(np.mean(_bu)) if len(_bu) else 0.0
+                    features['usage_jump_3v10'] = float(_ru_m / _bu_m) if _bu_m > 1e-6 else 1.0
+                else:
+                    features['usage_jump_3v10'] = 1.0
+
+                # Minutes volatility (last 10): high std → unstable
+                # rotation, often during the transition into/out of
+                # injury-driven role changes.
+                if i >= 5:
+                    _m10 = min_vals[max(0, i - 10):i]
+                    features['minutes_volatility_10'] = float(np.std(_m10)) if len(_m10) >= 2 else 0.0
+                else:
+                    features['minutes_volatility_10'] = 0.0
+
+                # Outlier-minutes share: fraction of last 10 games where
+                # this player got >130% of their season median minutes.
+                # A burst of these is the smoking gun for a teammate-
+                # absence-driven workload spike.
+                if i >= 5:
+                    _all_prior_min = min_vals[:i]
+                    _median_season = float(np.median(_all_prior_min)) if len(_all_prior_min) else 0.0
+                    _m10 = min_vals[max(0, i - 10):i]
+                    if len(_m10) and _median_season > 1e-6:
+                        features['outlier_minutes_share_10'] = float(
+                            np.mean(_m10 > 1.3 * _median_season)
+                        )
+                    else:
+                        features['outlier_minutes_share_10'] = 0.0
+                else:
+                    features['outlier_minutes_share_10'] = 0.0
+            except Exception:
+                features.setdefault('minutes_jump_3v10', 1.0)
+                features.setdefault('usage_jump_3v10', 1.0)
+                features.setdefault('minutes_volatility_10', 0.0)
+                features.setdefault('outlier_minutes_share_10', 0.0)
+
             # ---- Return-from-injury trajectory (from game log gaps) ----
             try:
                 _games_since_return = 0

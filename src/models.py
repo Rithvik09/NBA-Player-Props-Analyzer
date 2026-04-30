@@ -1421,6 +1421,16 @@ class EnhancedMLPredictor:
         features.setdefault('team_script_volatility_10', 0.0)
         features.setdefault('garbage_time_pct_5', 0.0)
 
+        # B2 lite — rotation-disruption proxies. Serve-time defaults assume
+        # "no recent role change": jumps == 1.0 (recent==baseline), zero
+        # volatility, zero outlier share. These are the values an
+        # equilibrium-state player would show. Training-time values come
+        # from src/data_collector.py.
+        features.setdefault('minutes_jump_3v10', 1.0)
+        features.setdefault('usage_jump_3v10', 1.0)
+        features.setdefault('minutes_volatility_10', 0.0)
+        features.setdefault('outlier_minutes_share_10', 0.0)
+
         return features
 
     def predict(self, features, line, prop_type=None):

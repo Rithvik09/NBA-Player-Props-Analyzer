@@ -63,7 +63,12 @@ class OddsTracker:
     # ---- DB setup ---------------------------------------------------------
 
     def _init_db(self):
-        """Create line-tracking tables if they don't exist."""
+        """Create line-tracking tables if they don't exist.
+
+        Idempotent ALTER TABLE adds the closing-line columns + the
+        prop_outcomes table introduced for CLV-as-training-signal (B3).
+        Safe to run on existing DBs — skips columns/tables that exist.
+        """
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
         c.execute("""
@@ -102,6 +107,37 @@ class OddsTracker:
                 PRIMARY KEY(game_id, player_name, prop_type)
             )
         """)
+
+        # B3 — closing-line capture for CLV. We add `closing_line` (the
+        # consensus line right before tip) and `closing_line_at` (the
+        # snapshot time we used) to prop_line_summary. Idempotent: skip
+        # the ADD COLUMN if it's already there.
+        existing_cols = {row[1] for row in c.execute("PRAGMA table_info(prop_line_summary)")}
+        for col, typ in (
+            ("closing_line", "REAL"),
+            ("closing_line_at", "TEXT"),
+        ):
+            if col not in existing_cols:
+                c.execute(f"ALTER TABLE prop_line_summary ADD COLUMN {col} {typ}")
+
+        # B3 — prop_outcomes is the join table that turns logged lines +
+        # post-game results into CLV training data. One row per
+        # (game, player, prop_type) once the game has finished and we've
+        # observed both the closing line and the actual stat result.
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS prop_outcomes (
+                game_id TEXT NOT NULL,
+                player_id INTEGER,
+                player_name TEXT NOT NULL,
+                prop_type TEXT NOT NULL,
+                observed_line REAL,        -- the line we made our prediction against
+                closing_line REAL,         -- the line right before tipoff
+                actual_result REAL,        -- the player's realised stat
+                settled_at TEXT,           -- when we recorded the outcome
+                PRIMARY KEY(game_id, player_name, prop_type)
+            )
+        """)
+
         conn.commit()
         conn.close()
         log.info("[odds] DB tables initialized")
@@ -352,6 +388,165 @@ class OddsTracker:
         ))
         conn.commit()
         conn.close()
+
+    # ---- B3: closing-line capture + outcomes (CLV groundwork) -------------
+
+    def capture_closing_lines(
+        self,
+        game_id: str,
+        tipoff_iso: str,
+        window_minutes: int = 15,
+    ) -> int:
+        """Stamp the closing line on each (player, prop_type) for ``game_id``.
+
+        For each (player, prop_type) tracked for this game, take the
+        consensus line from the most recent snapshot strictly before
+        ``tipoff_iso`` and within ``window_minutes`` of it, and write it
+        to ``prop_line_summary.closing_line``.
+
+        Why this is decoupled from the polling loop: the polling loop
+        runs every 30-60 min, but for CLV we want the *latest* line we
+        could have bet, not "the line at our last poll." A separate
+        capture step that runs once near tip-off lets us snapshot more
+        precisely without re-polling the whole market.
+
+        Returns the number of (player, prop_type) rows stamped.
+        """
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        try:
+            # Find the latest snapshot per (player, prop_type) before tipoff.
+            # Average across bookmakers at that snapshot for a consensus line.
+            rows = c.execute(
+                """
+                SELECT player_name, prop_type, snapshot_time, AVG(line) AS avg_line
+                FROM prop_line_history
+                WHERE game_id = ?
+                  AND snapshot_time <= ?
+                  AND snapshot_time >= datetime(?, '-' || ? || ' minutes')
+                GROUP BY player_name, prop_type, snapshot_time
+                ORDER BY player_name, prop_type, snapshot_time DESC
+                """,
+                (game_id, tipoff_iso, tipoff_iso, window_minutes),
+            ).fetchall()
+
+            # Take the most-recent snapshot per (player, prop)
+            seen = set()
+            stamped = 0
+            for player_name, prop_type, snap_time, avg_line in rows:
+                key = (player_name, prop_type)
+                if key in seen:
+                    continue
+                seen.add(key)
+                c.execute(
+                    """
+                    UPDATE prop_line_summary
+                    SET closing_line = ?, closing_line_at = ?
+                    WHERE game_id = ? AND player_name = ? AND prop_type = ?
+                    """,
+                    (float(avg_line), snap_time, game_id, player_name, prop_type),
+                )
+                stamped += 1
+            conn.commit()
+            log.info(
+                "[odds] captured closing lines for %d (player, prop_type) on %s",
+                stamped, game_id,
+            )
+            return stamped
+        finally:
+            conn.close()
+
+    def record_outcome(
+        self,
+        game_id: str,
+        player_name: str,
+        prop_type: str,
+        actual_result: float,
+        observed_line: float | None = None,
+        player_id: int | None = None,
+    ) -> None:
+        """Persist the post-game stat for one (game, player, prop) into
+        ``prop_outcomes``, joining with the closing line we already have.
+
+        Called from the post-game settlement job (or wherever the actual
+        stat result becomes known). When enough rows accumulate, training
+        can join ``prop_outcomes`` against ``prop_line_summary`` to build
+        a CLV-aware feature set.
+        """
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        try:
+            closing_row = c.execute(
+                """
+                SELECT closing_line FROM prop_line_summary
+                WHERE game_id = ? AND player_name = ? AND prop_type = ?
+                """,
+                (game_id, player_name, prop_type),
+            ).fetchone()
+            closing_line = float(closing_row[0]) if closing_row and closing_row[0] is not None else None
+
+            now = datetime.now(timezone.utc).isoformat()
+            c.execute(
+                """
+                INSERT OR REPLACE INTO prop_outcomes
+                (game_id, player_id, player_name, prop_type, observed_line,
+                 closing_line, actual_result, settled_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    game_id, player_id, player_name, prop_type,
+                    observed_line, closing_line, float(actual_result), now,
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def clv_training_rows(self, prop_type: str | None = None) -> list[dict]:
+        """Read settled outcomes joined with closing lines — the data that
+        becomes B3's training signal once we've accumulated enough.
+
+        Returns one dict per settled prop with fields suitable for CLV
+        analysis: ``observed_line``, ``closing_line``, ``line_to_close_drift``,
+        ``actual_result``, ``hit`` (1 if result > observed_line else 0).
+        """
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        try:
+            sql = """
+                SELECT game_id, player_id, player_name, prop_type,
+                       observed_line, closing_line, actual_result, settled_at
+                FROM prop_outcomes
+                WHERE closing_line IS NOT NULL AND observed_line IS NOT NULL
+            """
+            args: list = []
+            if prop_type is not None:
+                sql += " AND prop_type = ?"
+                args.append(prop_type)
+            rows = c.execute(sql, args).fetchall()
+        finally:
+            conn.close()
+        out = []
+        for r in rows:
+            (gid, pid, pname, ptype, obs, close_l, actual, settled_at) = r
+            try:
+                drift = float(close_l) - float(obs)
+                hit = 1 if float(actual) > float(obs) else 0
+            except (TypeError, ValueError):
+                continue
+            out.append({
+                "game_id": gid,
+                "player_id": pid,
+                "player_name": pname,
+                "prop_type": ptype,
+                "observed_line": float(obs),
+                "closing_line": float(close_l),
+                "line_to_close_drift": drift,
+                "actual_result": float(actual),
+                "hit": hit,
+                "settled_at": settled_at,
+            })
+        return out
 
     # ---- Feature extraction -----------------------------------------------
 

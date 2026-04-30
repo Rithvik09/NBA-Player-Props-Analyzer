@@ -372,6 +372,23 @@ def test_predict_uses_quantile_prob_over_when_available(predictor):
     assert out_low_line["over_probability"] > out_high_line["over_probability"]
 
 
+def test_b2_proxies_have_serve_time_defaults_via_prepare_features(predictor):
+    """The 4 B2 rotation-disruption proxies must be available with sane
+    neutral defaults at serve time, mirroring what data_collector emits."""
+    # Pick a minimal player_stats dict — prepare_features should fill the
+    # rest with safe defaults.
+    feat = predictor.prepare_features(
+        {"recent_avg": 22.0, "season_avg": 21.0, "recent_minutes": 30.0},
+        {},  # player_context
+        {},  # team_context
+        {},  # opponent_context
+    )
+    assert feat["minutes_jump_3v10"] == 1.0  # neutral = no recent role change
+    assert feat["usage_jump_3v10"] == 1.0
+    assert feat["minutes_volatility_10"] == 0.0
+    assert feat["outlier_minutes_share_10"] == 0.0
+
+
 def test_train_recency_weighting_can_be_disabled_via_env(predictor, monkeypatch):
     """Setting RECENCY_HALFLIFE_DAYS=0 should produce uniform weights."""
     monkeypatch.setenv("RECENCY_HALFLIFE_DAYS", "0")
