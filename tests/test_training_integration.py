@@ -232,6 +232,31 @@ def test_stacked_classifier_inherits_feature_names(predictor):
     assert len(names) == 4  # the four synth features
 
 
+def test_monotonic_cst_helper_returns_signed_array():
+    from src.models import EnhancedMLPredictor as P
+    rules = {"recent_avg": 1, "line": -1, "noise": 0}
+    feat = ["recent_avg", "noise", "line", "unrelated"]
+    arr = P._build_monotonic_cst(feat, rules)
+    assert arr is not None
+    assert list(arr) == [1, 0, -1, 0]
+
+
+def test_monotonic_cst_helper_returns_none_when_all_zero():
+    from src.models import EnhancedMLPredictor as P
+    arr = P._build_monotonic_cst(["a", "b"], {"c": 1})
+    assert arr is None
+
+
+def test_train_attaches_calibration_warning_to_predictions(predictor):
+    """predict_prop must surface model_calibration_warning on every response."""
+    data = _synth_training_data(n=600, with_timestamps=True)
+    predictor.train(data)
+    feat = {"recent_avg": 22.0, "season_avg": 21.0, "noise": 0.0, "is_home": 1.0}
+    out = predictor.predict(feat, line=20.0, prop_type="points")
+    assert "model_calibration_warning" in out
+    assert isinstance(out["model_calibration_warning"], bool)
+
+
 def test_train_recency_weighting_can_be_disabled_via_env(predictor, monkeypatch):
     """Setting RECENCY_HALFLIFE_DAYS=0 should produce uniform weights."""
     monkeypatch.setenv("RECENCY_HALFLIFE_DAYS", "0")

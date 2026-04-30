@@ -282,25 +282,42 @@ def healthz_drift():
         "models", "model_metadata.json",
     )
     training_brier: dict[str, float] = {}
+    needs_recal: dict[str, bool] = {}
     try:
         if _os.path.exists(meta_path):
             meta = _json.loads(open(meta_path).read())
             for prop, info in (meta.get("props") or {}).items():
+                # Prefer walk-forward (more honest), fall back to single-OOT
+                # ``training_brier`` written by EnhancedMLPredictor.train.
                 wf = info.get("walk_forward") or {}
                 if "brier_cal_mean" in wf:
                     training_brier[prop] = float(wf["brier_cal_mean"])
+                elif info.get("training_brier") is not None:
+                    try:
+                        training_brier[prop] = float(info["training_brier"])
+                    except (TypeError, ValueError):
+                        pass
+                if info.get("needs_recal") is not None:
+                    needs_recal[prop] = bool(info["needs_recal"])
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": f"could not read model metadata: {e}"}), 500
 
     decay = brier_decay_check(rolling, training_brier, degradation_threshold=threshold)
     any_decayed = any(d.get("decayed") for d in decay)
+    # ECE-driven recalibration flag: surface props with needs_recal=true so
+    # operators see them on the same dashboard. Doesn't trigger 503 on its
+    # own (calibration drift is fixable by retraining; brier decay is the
+    # bigger alarm).
+    any_needs_recal = any(needs_recal.values())
     return jsonify({
         "window_days": window_days,
         "threshold": threshold,
         "rolling": rolling,
         "training_brier": training_brier,
+        "needs_recal": needs_recal,
         "decay": decay,
         "any_decayed": any_decayed,
+        "any_needs_recal": any_needs_recal,
     }), (503 if any_decayed else 200)
 
 

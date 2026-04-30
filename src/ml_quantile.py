@@ -51,6 +51,11 @@ class QuantileEnsemble:
     max_iter: int = 200
     max_depth: int | None = 6
     random_state: int = 42
+    # Optional integer array (n_features,) of {-1, 0, +1}. Same constraint
+    # is applied to all three quantile heads — if more recent_avg is
+    # supposed to push the median up, it should push the 10th and 90th
+    # percentiles up too.
+    monotonic_cst: "np.ndarray | None" = None
 
     def __post_init__(self):
         if HistGradientBoostingRegressor is None:
@@ -63,7 +68,7 @@ class QuantileEnsemble:
         self._models = {}
 
     def _make(self, q: float) -> "HistGradientBoostingRegressor":
-        return HistGradientBoostingRegressor(
+        kwargs = dict(
             loss="quantile",
             quantile=q,
             learning_rate=self.learning_rate,
@@ -71,6 +76,9 @@ class QuantileEnsemble:
             max_depth=self.max_depth,
             random_state=self.random_state,
         )
+        if self.monotonic_cst is not None:
+            kwargs["monotonic_cst"] = self.monotonic_cst
+        return HistGradientBoostingRegressor(**kwargs)
 
     def fit(self, X, y, sample_weight=None) -> "QuantileEnsemble":
         for name, q in (

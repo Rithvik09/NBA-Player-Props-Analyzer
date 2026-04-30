@@ -85,6 +85,13 @@ class EnhancedMLPredictor:
         self.prop_models = {}
         self._load_prop_models()
 
+        # Cached calibration audit: {prop_type: bool needs_recal}, populated
+        # from model_metadata.json on load. Surfaced in predict_prop's response
+        # so callers can flag predictions made by an under-calibrated model.
+        self._needs_recal: dict = {}
+        self._global_needs_recal: bool = False
+        self._load_calibration_audit()
+
         self.position_matchup_cache = {}   # evicted when > 200 entries
         self.team_context_cache = {}       # evicted when > 100 entries
         self._pt_defend_cache = None       # league-wide defensive data, fetched once per season
@@ -123,6 +130,26 @@ class EnhancedMLPredictor:
                     self.prop_models[prop_type] = bundle
                 except Exception as e:
                     print(f"failed to load per-prop model for {prop_type}: {e}")
+
+    def _load_calibration_audit(self):
+        """Hydrate ``self._needs_recal`` from model_metadata.json.
+
+        Quietly no-ops if the file is missing or malformed — calibration audit
+        is informational; we never want it to block model loading.
+        """
+        meta_path = os.path.join(self.model_dir, "model_metadata.json")
+        if not os.path.exists(meta_path):
+            return
+        try:
+            with open(meta_path, "r") as _mf:
+                meta = json.load(_mf)
+        except (OSError, json.JSONDecodeError):
+            return
+        global_block = meta.get("global") or {}
+        self._global_needs_recal = bool(global_block.get("needs_recal", False))
+        for prop_type, info in (meta.get("props") or {}).items():
+            if "needs_recal" in info:
+                self._needs_recal[prop_type] = bool(info["needs_recal"])
 
 
     def _get_injury_history(self, player_id):
@@ -1499,12 +1526,22 @@ class EnhancedMLPredictor:
             over_prob = max(0.0, min(1.0, over_prob))  # clamp to valid probability range
             recommendation = self._generate_recommendation(over_prob, predicted_value, line, edge, confidence)
 
+            # Calibration warning: surface when the model that produced this
+            # prediction was flagged as poorly calibrated at training time
+            # (ECE > 0.07). Per-prop flag wins if we used a per-prop model;
+            # otherwise we fall back to the global flag.
+            if use_prop_model:
+                _calibration_warning = bool(self._needs_recal.get(prop_type, False))
+            else:
+                _calibration_warning = bool(self._global_needs_recal)
+
             return {
                 'over_probability': float(over_prob),
                 'predicted_value': float(predicted_value),
                 'recommendation': recommendation,
                 'confidence': confidence,
-                'edge': float(edge)
+                'edge': float(edge),
+                'model_calibration_warning': _calibration_warning,
             }
 
         except Exception as e:
@@ -1757,7 +1794,47 @@ class EnhancedMLPredictor:
         i_fit, i_cal, i_blend = shuffled[:c1], shuffled[c1:c2], shuffled[c2:]
         return i_fit, i_cal, i_blend, weights[i_fit], weights[i_cal], weights[i_blend]
 
-    def _make_alt_classifier(self):
+    # Sign of expected influence on the target. ``+1`` means "more of this
+    # feature should not decrease the prediction"; ``-1`` is the inverse.
+    # Anything not listed is unconstrained (0). Why we bother: HGB will
+    # happily fit a non-monotonic spline on a noisy small-sample feature
+    # (e.g. blocks with 4k rows) and produce a learned "more recent_avg →
+    # lower prediction" curve over a tiny range. Constraining the sign
+    # closes that failure mode at near-zero training cost.
+    #
+    # ``_REG_MONOTONIC`` applies to the regressor (predicts the stat value).
+    # ``_CLF_MONOTONIC`` applies to the classifier (predicts P(stat > line))
+    # and includes ``line`` itself, which the classifier sees as a feature.
+    _REG_MONOTONIC = {
+        "recent_avg": +1, "season_avg": +1,
+        "minutes_last3_avg": +1, "minutes_trend_5": +1,
+        "recent_minutes": +1, "season_minutes": +1, "avg_minutes": +1,
+        "pace_team": +1, "pace_opp": +1,
+        "is_back_to_back": -1, "three_in_four_flag": -1,
+    }
+    _CLF_MONOTONIC = {
+        **_REG_MONOTONIC,
+        "line": -1,  # higher line => lower P(over) all else equal
+    }
+
+    @staticmethod
+    def _build_monotonic_cst(feature_names, rules):
+        """Map a feature-name → sign dict to the integer array HGB expects.
+
+        Returns ``None`` if no constraints apply (avoids HGB doing extra
+        bookkeeping for an all-zeros vector). Features unknown to ``rules``
+        get 0 (unconstrained).
+        """
+        if feature_names is None:
+            return None
+        arr = np.array(
+            [int(rules.get(str(f), 0)) for f in feature_names], dtype=int
+        )
+        if not np.any(arr):
+            return None
+        return arr
+
+    def _make_alt_classifier(self, monotonic_cst=None):
         """Second base classifier for the stacking ensemble.
 
         Different algorithm family (HGBC vs GBC) → different bias-variance
@@ -1765,12 +1842,15 @@ class EnhancedMLPredictor:
         family with different hyperparameters tends to produce highly
         correlated probabilities; the blender then trivially picks one.
         """
-        return HistGradientBoostingClassifier(
+        kwargs = dict(
             learning_rate=0.05,
             max_iter=200,
             max_depth=5,
             random_state=43,  # deliberately != 42 so it sees a different fit
         )
+        if monotonic_cst is not None:
+            kwargs["monotonic_cst"] = monotonic_cst
+        return HistGradientBoostingClassifier(**kwargs)
 
     def train(self, training_data):
         """Train classifier + regressor + stacking blender, save artefacts.
@@ -1839,8 +1919,15 @@ class EnhancedMLPredictor:
         cal_a = self._make_calibrated_clf(self.classification_model, len(X_cal))
         cal_a.fit(X_cal_scaled, y_cal, sample_weight=w_cal)
 
-        # Base B: HistGradientBoostingClassifier (different family)
-        base_b = self._make_alt_classifier()
+        # Base B: HistGradientBoostingClassifier (different family).
+        # Apply monotonic constraints (line ↓, recent_avg ↑, etc.) so the
+        # tree splits can't fit the wrong sign on noisy small-sample features.
+        clf_feat_names = (
+            list(self.scaler.feature_names_in_)
+            if hasattr(self.scaler, "feature_names_in_") else None
+        )
+        clf_mono = self._build_monotonic_cst(clf_feat_names, self._CLF_MONOTONIC)
+        base_b = self._make_alt_classifier(monotonic_cst=clf_mono)
         base_b.fit(X_fit_scaled, y_fit, sample_weight=w_fit)
         cal_b = self._make_calibrated_clf(base_b, len(X_cal))
         cal_b.fit(X_cal_scaled, y_cal, sample_weight=w_cal)
@@ -1879,7 +1966,12 @@ class EnhancedMLPredictor:
             class_brier = float('nan')
 
         # ── A4: QuantileEnsemble regressor ───────────────────────────────
-        quantile_reg = QuantileEnsemble().fit(
+        # Same idea as the HGB classifier: enforce that recent_avg etc. push
+        # the predicted stat *up*, not down. Note ``line`` isn't a feature
+        # for the regressor (it predicts the stat itself), so use the
+        # _REG_MONOTONIC table.
+        reg_mono = self._build_monotonic_cst(clf_feat_names, self._REG_MONOTONIC)
+        quantile_reg = QuantileEnsemble(monotonic_cst=reg_mono).fit(
             X_train_scaled, y_reg_train, sample_weight=w_train,
         )
         # Wrap into a thin estimator that exposes feature_names_in_ matching
@@ -2016,6 +2108,20 @@ class EnhancedMLPredictor:
                 Xp_train_s_full = prop_scaler.transform(Xp_train)
                 ypc_fit, ypc_cal = ypc_train[pi_fit], ypc_train[pi_cal]
 
+                # Per-prop monotonic constraint vector (uses the prop scaler's
+                # feature names, which may differ from the global scaler's set
+                # if some features dropped out for this prop)
+                prop_feat_names = (
+                    list(prop_scaler.feature_names_in_)
+                    if hasattr(prop_scaler, "feature_names_in_") else None
+                )
+                prop_clf_mono = self._build_monotonic_cst(
+                    prop_feat_names, self._CLF_MONOTONIC
+                )
+                prop_reg_mono = self._build_monotonic_cst(
+                    prop_feat_names, self._REG_MONOTONIC
+                )
+
                 # Base A
                 prop_clf_a = GradientBoostingClassifier(
                     n_estimators=200, learning_rate=0.1, max_depth=5, random_state=42
@@ -2027,8 +2133,8 @@ class EnhancedMLPredictor:
                 if use_stacking and len(np.unique(ypc_train[pi_blend])) >= 2:
                     Xp_blend_s = prop_scaler.transform(Xp_train.iloc[pi_blend])
                     ypc_blend = ypc_train[pi_blend]
-                    # Base B
-                    prop_clf_b = self._make_alt_classifier()
+                    # Base B (monotonic-constrained)
+                    prop_clf_b = self._make_alt_classifier(monotonic_cst=prop_clf_mono)
                     prop_clf_b.fit(Xp_fit_s, ypc_fit, sample_weight=wp_fit)
                     prop_cal_b = self._make_calibrated_clf(prop_clf_b, len(pi_cal))
                     prop_cal_b.fit(Xp_cal_s, ypc_cal, sample_weight=wp_cal)
@@ -2053,8 +2159,8 @@ class EnhancedMLPredictor:
                         list(prop_scaler.feature_names_in_)
                     )
 
-                # Quantile regressor on full train (unweighted features in fit data)
-                prop_reg = QuantileEnsemble().fit(
+                # Quantile regressor on full train (monotonic-constrained)
+                prop_reg = QuantileEnsemble(monotonic_cst=prop_reg_mono).fit(
                     Xp_train_s_full, ypr_train, sample_weight=wp_train,
                 )
                 if hasattr(prop_scaler, "feature_names_in_"):
