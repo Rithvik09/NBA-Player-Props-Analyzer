@@ -66,6 +66,13 @@ class QuantileEnsemble:
                 f"{self.quantile_low}/{self.quantile_mid}/{self.quantile_high}"
             )
         self._models = {}
+        # Conformal-calibration state. ``_conformity_offset`` is the q̂ from
+        # split conformal prediction (CQR, Romano et al. 2019); positive
+        # widens the PI, negative tightens it. ``None`` means "not
+        # calibrated yet", in which case predict_intervals returns the raw
+        # quantile-regression bounds.
+        self._conformity_offset: float | None = None
+        self._conformal_alpha: float | None = None
 
     def _make(self, q: float) -> "HistGradientBoostingRegressor":
         kwargs = dict(
@@ -117,13 +124,75 @@ class QuantileEnsemble:
         stacked.sort(axis=1)
         return stacked[:, 0], stacked[:, 1], stacked[:, 2]
 
-    def predict_intervals(self, X) -> dict:
-        """Return ``{"lower": np.ndarray, "median": np.ndarray, "upper": np.ndarray}``."""
+    def _raw_intervals(self, X):
+        """Quantile-regressor outputs without the conformity offset applied.
+
+        Used by :meth:`calibrate` to derive the offset, and by
+        :meth:`predict_intervals` which adds the offset on top.
+        """
         if not self._models:
             raise RuntimeError("call .fit() first")
         lo = self._models["low"].predict(X)
         mid = self._models["mid"].predict(X)
         hi = self._models["high"].predict(X)
+        return lo, mid, hi
+
+    def calibrate(self, X, y, alpha: float | None = None) -> "QuantileEnsemble":
+        """Split-conformal calibration of the (lo, hi) interval (CQR).
+
+        Why this exists: quantile regression gives ``q_τ(x)`` *as fitted on
+        training data*. On unseen data the actual coverage of [q_lo, q_hi]
+        often deviates from ``1 - 2τ`` because of distribution shift, finite
+        sample noise, and quantile crossing. CQR fixes this with a single
+        held-out set:
+
+          1. Compute conformity scores ``e_i = max(q_lo(x_i) - y_i,
+             y_i - q_hi(x_i))`` on the calibration set. Negative ``e_i``
+             means the point fell inside the band; positive means outside.
+          2. Take the (1-α)(1+1/n)-quantile, q̂.
+          3. At test time return ``[q_lo(x) - q̂, q_hi(x) + q̂]``. Marginal
+             coverage is provably ≥ 1-α on iid test data from the same
+             distribution.
+
+        ``alpha`` defaults to ``1 - (quantile_high - quantile_low)`` so an
+        ensemble at (0.10, 0.50, 0.90) calibrates an 80% PI by default.
+        Persists ``_conformity_offset`` so :meth:`predict_intervals` and
+        :meth:`prob_over` use it on subsequent calls.
+        """
+        if not self._models:
+            raise RuntimeError("call .fit() first")
+        if alpha is None:
+            alpha = 1.0 - (self.quantile_high - self.quantile_low)
+        if not 0 < alpha < 1:
+            raise ValueError(f"alpha must be in (0, 1), got {alpha}")
+        y_arr = np.asarray(y, dtype=float)
+        lo_raw, _mid, hi_raw = self._raw_intervals(X)
+        # Repair crossings before scoring — we don't want a flipped pair to
+        # produce a spurious "outside" score.
+        lo_raw, _mid, hi_raw = self._repair_crossings(lo_raw, _mid, hi_raw)
+        e = np.maximum(lo_raw - y_arr, y_arr - hi_raw)
+        n = len(e)
+        if n < 2:
+            # Not enough points for a meaningful quantile — leave uncalibrated.
+            return self
+        k = int(np.ceil((n + 1) * (1 - alpha)))
+        k = min(max(k, 1), n)
+        # ``np.partition`` is O(n); we just need the kth-smallest.
+        self._conformity_offset = float(np.partition(e, k - 1)[k - 1])
+        self._conformal_alpha = float(alpha)
+        return self
+
+    def predict_intervals(self, X) -> dict:
+        """Return ``{"lower": np.ndarray, "median": np.ndarray, "upper": np.ndarray}``.
+
+        If :meth:`calibrate` has been called, the lower/upper bands are
+        widened (or tightened) by ``_conformity_offset`` to give marginal
+        ``1 - alpha`` coverage on test data from the same distribution.
+        """
+        lo, mid, hi = self._raw_intervals(X)
+        if self._conformity_offset is not None:
+            lo = lo - self._conformity_offset
+            hi = hi + self._conformity_offset
         lo, mid, hi = self._repair_crossings(lo, mid, hi)
         return {"lower": lo, "median": mid, "upper": hi}
 

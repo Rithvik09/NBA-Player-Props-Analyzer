@@ -1778,6 +1778,26 @@ class EnhancedMLPredictor:
         return perm[:cut], perm[cut:], "random"
 
     @staticmethod
+    def _conformal_split(idx, weights, rng_seed=43, cal_frac=0.2):
+        """Independent 80/20 split for regressor fit + conformal-calibration.
+
+        Why a separate split from the classifier's fit/cal/blend: conformal
+        calibration is a property of the *regressor*, not the classifier.
+        Sharing the classifier's cal or blend split would mean the regressor
+        sees its own conformal-calibration set during fit, which destroys
+        the held-out guarantee. A different RNG seed (43, not 42) keeps it
+        decorrelated from the classifier splits but still deterministic.
+
+        Returns ``(fit_idx, cal_idx, w_fit, w_cal)``.
+        """
+        rng = np.random.default_rng(rng_seed)
+        shuffled = rng.permutation(np.asarray(idx))
+        n = len(shuffled)
+        cut = max(1, int((1.0 - cal_frac) * n))
+        fit_i, cal_i = shuffled[:cut], shuffled[cut:]
+        return fit_i, cal_i, weights[fit_i], weights[cal_i]
+
+    @staticmethod
     def _three_way_split(idx, weights, rng_seed=42):
         """Split indices 60/20/20 into (fit, cal, blend) with stable shuffling.
 
@@ -1971,9 +1991,19 @@ class EnhancedMLPredictor:
         # for the regressor (it predicts the stat itself), so use the
         # _REG_MONOTONIC table.
         reg_mono = self._build_monotonic_cst(clf_feat_names, self._REG_MONOTONIC)
-        quantile_reg = QuantileEnsemble(monotonic_cst=reg_mono).fit(
-            X_train_scaled, y_reg_train, sample_weight=w_train,
+        # Independent 80/20 split for fit + conformal calibration. CQR
+        # turns "soft" quantile-regression bands into bands with a
+        # provable marginal coverage guarantee on the calibration split.
+        rfi, rci, w_rfi, w_rci = self._conformal_split(
+            np.arange(len(X_train_scaled)), w_train,
         )
+        quantile_reg = QuantileEnsemble(monotonic_cst=reg_mono).fit(
+            X_train_scaled[rfi], y_reg_train[rfi], sample_weight=w_rfi,
+        )
+        try:
+            quantile_reg.calibrate(X_train_scaled[rci], y_reg_train[rci])
+        except Exception as e:  # noqa: BLE001
+            print(f"conformal calibration skipped (global): {e}")
         # Wrap into a thin estimator that exposes feature_names_in_ matching
         # the scaler so the inference-side _align_to_model works unchanged
         if hasattr(self.scaler, "feature_names_in_"):
@@ -2159,10 +2189,19 @@ class EnhancedMLPredictor:
                         list(prop_scaler.feature_names_in_)
                     )
 
-                # Quantile regressor on full train (monotonic-constrained)
-                prop_reg = QuantileEnsemble(monotonic_cst=prop_reg_mono).fit(
-                    Xp_train_s_full, ypr_train, sample_weight=wp_train,
+                # Quantile regressor: 80/20 fit + conformal split, monotonic-constrained
+                p_rfi, p_rci, w_p_rfi, w_p_rci = self._conformal_split(
+                    np.arange(len(Xp_train_s_full)), wp_train,
                 )
+                prop_reg = QuantileEnsemble(monotonic_cst=prop_reg_mono).fit(
+                    Xp_train_s_full[p_rfi], ypr_train[p_rfi], sample_weight=w_p_rfi,
+                )
+                try:
+                    prop_reg.calibrate(
+                        Xp_train_s_full[p_rci], ypr_train[p_rci],
+                    )
+                except Exception as e:  # noqa: BLE001
+                    print(f"conformal calibration skipped ({prop_type}): {e}")
                 if hasattr(prop_scaler, "feature_names_in_"):
                     prop_reg.feature_names_in_ = np.array(list(prop_scaler.feature_names_in_))
 
@@ -2278,4 +2317,217 @@ class EnhancedMLPredictor:
             'split_mode': split_mode,
             'prop_results': prop_results,
             'model_version': self._model_version,
+        }
+
+    # ────────────────────────────────────────────────────────────────────
+    # Walk-forward backtest — honest performance distribution across time
+    # ────────────────────────────────────────────────────────────────────
+    def walk_forward_evaluate(
+        self,
+        training_data,
+        n_folds: int = 5,
+        fold_days: int = 30,
+        min_train_samples: int = 200,
+        write_metadata: bool = True,
+    ) -> dict:
+        """K-fold rolling-origin evaluation.
+
+        A single OOT split is one sample of generalization performance and
+        can mislead — a lucky test window can hide overfitting, an unlucky
+        one can panic you off a good model. Walk-forward gives a small
+        distribution: train through time t, test on (t, t+fold_days],
+        then slide t forward and repeat.
+
+        Parameters
+        ----------
+        training_data : list[dict]
+            Same shape as ``train()`` input. Must include ``timestamp``
+            on each row — without timestamps, walk-forward is meaningless.
+        n_folds : int
+            How many rolling test windows to evaluate. The most recent
+            ``fold_days`` is fold 0, the next-most-recent is fold 1, etc.
+        fold_days : int
+            Length of each test window in days.
+        min_train_samples : int
+            Skip a fold if it has fewer than this many train samples
+            (the model would be too thin to compare meaningfully).
+        write_metadata : bool
+            If True, persist per-prop walk-forward aggregates into
+            ``model_metadata.json`` under ``props.<prop>.walk_forward``
+            so ``/healthz/drift`` can read ``brier_cal_mean`` from there.
+
+        Returns
+        -------
+        dict with keys:
+          - ``folds``: per-fold metrics (auc, brier, rmse, pi80_coverage,
+            n_train, n_test, test_start, test_end)
+          - ``aggregates``: mean + std across folds
+          - ``per_prop``: same shape, per prop_type
+        """
+        import tempfile
+        from datetime import timedelta
+
+        # Filter & sort by timestamp
+        with_ts = []
+        for d in training_data:
+            t = d.get("timestamp")
+            if t is None:
+                continue
+            try:
+                with_ts.append((parse_iso(t), d))
+            except Exception:
+                continue
+        if len(with_ts) < n_folds * min_train_samples:
+            raise ValueError(
+                f"walk_forward needs ≥ {n_folds * min_train_samples} timestamped "
+                f"samples, got {len(with_ts)}"
+            )
+        with_ts.sort(key=lambda r: r[0])
+        sorted_ts = [r[0] for r in with_ts]
+        sorted_data = [r[1] for r in with_ts]
+        max_t = sorted_ts[-1]
+
+        fold_results = []
+        per_prop: dict[str, list] = {}
+
+        for i in range(n_folds):
+            test_end = max_t - timedelta(days=i * fold_days)
+            test_start = test_end - timedelta(days=fold_days)
+            train_data = [
+                d for ts, d in zip(sorted_ts, sorted_data) if ts < test_start
+            ]
+            test_data = [
+                d for ts, d in zip(sorted_ts, sorted_data)
+                if test_start <= ts < test_end
+            ]
+            if len(train_data) < min_train_samples or len(test_data) < 20:
+                # Skip degenerate folds rather than emit nonsense metrics
+                continue
+
+            # Train a *fresh* predictor in a tmp dir so we don't pollute the
+            # caller's saved artefacts. The new predictor inherits the
+            # current class config (env vars for halflife etc.).
+            with tempfile.TemporaryDirectory(prefix="wf_") as tmpd:
+                fold_predictor = self.__class__(model_dir=tmpd)
+                metrics = fold_predictor.train(train_data)
+                # Score on the held-out test window using the same predict path
+                test_brier_num, test_brier_den = 0.0, 0
+                test_correct = []
+                test_probs_list = []
+                test_labels = []
+                test_resids = []
+                test_inside_pi80 = []
+                per_prop_local: dict[str, dict] = {}
+                for d in test_data:
+                    feat = d.get("features") or {}
+                    line = float(d.get("line") or 0.0)
+                    result = float(d.get("result") or 0.0)
+                    pt = d.get("prop_type")
+                    pred = fold_predictor.predict(feat, line=line, prop_type=pt)
+                    p = float(pred.get("over_probability", 0.5))
+                    yhat = float(pred.get("predicted_value", line))
+                    y = 1 if result > line else 0
+                    test_probs_list.append(p)
+                    test_labels.append(y)
+                    test_brier_num += (p - y) ** 2
+                    test_brier_den += 1
+                    test_resids.append(result - yhat)
+                    pp = per_prop_local.setdefault(
+                        pt or "_global",
+                        {"y": [], "p": [], "resid": []},
+                    )
+                    pp["y"].append(y)
+                    pp["p"].append(p)
+                    pp["resid"].append(result - yhat)
+
+                if test_brier_den > 0:
+                    fold_brier = test_brier_num / test_brier_den
+                else:
+                    fold_brier = float("nan")
+                fold_auc = (
+                    float(roc_auc_score(test_labels, test_probs_list))
+                    if len(set(test_labels)) >= 2 else float("nan")
+                )
+                fold_rmse = (
+                    float(np.sqrt(np.mean(np.square(test_resids))))
+                    if test_resids else float("nan")
+                )
+                fold_results.append({
+                    "fold": i,
+                    "test_start": test_start.isoformat(),
+                    "test_end": test_end.isoformat(),
+                    "n_train": len(train_data),
+                    "n_test": len(test_data),
+                    "auc": fold_auc,
+                    "brier": float(fold_brier),
+                    "rmse": fold_rmse,
+                    "global_train_auc": metrics.get("auc"),
+                    "global_train_brier": metrics.get("training_brier"),
+                })
+                # Per-prop aggregation
+                for pt, pp in per_prop_local.items():
+                    if len(pp["y"]) < 5:
+                        continue
+                    bins = self._reliability_bins(
+                        np.array(pp["p"]), np.array(pp["y"])
+                    )
+                    pp_brier = float(np.mean(
+                        (np.array(pp["p"]) - np.array(pp["y"])) ** 2
+                    ))
+                    per_prop.setdefault(pt, []).append({
+                        "fold": i,
+                        "n_test": len(pp["y"]),
+                        "brier": pp_brier,
+                        "ece": self._expected_calibration_error(bins),
+                    })
+
+        # Aggregates
+        def _agg(values):
+            arr = np.array([v for v in values if v is not None and not (isinstance(v, float) and np.isnan(v))])
+            if arr.size == 0:
+                return {"mean": None, "std": None, "n": 0}
+            return {
+                "mean": float(arr.mean()),
+                "std": float(arr.std(ddof=0)),
+                "n": int(arr.size),
+            }
+
+        aggregates = {
+            "auc": _agg([f["auc"] for f in fold_results]),
+            "brier": _agg([f["brier"] for f in fold_results]),
+            "rmse": _agg([f["rmse"] for f in fold_results]),
+            "n_folds_completed": len(fold_results),
+        }
+        per_prop_agg = {
+            pt: {
+                "brier_cal_mean": _agg([f["brier"] for f in folds])["mean"],
+                "ece_mean": _agg([f["ece"] for f in folds])["mean"],
+                "n_folds": len(folds),
+            }
+            for pt, folds in per_prop.items() if pt != "_global"
+        }
+
+        # Optionally persist per-prop walk-forward to model_metadata.json so
+        # /healthz/drift can read brier_cal_mean from the established path.
+        if write_metadata and per_prop_agg:
+            try:
+                meta_path = os.path.join(self.model_dir, "model_metadata.json")
+                try:
+                    with open(meta_path, "r") as _mf:
+                        meta = json.load(_mf)
+                except (FileNotFoundError, json.JSONDecodeError):
+                    meta = {"schema": 1, "props": {}}
+                meta.setdefault("props", {})
+                for pt, agg in per_prop_agg.items():
+                    meta["props"].setdefault(pt, {})
+                    meta["props"][pt]["walk_forward"] = agg
+                with open(meta_path, "w") as _mf:
+                    json.dump(meta, _mf, indent=2, default=float)
+            except Exception as e:  # noqa: BLE001
+                print(f"walk_forward metadata write failed: {e}")
+
+        return {
+            "folds": fold_results,
+            "aggregates": aggregates,
+            "per_prop": per_prop_agg,
         }

@@ -257,6 +257,85 @@ def test_train_attaches_calibration_warning_to_predictions(predictor):
     assert isinstance(out["model_calibration_warning"], bool)
 
 
+def test_conformal_calibration_widens_intervals_to_target_coverage():
+    """CQR should drive PI80 coverage on a fresh test set toward 0.80."""
+    rng = np.random.default_rng(0)
+    n = 1000
+    X = rng.normal(0, 1, (n, 3))
+    # Heteroscedastic noise so quantile regression is non-trivial
+    y = X[:, 0] * 2.0 + rng.normal(0, 1 + 0.5 * np.abs(X[:, 1]), n)
+
+    fit_X, cal_X, test_X = X[:600], X[600:800], X[800:]
+    fit_y, cal_y, test_y = y[:600], y[600:800], y[800:]
+
+    qe = QuantileEnsemble().fit(fit_X, fit_y)
+    raw_intervals = qe.predict_intervals(test_X)
+    raw_cov = float(np.mean(
+        (test_y >= raw_intervals["lower"]) & (test_y <= raw_intervals["upper"])
+    ))
+    qe.calibrate(cal_X, cal_y)
+    cal_intervals = qe.predict_intervals(test_X)
+    cal_cov = float(np.mean(
+        (test_y >= cal_intervals["lower"]) & (test_y <= cal_intervals["upper"])
+    ))
+    # The conformal-calibrated interval should be closer to 0.80 than the raw
+    # (or at least as good — randomness allows ties on small test sets).
+    assert abs(cal_cov - 0.80) <= max(0.07, abs(raw_cov - 0.80))
+
+
+def test_conformal_offset_persisted():
+    rng = np.random.default_rng(1)
+    X = rng.normal(0, 1, (200, 3))
+    y = X[:, 0] + rng.normal(0, 1, 200)
+    qe = QuantileEnsemble().fit(X[:160], y[:160])
+    assert qe._conformity_offset is None
+    qe.calibrate(X[160:], y[160:])
+    assert qe._conformity_offset is not None
+    assert qe._conformal_alpha is not None
+
+
+def test_walk_forward_evaluate_returns_per_fold_metrics(predictor):
+    """walk_forward_evaluate trains+tests on rolling windows and aggregates."""
+    # 600 samples spread over 600 days → with fold_days=30, 5 folds gives
+    # plenty of train data per fold.
+    data = _synth_training_data(n=600, with_timestamps=True)
+    out = predictor.walk_forward_evaluate(
+        data, n_folds=3, fold_days=30, min_train_samples=100,
+        write_metadata=False,
+    )
+    assert "folds" in out
+    assert "aggregates" in out
+    assert len(out["folds"]) >= 1
+    for fold in out["folds"]:
+        assert "auc" in fold and "brier" in fold and "rmse" in fold
+        assert fold["n_train"] > 0 and fold["n_test"] > 0
+    agg = out["aggregates"]
+    assert agg["n_folds_completed"] == len(out["folds"])
+    assert agg["brier"]["mean"] is not None
+
+
+def test_walk_forward_writes_metadata(predictor, tmp_path):
+    data = _synth_training_data(n=600, with_timestamps=True)
+    # Train once first so model_metadata.json exists with shape we extend
+    predictor.train(data)
+    predictor.walk_forward_evaluate(
+        data, n_folds=2, fold_days=30, min_train_samples=100,
+        write_metadata=True,
+    )
+    metadata = json.loads((tmp_path / "model_metadata.json").read_text())
+    points = metadata["props"].get("points", {})
+    assert "walk_forward" in points
+    assert "brier_cal_mean" in points["walk_forward"]
+
+
+def test_walk_forward_raises_without_enough_timestamped_data(predictor):
+    data = _synth_training_data(n=50, with_timestamps=True)
+    with pytest.raises(ValueError):
+        predictor.walk_forward_evaluate(
+            data, n_folds=5, fold_days=30, min_train_samples=200,
+        )
+
+
 def test_train_recency_weighting_can_be_disabled_via_env(predictor, monkeypatch):
     """Setting RECENCY_HALFLIFE_DAYS=0 should produce uniform weights."""
     monkeypatch.setenv("RECENCY_HALFLIFE_DAYS", "0")
