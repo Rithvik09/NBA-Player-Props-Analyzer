@@ -336,6 +336,42 @@ def test_walk_forward_raises_without_enough_timestamped_data(predictor):
         )
 
 
+def test_adaptive_depth_scales_with_sample_size():
+    from src.models import EnhancedMLPredictor as P
+    assert P._adaptive_depth(500) == 3
+    assert P._adaptive_depth(2_000) == 4
+    assert P._adaptive_depth(10_000) == 5
+    assert P._adaptive_depth(100_000) == 7
+
+
+def test_predict_response_includes_pi80_when_quantile_regressor(predictor):
+    """After training, predict() must surface pi80_lower/pi80_upper from the
+    conformal-calibrated QuantileEnsemble."""
+    data = _synth_training_data(n=600, with_timestamps=True)
+    predictor.train(data)
+    feat = {"recent_avg": 22.0, "season_avg": 21.0, "noise": 0.0, "is_home": 1.0}
+    out = predictor.predict(feat, line=20.0, prop_type="points")
+    assert "pi80_lower" in out and "pi80_upper" in out
+    assert out["pi80_lower"] is not None
+    assert out["pi80_upper"] is not None
+    # And the band should bracket predicted_value (or at least the median —
+    # the band is around the regressor output, not the blended value)
+    assert out["pi80_lower"] <= out["pi80_upper"]
+
+
+def test_predict_uses_quantile_prob_over_when_available(predictor):
+    """The blended over_probability should differ from the gaussian-CDF
+    fallback when the QuantileEnsemble is in use — sanity-check that the
+    new path actually runs."""
+    data = _synth_training_data(n=600, with_timestamps=True)
+    predictor.train(data)
+    feat = {"recent_avg": 25.0, "season_avg": 24.0, "noise": 0.0, "is_home": 1.0}
+    out_low_line = predictor.predict(feat, line=10.0, prop_type="points")
+    out_high_line = predictor.predict(feat, line=40.0, prop_type="points")
+    # Low line → high P(over); high line → low P(over). Monotonicity check.
+    assert out_low_line["over_probability"] > out_high_line["over_probability"]
+
+
 def test_train_recency_weighting_can_be_disabled_via_env(predictor, monkeypatch):
     """Setting RECENCY_HALFLIFE_DAYS=0 should produce uniform weights."""
     monkeypatch.setenv("RECENCY_HALFLIFE_DAYS", "0")

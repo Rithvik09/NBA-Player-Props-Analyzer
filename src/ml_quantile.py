@@ -48,7 +48,10 @@ class QuantileEnsemble:
     quantile_mid: float = 0.50
     quantile_high: float = 0.90
     learning_rate: float = 0.05
-    max_iter: int = 200
+    # ``max_iter`` is the upper bound; with ``early_stopping=True`` the
+    # actual iteration count self-tunes per prop. 500 is generous enough
+    # that thick props (50k+ rows) keep going while thin ones stop early.
+    max_iter: int = 500
     max_depth: int | None = 6
     random_state: int = 42
     # Optional integer array (n_features,) of {-1, 0, +1}. Same constraint
@@ -56,6 +59,13 @@ class QuantileEnsemble:
     # supposed to push the median up, it should push the 10th and 90th
     # percentiles up too.
     monotonic_cst: "np.ndarray | None" = None
+    # Early stopping params. Without these, max_iter dominates and we
+    # overfit thin props (blocks/steals with ~5k rows) and underfit thick
+    # ones (points with 50k+). Letting HGB self-stop on a 10% validation
+    # split is the fastest way to get sample-size-adaptive iteration count.
+    early_stopping: bool = True
+    n_iter_no_change: int = 15
+    validation_fraction: float = 0.1
 
     def __post_init__(self):
         if HistGradientBoostingRegressor is None:
@@ -82,6 +92,9 @@ class QuantileEnsemble:
             max_iter=self.max_iter,
             max_depth=self.max_depth,
             random_state=self.random_state,
+            early_stopping=self.early_stopping,
+            n_iter_no_change=self.n_iter_no_change,
+            validation_fraction=self.validation_fraction,
         )
         if self.monotonic_cst is not None:
             kwargs["monotonic_cst"] = self.monotonic_cst
