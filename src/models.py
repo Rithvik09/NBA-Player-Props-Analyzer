@@ -1919,6 +1919,57 @@ class EnhancedMLPredictor:
         "line": -1,  # higher line => lower P(over) all else equal
     }
 
+    # Per-prop monotonic *additions* on top of the base. Only rules where
+    # the sign is robustly true regardless of context belong here — a
+    # wrong constraint actively harms the model. The pattern: if X is
+    # mechanically required to push Y up (e.g. you can't make 3s without
+    # attempting them), encode it. Fuzzy correlations are left to the
+    # tree to figure out unconstrained.
+    #
+    # Why this matters: applying the same all-prop constraint set to
+    # blocks (≈5k rows) wastes regularisation budget on features that
+    # are barely predictive of blocks anyway, while NOT constraining
+    # features that genuinely drive blocks. Per-prop overrides let each
+    # head focus its prior knowledge on what actually matters for that
+    # prop.
+    _PROP_REG_MONOTONIC_OVERRIDES = {
+        "points": {
+            "fga_per_game": +1, "fg_pct": +1,
+            "usage_rate": +1, "points_per_shot": +1,
+        },
+        "three_pointers": {
+            "fg3a_per_game": +1, "fg3_pct_recent": +1,
+        },
+        "assists": {
+            "usage_rate": +1, "ast_to_tov_ratio": +1,
+        },
+        "rebounds": {
+            "reb_rate_per_36": +1,
+            "oreb_per_game": +1, "dreb_per_game": +1,
+        },
+        "turnovers": {
+            "usage_rate": +1,
+            # high A/TO ratio mechanically implies few TOs per AST
+            "ast_to_tov_ratio": -1,
+        },
+        # blocks / steals deliberately empty: defensive rate stats are
+        # noisy enough that hard sign constraints are net-harmful.
+    }
+
+    @classmethod
+    def _resolve_prop_rules(cls, prop_type, base_rules):
+        """Merge per-prop monotonic overrides on top of the base rules.
+
+        Returns a dict suitable for passing to ``_build_monotonic_cst``.
+        Unknown prop types fall through to the base rules unchanged.
+        """
+        overrides = cls._PROP_REG_MONOTONIC_OVERRIDES.get(prop_type, {})
+        if not overrides:
+            return base_rules
+        merged = dict(base_rules)
+        merged.update(overrides)
+        return merged
+
     @staticmethod
     def _build_monotonic_cst(feature_names, rules):
         """Map a feature-name → sign dict to the integer array HGB expects.
@@ -2264,11 +2315,20 @@ class EnhancedMLPredictor:
                     list(prop_scaler.feature_names_in_)
                     if hasattr(prop_scaler, "feature_names_in_") else None
                 )
+                # Per-prop overrides — e.g. ``fg3a_per_game +1`` for
+                # three_pointers, ``usage_rate +1`` for points/assists.
+                # Unknown prop types fall through to base rules unchanged.
+                prop_clf_rules = self._resolve_prop_rules(
+                    prop_type, self._CLF_MONOTONIC
+                )
+                prop_reg_rules = self._resolve_prop_rules(
+                    prop_type, self._REG_MONOTONIC
+                )
                 prop_clf_mono = self._build_monotonic_cst(
-                    prop_feat_names, self._CLF_MONOTONIC
+                    prop_feat_names, prop_clf_rules
                 )
                 prop_reg_mono = self._build_monotonic_cst(
-                    prop_feat_names, self._REG_MONOTONIC
+                    prop_feat_names, prop_reg_rules
                 )
 
                 # Base A

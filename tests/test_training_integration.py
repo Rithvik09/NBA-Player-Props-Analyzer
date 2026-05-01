@@ -247,6 +247,67 @@ def test_monotonic_cst_helper_returns_none_when_all_zero():
     assert arr is None
 
 
+def test_resolve_prop_rules_passthrough_for_unknown_prop():
+    """A prop with no override entry returns the base rules unchanged."""
+    from src.models import EnhancedMLPredictor as P
+    base = {"recent_avg": +1, "line": -1}
+    out = P._resolve_prop_rules("custom_prop_we_dont_track", base)
+    assert out == base
+    # Must NOT mutate the base in place — overrides for one prop must
+    # not bleed into another.
+    assert base == {"recent_avg": +1, "line": -1}
+
+
+def test_resolve_prop_rules_three_pointers_adds_3pa_constraint():
+    """three_pointers gains fg3a_per_game +1 on top of base rules."""
+    from src.models import EnhancedMLPredictor as P
+    base = dict(P._REG_MONOTONIC)
+    out = P._resolve_prop_rules("three_pointers", base)
+    assert out["fg3a_per_game"] == +1
+    assert out["fg3_pct_recent"] == +1
+    # Base rules survive
+    assert out["recent_avg"] == +1
+    # The base dict we passed in is not mutated
+    assert "fg3a_per_game" not in base
+
+
+def test_resolve_prop_rules_turnovers_adds_negative_at_to_constraint():
+    """turnovers should encode that high A/TO ratio implies fewer TOs."""
+    from src.models import EnhancedMLPredictor as P
+    out = P._resolve_prop_rules("turnovers", P._REG_MONOTONIC)
+    assert out["ast_to_tov_ratio"] == -1
+    assert out["usage_rate"] == +1
+
+
+def test_per_prop_constraint_vector_differs_across_props():
+    """End-to-end: building constraint vectors for the same feature
+    list with different prop_types should produce different vectors
+    when overrides apply."""
+    from src.models import EnhancedMLPredictor as P
+    feats = ["recent_avg", "fg3a_per_game", "ast_to_tov_ratio", "noise"]
+
+    pts_rules = P._resolve_prop_rules("points", P._CLF_MONOTONIC)
+    threes_rules = P._resolve_prop_rules("three_pointers", P._CLF_MONOTONIC)
+    tov_rules = P._resolve_prop_rules("turnovers", P._CLF_MONOTONIC)
+
+    pts_arr = P._build_monotonic_cst(feats, pts_rules)
+    threes_arr = P._build_monotonic_cst(feats, threes_rules)
+    tov_arr = P._build_monotonic_cst(feats, tov_rules)
+
+    # fg3a_per_game (index 1): only constrained for three_pointers
+    assert threes_arr[1] == 1
+    assert pts_arr[1] == 0
+    assert tov_arr[1] == 0
+
+    # ast_to_tov_ratio (index 2): -1 only for turnovers
+    assert tov_arr[2] == -1
+    assert pts_arr[2] == 0
+    assert threes_arr[2] == 0
+
+    # recent_avg (index 0): +1 for all (base rule)
+    assert pts_arr[0] == threes_arr[0] == tov_arr[0] == 1
+
+
 def test_train_attaches_calibration_warning_to_predictions(predictor):
     """predict_prop must surface model_calibration_warning on every response."""
     data = _synth_training_data(n=600, with_timestamps=True)
