@@ -1,3 +1,40 @@
+import warnings
+
+# Suppress two specific sklearn warnings that are benign in our usage:
+#
+#   1. "Since FrozenEstimator does not appear to accept sample_weight,
+#      sample weights will only be used for the calibration itself."
+#      We deliberately want this. The base classifier was already fit
+#      with sample weights upstream; the FrozenEstimator wrapper only
+#      exists so CalibratedClassifierCV can fit Platt/isotonic on top
+#      WITHOUT re-fitting the base. The weights we pass to .fit() of
+#      the calibrator are meant for the calibration step alone.
+#      (sklearn issue #21134.)
+#
+#   2. "X has feature names, but {Estimator} was fitted without feature
+#      names." The inner GBC / HGB classifiers are fit on scaled numpy
+#      arrays (see scaler.fit_transform), but at predict time we pass
+#      DataFrames so downstream column-alignment code can use the
+#      backfilled feature_names_in_ attribute. The mismatch is by
+#      design — _align_to_model handles it correctly.
+#
+# Suppressing here (rather than at every call site) keeps the model
+# code uncluttered and the test output readable. Both messages are
+# matched on regex so future sklearn rewordings of *unrelated* warnings
+# still surface.
+warnings.filterwarnings(
+    "ignore",
+    message=r".*FrozenEstimator does not appear to accept sample_weight.*",
+    category=UserWarning,
+    module=r"sklearn\.calibration",
+)
+warnings.filterwarnings(
+    "ignore",
+    message=r"X has feature names, but \w+ was fitted without feature names",
+    category=UserWarning,
+    module=r"sklearn\.utils\.validation",
+)
+
 from sklearn.ensemble import (
     GradientBoostingClassifier, GradientBoostingRegressor,
     HistGradientBoostingClassifier,
