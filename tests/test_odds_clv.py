@@ -425,6 +425,101 @@ def test_clv_training_rows_excludes_unsettled(tmp_path):
     assert tracker.clv_training_rows() == []
 
 
+# --------------------------------------------------------------------------- #
+# In-loop closing-line capture (snapshot_all_games + _inside_closing_window)
+# --------------------------------------------------------------------------- #
+
+def test_inside_closing_window_true_within_minutes(tmp_path):
+    """A tipoff that's a few minutes from now must register as inside
+    the window."""
+    near = datetime.now(timezone.utc) + timedelta(minutes=5)
+    near_iso = near.strftime("%Y-%m-%dT%H:%M:%SZ")
+    assert OddsTracker._inside_closing_window(near_iso) is True
+
+
+def test_inside_closing_window_false_far_off(tmp_path):
+    """A tipoff hours away must not register."""
+    far = datetime.now(timezone.utc) + timedelta(hours=4)
+    far_iso = far.strftime("%Y-%m-%dT%H:%M:%SZ")
+    assert OddsTracker._inside_closing_window(far_iso) is False
+
+
+def test_inside_closing_window_false_in_the_past(tmp_path):
+    """A tipoff well in the past (game already played out) must not
+    register either — we don't want to retroactively stamp closing
+    lines on stale games."""
+    old = datetime.now(timezone.utc) - timedelta(hours=2)
+    old_iso = old.strftime("%Y-%m-%dT%H:%M:%SZ")
+    assert OddsTracker._inside_closing_window(old_iso) is False
+
+
+def test_inside_closing_window_returns_false_on_garbage_input(tmp_path):
+    """Malformed timestamps must NOT spuriously trigger capture for
+    every game — return False on parse failure."""
+    assert OddsTracker._inside_closing_window("") is False
+    assert OddsTracker._inside_closing_window("not-a-date") is False
+    assert OddsTracker._inside_closing_window(None) is False  # type: ignore[arg-type]
+
+
+def test_snapshot_all_games_captures_closing_for_imminent_tipoff(tmp_path, monkeypatch):
+    """End-to-end: a game whose tipoff is inside the window should have
+    its closing_line stamped on prop_line_summary as a side-effect of
+    snapshot_all_games. A game tipping off in 4 hours should NOT be
+    stamped (still mid-day pricing)."""
+    tracker = _make_tracker(tmp_path)
+
+    # Two games: one imminent, one hours away.
+    near_tipoff = datetime.now(timezone.utc) + timedelta(minutes=8)
+    far_tipoff = datetime.now(timezone.utc) + timedelta(hours=4)
+
+    fake_games = [
+        {
+            "id": "evt_near",
+            "home_team": "BOS", "away_team": "LAL",
+            "commence_time": near_tipoff.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        },
+        {
+            "id": "evt_far",
+            "home_team": "DEN", "away_team": "GSW",
+            "commence_time": far_tipoff.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        },
+    ]
+
+    def fake_fetch_props(event_id):
+        # Two-bookmaker line for one player.
+        return [
+            {"player_name": "Tatum", "prop_type": "points", "bookmaker": "fd",
+             "line": 27.0, "over_price": -110, "under_price": -110},
+            {"player_name": "Tatum", "prop_type": "points", "bookmaker": "dk",
+             "line": 28.0, "over_price": -115, "under_price": -105},
+        ]
+
+    monkeypatch.setattr(tracker, "fetch_upcoming_games", lambda: fake_games)
+    monkeypatch.setattr(tracker, "fetch_player_props", fake_fetch_props)
+
+    # Snapshot uses time.sleep(1) between games — patch it out so the
+    # test stays under a second.
+    monkeypatch.setattr("src.odds_tracker.time.sleep", lambda *a, **kw: None)
+
+    total = tracker.snapshot_all_games()
+    assert total == 4  # 2 props × 2 games
+
+    conn = sqlite3.connect(tracker.db_path)
+    near_close = conn.execute(
+        "SELECT closing_line FROM prop_line_summary WHERE game_id = 'evt_near'"
+    ).fetchone()
+    far_close = conn.execute(
+        "SELECT closing_line FROM prop_line_summary WHERE game_id = 'evt_far'"
+    ).fetchone()
+    conn.close()
+
+    # Near game: closing line is the consensus across bookmakers
+    # (27.0 + 28.0) / 2 = 27.5
+    assert near_close[0] == pytest.approx(27.5, abs=1e-6)
+    # Far game: never within window, closing_line stays NULL
+    assert far_close[0] is None
+
+
 def test_clv_training_rows_filters_by_prop_type(tmp_path):
     tracker = _make_tracker(tmp_path)
 

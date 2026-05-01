@@ -252,6 +252,12 @@ class OddsTracker:
 
     # ---- Snapshot + storage -----------------------------------------------
 
+    # Tipoff window inside which a snapshot is treated as the "closing
+    # line." 20 min is a balance between (a) waiting long enough for
+    # late-breaking news to bake into the line and (b) running far
+    # enough ahead of tip that the polling job doesn't race the game.
+    CLOSING_WINDOW_MINUTES = 20
+
     def snapshot_all_games(self) -> int:
         """Poll all upcoming games and store line snapshots. Returns total lines stored."""
         games = self.fetch_upcoming_games()
@@ -260,8 +266,10 @@ class OddsTracker:
             return 0
 
         total = 0
+        closes_captured = 0
         for i, game in enumerate(games, 1):
             event_id = game["id"]
+            commence_time = game.get("commence_time", "")
             props = self.fetch_player_props(event_id)
             if props:
                 self._store_snapshot(event_id, props)
@@ -273,14 +281,62 @@ class OddsTracker:
                         self._update_summary(*key)
                         seen.add(key)
                 total += len(props)
+
+                # B3: if this game's tipoff is inside the closing window,
+                # stamp the closing line on every (player, prop) we just
+                # snapshotted. We do this *here* (rather than in a
+                # separate cron) so the closing line and the snapshot it
+                # came from are written atomically — no race where the
+                # tipoff passes between snapshot and capture.
+                if commence_time and self._inside_closing_window(commence_time):
+                    try:
+                        n = self.capture_closing_lines(
+                            event_id, commence_time,
+                            window_minutes=self.CLOSING_WINDOW_MINUTES,
+                        )
+                        closes_captured += n
+                    except Exception as e:  # noqa: BLE001
+                        log.warning("[odds] capture_closing_lines failed for %s: %s", event_id, e)
+
             print(f"[odds] Game {i}/{len(games)}: {game['away_team']} @ {game['home_team']} — {len(props)} lines")
             # Be polite to the API
             if i < len(games):
                 time.sleep(1)
 
-        print(f"[odds] Snapshotted {total} lines across {len(games)} games")
-        log.info(f"[odds] Snapshotted {total} lines across {len(games)} games")
+        # Surface to /odds/status so we can see the CLV pipeline working
+        # without poking at SQLite directly.
+        _LAST_POLL["closes_captured"] = int(closes_captured)
+
+        print(f"[odds] Snapshotted {total} lines across {len(games)} games "
+              f"(closes_captured={closes_captured})")
+        log.info(
+            "[odds] Snapshotted %d lines across %d games (closes_captured=%d)",
+            total, len(games), closes_captured,
+        )
         return total
+
+    @staticmethod
+    def _inside_closing_window(commence_time: str) -> bool:
+        """Is ``commence_time`` (Odds-API ISO-with-Z) within
+        ``CLOSING_WINDOW_MINUTES`` of *now*?
+
+        A pure clock check — independent of any DB state. Returns False
+        on parse failure so that a malformed timestamp can't cause us
+        to spuriously stamp closing lines on every game.
+        """
+        try:
+            # ``fromisoformat`` accepts ``2026-04-30T19:00:00+00:00`` but
+            # not the trailing-Z form, so we swap manually.
+            ts = commence_time.rstrip("Z")
+            tipoff = datetime.fromisoformat(ts).replace(tzinfo=timezone.utc)
+        except Exception:
+            return False
+        now = datetime.now(timezone.utc)
+        delta = (tipoff - now).total_seconds() / 60.0
+        # Capture if tipoff is in (-window, +window) — i.e. within the
+        # window before tip OR up to the window after (in case the
+        # poll lands a minute or two late).
+        return -OddsTracker.CLOSING_WINDOW_MINUTES <= delta <= OddsTracker.CLOSING_WINDOW_MINUTES
 
     def _store_snapshot(self, game_id: str, props: list[dict]):
         """Insert line snapshots into prop_line_history."""
@@ -420,13 +476,17 @@ class OddsTracker:
         try:
             # Find the latest snapshot per (player, prop_type) before tipoff.
             # Average across bookmakers at that snapshot for a consensus line.
+            # Both sides of the time comparison are normalised through
+            # SQLite's datetime() so we accept either snapshot format
+            # ("YYYY-MM-DD HH:MM:SS") or the ISO-with-Z form returned by
+            # the Odds API ("2026-04-30T19:00:00Z").
             rows = c.execute(
                 """
                 SELECT player_name, prop_type, snapshot_time, AVG(line) AS avg_line
                 FROM prop_line_history
                 WHERE game_id = ?
-                  AND snapshot_time <= ?
-                  AND snapshot_time >= datetime(?, '-' || ? || ' minutes')
+                  AND datetime(snapshot_time) <= datetime(?)
+                  AND datetime(snapshot_time) >= datetime(?, '-' || ? || ' minutes')
                 GROUP BY player_name, prop_type, snapshot_time
                 ORDER BY player_name, prop_type, snapshot_time DESC
                 """,
@@ -748,6 +808,11 @@ _LAST_POLL: dict = {
     "lines_stored": None,
     "error": None,
     "quota_remaining": None,
+    # B3: how many (player, prop) closing lines were stamped on the most
+    # recent poll. Stays None on polls where no game tipped during the
+    # window, so we can distinguish "feature off" from "feature ran but
+    # found nothing."
+    "closes_captured": None,
 }
 
 
