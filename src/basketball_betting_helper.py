@@ -235,8 +235,16 @@ class BasketballBettingHelper:
             )
         ''')
 
-        # migrate existing DBs that don't have these columns yet
-        for col, typedef in [('hit_rate', 'REAL'), ('model_version', 'TEXT')]:
+        # migrate existing DBs that don't have these columns yet.
+        # ``game_id`` is the key that links a graded prediction to the
+        # closing line stamped on prop_line_summary (B3 / CLV path). We
+        # don't know it at log_prediction time, so it's populated when
+        # auto_grade_pending looks the player game log row up.
+        for col, typedef in [
+            ('hit_rate', 'REAL'),
+            ('model_version', 'TEXT'),
+            ('game_id', 'TEXT'),
+        ]:
             try:
                 cursor.execute(f'ALTER TABLE prediction_logs ADD COLUMN {col} {typedef}')
             except Exception:
@@ -335,7 +343,7 @@ class BasketballBettingHelper:
             cursor = conn.cursor()
             # grab anything without an actual_result from before today (includes PASSes)
             cursor.execute('''
-                SELECT id, player_id, prop_type, line, timestamp
+                SELECT id, player_id, player_name, prop_type, line, timestamp
                 FROM prediction_logs
                 WHERE actual_result IS NULL
                 AND date(timestamp) < ?
@@ -350,7 +358,19 @@ class BasketballBettingHelper:
         graded = skipped = errors = 0
         gamelog_cache = {}  # avoid hitting the API twice for the same player/season
 
-        for log_id, player_id, prop_type, line, timestamp in pending:
+        # B3: lazy OddsTracker for record_outcome. We don't need an API key
+        # because we're only writing to local SQLite. Constructed once per
+        # auto_grade_pending call so the DB connection setup cost amortises
+        # across all rows. Failure to construct (e.g. odds_tracker import
+        # error) must not abort grading — outcome logging is best-effort.
+        odds_tracker = None
+        try:
+            from .odds_tracker import OddsTracker
+            odds_tracker = OddsTracker(api_key=None, db_path=self.db_name)
+        except Exception as e:
+            log.debug("auto_grade_pending: odds_tracker unavailable: %s", e)
+
+        for log_id, player_id, player_name, prop_type, line, timestamp in pending:
             try:
                 pred_date = datetime.fromisoformat(timestamp).date()
 
@@ -400,6 +420,38 @@ class BasketballBettingHelper:
                 success, _ = self.update_actual_result(log_id, actual, notes='auto-graded')
                 if success:
                     graded += 1
+
+                    # B3: stash the NBA game_id on the prediction row + emit
+                    # an outcome row so that the closing line captured by the
+                    # odds-poll path (if any) can join with the realised stat
+                    # and feed clv_training_rows() later. Best-effort — a
+                    # failure here must not flip a grade success to error.
+                    try:
+                        game_id = str(row['Game_ID']) if 'Game_ID' in row.index else None
+                    except Exception:
+                        game_id = None
+                    if game_id:
+                        try:
+                            with sqlite3.connect(self.db_name) as _conn:
+                                _conn.execute(
+                                    'UPDATE prediction_logs SET game_id = ? WHERE id = ?',
+                                    (game_id, log_id),
+                                )
+                                _conn.commit()
+                        except Exception as e:
+                            log.debug("auto_grade: game_id stamp failed for log %s: %s", log_id, e)
+                        if odds_tracker is not None and player_name:
+                            try:
+                                odds_tracker.record_outcome(
+                                    game_id=game_id,
+                                    player_name=player_name,
+                                    prop_type=prop_type,
+                                    actual_result=float(actual),
+                                    observed_line=float(line),
+                                    player_id=int(player_id) if player_id is not None else None,
+                                )
+                            except Exception as e:
+                                log.debug("auto_grade: record_outcome failed for log %s: %s", log_id, e)
                 else:
                     errors += 1
 

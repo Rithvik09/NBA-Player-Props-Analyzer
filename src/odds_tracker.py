@@ -55,7 +55,10 @@ class OddsTracker:
 
     MARKETS = ",".join(PROP_TYPE_MAP.keys())
 
-    def __init__(self, api_key: str, db_path: str = "basketball_data.db"):
+    def __init__(self, api_key: str | None = None, db_path: str = "basketball_data.db"):
+        # ``api_key`` is only used for the live HTTP fetches; B3 callers
+        # (auto_grade_pending → record_outcome) want the DB methods only
+        # and shouldn't need to pass a fake key just to satisfy the ctor.
         self.api_key = api_key
         self.db_path = db_path
         self._init_db()
