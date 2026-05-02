@@ -164,6 +164,20 @@ class EnhancedMLPredictor:
                         bundle['regression_model'] = joblib.load(reg_path)
                     else:
                         bundle['regression_model'] = None
+                    # Optional feature-median table for NaN-aware imputation.
+                    # Pre-existing prop bundles (saved before this commit)
+                    # won't have one — fall back to {} which yields current
+                    # zero-fill behaviour.
+                    medians_path = os.path.join(
+                        self.model_dir, f'feature_medians_{prop_type}.joblib',
+                    )
+                    if os.path.exists(medians_path):
+                        try:
+                            bundle['feature_medians'] = joblib.load(medians_path)
+                        except Exception:
+                            bundle['feature_medians'] = {}
+                    else:
+                        bundle['feature_medians'] = {}
                     self.prop_models[prop_type] = bundle
                 except Exception as e:
                     print(f"failed to load per-prop model for {prop_type}: {e}")
@@ -1496,12 +1510,18 @@ class EnhancedMLPredictor:
                 and prop_type in self.prop_models
             )
 
+            # Imputation table for NaN-aware fill in _align_to_model. The
+            # per-prop training loop computes medians from each prop's
+            # samples; falling back to {} preserves the legacy zero-fill
+            # behaviour for global models or pre-medians-bundle props.
+            _feature_medians: dict = {}
             if use_prop_model:
                 try:
                     prop_bundle = self.prop_models[prop_type]
                     _clf = prop_bundle['calibrated_clf']
                     _reg = prop_bundle['regression_model']
                     _scaler = prop_bundle['scaler']
+                    _feature_medians = prop_bundle.get('feature_medians', {}) or {}
                     _models_ready = True
                 except KeyError as _ke:
                     print(f"per-prop bundle for '{prop_type}' is incomplete ({_ke}), falling back to global models")
@@ -1523,7 +1543,19 @@ class EnhancedMLPredictor:
                     features_df = pd.DataFrame([features])
 
                     def _align_to_model(df, estimator, extra=None):
-                        """Zero-fill missing cols and reorder to match estimator's expected features."""
+                        """Median-fill missing cols and reorder to match
+                        estimator's expected features.
+
+                        For each feature the model expects, look it up in
+                        the request DataFrame; if absent, use the training-
+                        time median from ``_feature_medians`` (per-prop
+                        bundle); if no median is recorded, fall back to
+                        0.0 (legacy behaviour). Median-fill matters for
+                        rookies / role players who don't have a meaningful
+                        rolling stat — zero-filling tells the model "this
+                        player's recent_3pt_pct is 0%" which biases the
+                        prediction sharply low.
+                        """
                         # unwrap custom wrappers like IsotonicCalibratedModel (.base_estimator)
                         # and sklearn 1.6+ CalibratedClassifierCV (.estimator)
                         actual = getattr(estimator, 'estimator', getattr(estimator, 'base_estimator', estimator))
@@ -1536,7 +1568,12 @@ class EnhancedMLPredictor:
                             feat_names = [str(f) for f in estimator.feature_names_in_]
                         if feat_names is None:
                             return df
-                        row = {col: df[col].iloc[0] if col in df.columns else 0.0 for col in feat_names}
+                        row = {}
+                        for col in feat_names:
+                            if col in df.columns and pd.notna(df[col].iloc[0]):
+                                row[col] = df[col].iloc[0]
+                            else:
+                                row[col] = float(_feature_medians.get(col, 0.0))
                         if extra:
                             for k, v in extra.items():
                                 if k in feat_names:
@@ -1821,6 +1858,39 @@ class EnhancedMLPredictor:
     # ────────────────────────────────────────────────────────────────────
     # Training helpers — sample weighting + temporal split
     # ────────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _reliability_factor(games_played, cap=20):
+        """Sample-size confidence multiplier per training row.
+
+        A player with 3 games this season has a much noisier ``recent_avg``
+        than one with 20 games. Without a reliability prior, both rows
+        get equal weight in training, which means the small-sample player's
+        garbage-time outlier is just as influential as the 20-game
+        veteran's stable line. We square-root the sample count so the
+        penalty is sub-linear — a 5-game player isn't 25% of a 20-game,
+        it's ~50%, which feels about right empirically.
+
+        Formula: sqrt(min(games_played + 1, cap+1) / (cap+1))
+
+        At cap=20:
+          games_played=0  -> 0.218 (some weight, not zero — the row isn't
+                                    *useless* even with no prior context)
+          games_played=3  -> 0.436
+          games_played=10 -> 0.728
+          games_played=20 -> 1.000
+          games_played≥20 -> 1.000  (capped — diminishing returns)
+
+        +1 in numerator and (cap+1) in denominator is a Laplace-smoothing
+        trick: it keeps games_played=0 rows from being completely dropped
+        (their recent_avg is the synth default but the row's TARGET is
+        still real signal about that player on that day).
+        """
+        arr = np.asarray(games_played, dtype=float)
+        # Treat NaN / negative as zero
+        arr = np.where(np.isfinite(arr) & (arr >= 0), arr, 0.0)
+        capped = np.minimum(arr + 1.0, cap + 1.0)
+        return np.sqrt(capped / (cap + 1.0))
+
     def _compute_recency_weights(self, timestamps, halflife_days=None):
         """Exponential-decay sample weights based on game age.
 
@@ -2124,6 +2194,18 @@ class EnhancedMLPredictor:
 
         # ── A3: recency-weighted sample weights ──────────────────────────
         weights_all = self._compute_recency_weights(timestamps)
+        # Multiply in the sample-size reliability factor so 3-game-this-
+        # season rows don't pull as hard on the loss as 20-game veterans.
+        # Env-toggleable via RELIABILITY_WEIGHT=0 for ablation runs.
+        if os.environ.get("RELIABILITY_WEIGHT", "1") not in ("0", "false", "False"):
+            try:
+                gp_arr = np.array(
+                    [float((d.get('features') or {}).get('games_played', 0.0))
+                     for d in training_data]
+                )
+                weights_all = weights_all * self._reliability_factor(gp_arr)
+            except Exception as e:
+                print(f"reliability weight skipped: {e}")
 
         # Apply both index splits
         X_train = X.iloc[train_idx].reset_index(drop=True)
@@ -2318,7 +2400,22 @@ class EnhancedMLPredictor:
 
             try:
                 Xp = pd.DataFrame([s['features'] for s in samples])
-                Xp = Xp.fillna(0)  # same NaN guard as global training
+                # Per-prop NaN imputation: compute medians on this prop's
+                # X (features have prop-specific units — e.g. recent_avg
+                # for blocks ≈ 0.5, for points ≈ 18) so the impute value
+                # is in the right neighbourhood. Median (not mean) is
+                # robust to a single garbage-time outlier on a thin player.
+                # Fall back to 0.0 for all-NaN columns (shouldn't happen
+                # in practice but the safety net is cheap).
+                prop_feature_medians = {}
+                for col in Xp.columns:
+                    try:
+                        m = float(np.nanmedian(Xp[col].values))
+                        if np.isfinite(m):
+                            prop_feature_medians[str(col)] = m
+                    except (TypeError, ValueError):
+                        pass
+                Xp = Xp.fillna(value=prop_feature_medians).fillna(0)
                 yp_class = np.array([1 if s['result'] > s['line'] else 0 for s in samples])
                 yp_reg = np.array([s['result'] for s in samples], dtype=float)
                 p_timestamps = [s.get('timestamp') for s in samples]
@@ -2330,6 +2427,15 @@ class EnhancedMLPredictor:
                     p_timestamps, len(Xp),
                 )
                 p_weights_all = self._compute_recency_weights(p_timestamps)
+                if os.environ.get("RELIABILITY_WEIGHT", "1") not in ("0", "false", "False"):
+                    try:
+                        p_gp = np.array([
+                            float((s.get('features') or {}).get('games_played', 0.0))
+                            for s in samples
+                        ])
+                        p_weights_all = p_weights_all * self._reliability_factor(p_gp)
+                    except Exception as e:
+                        print(f"[{prop_type}] reliability weight skipped: {e}")
 
                 Xp_train = Xp.iloc[p_train_idx].reset_index(drop=True)
                 Xp_test = Xp.iloc[p_test_idx].reset_index(drop=True)
@@ -2470,11 +2576,20 @@ class EnhancedMLPredictor:
                 joblib.dump(prop_stacked, os.path.join(self.model_dir, f'clf_cal_{prop_type}.joblib'))
                 joblib.dump(prop_reg, os.path.join(self.model_dir, f'reg_{prop_type}.joblib'))
                 joblib.dump(prop_scaler, os.path.join(self.model_dir, f'scaler_{prop_type}.joblib'))
+                # Persist the imputation table so inference uses the same
+                # values training saw — without this, a missing feature
+                # at predict time would silently fall through to 0.0 in
+                # _align_to_model and bias the prediction.
+                joblib.dump(
+                    prop_feature_medians,
+                    os.path.join(self.model_dir, f'feature_medians_{prop_type}.joblib'),
+                )
 
                 self.prop_models[prop_type] = {
                     'calibrated_clf': prop_stacked,
                     'regression_model': prop_reg,
                     'scaler': prop_scaler,
+                    'feature_medians': prop_feature_medians,
                 }
                 prop_results[prop_type] = {
                     'auc': prop_auc,

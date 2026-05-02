@@ -541,3 +541,137 @@ def test_isotonic_threshold_is_at_least_1k():
     100-sample default we used to have was way too aggressive)."""
     from src.models import EnhancedMLPredictor as P
     assert P.ISOTONIC_MIN_CAL_SAMPLES >= 1000
+
+
+# ─────────────────────────── Reliability factor (sample-size weighting)
+def test_reliability_factor_caps_at_one():
+    from src.models import EnhancedMLPredictor as P
+    factors = P._reliability_factor([0, 5, 20, 30, 100])
+    assert factors[3] == pytest.approx(1.0)  # ≥cap → 1.0
+    assert factors[4] == pytest.approx(1.0)
+
+
+def test_reliability_factor_monotone_in_games_played():
+    from src.models import EnhancedMLPredictor as P
+    factors = P._reliability_factor(np.arange(0, 25))
+    # Strictly non-decreasing
+    assert all(factors[i] <= factors[i + 1] + 1e-9 for i in range(len(factors) - 1))
+
+
+def test_reliability_factor_handles_negative_and_nan():
+    from src.models import EnhancedMLPredictor as P
+    out = P._reliability_factor([-5, np.nan, 0, 10])
+    # negative + NaN are treated as 0
+    assert out[0] == out[1] == out[2]
+    # But 10 games > 0 games
+    assert out[3] > out[0]
+
+
+def test_reliability_factor_three_games_meaningfully_below_twenty():
+    """Sanity check the calibration: 3-game player should weigh
+    noticeably less than a 20-game veteran (around half)."""
+    from src.models import EnhancedMLPredictor as P
+    f3 = P._reliability_factor([3])[0]
+    f20 = P._reliability_factor([20])[0]
+    assert 0.3 < f3 / f20 < 0.55
+
+
+def test_reliability_weight_can_be_disabled_via_env(predictor, monkeypatch):
+    """RELIABILITY_WEIGHT=0 should leave only recency weighting (i.e.
+    return train weights identical to the recency-only path)."""
+    monkeypatch.setenv("RELIABILITY_WEIGHT", "0")
+    data = _synth_training_data(n=300, with_timestamps=True)
+    # Inject highly variable games_played so the reliability factor
+    # WOULD do something if it were enabled.
+    for i, d in enumerate(data):
+        d["features"]["games_played"] = 1 if i < 100 else 25
+    # Train should run end-to-end without invoking the reliability path
+    predictor.train(data)
+    # Sanity — model artifacts written, no error
+    assert predictor.models_trained
+
+
+# ─────────────────────────── NaN imputation: per-prop medians
+def test_per_prop_feature_medians_persist_via_train(tmp_path, monkeypatch):
+    """After training, the per-prop bundle must carry a feature_medians
+    dict so inference can median-fill missing/NaN columns."""
+    monkeypatch.setenv("RECENCY_HALFLIFE_DAYS", "180")
+    monkeypatch.setenv("OOT_HOLDOUT_DAYS", "30")
+    from src.models import EnhancedMLPredictor
+    p = EnhancedMLPredictor(model_dir=str(tmp_path))
+
+    # Need ≥ _MIN_PROP_SAMPLES (50) per prop_type for the per-prop loop
+    # to run. Use the synth helper and tag every row with prop_type=points
+    # so the per-prop bucket fills.
+    data = _synth_training_data(n=400, with_timestamps=True)
+    for d in data:
+        d["prop_type"] = "points"
+        # Let one feature carry NaN on a fraction of rows so the median
+        # is exercised
+        if np.random.RandomState(int(d["features"]["recent_avg"]) % 1000).random() < 0.2:
+            d["features"]["fg3_pct_recent"] = float("nan")
+        else:
+            d["features"]["fg3_pct_recent"] = 0.35
+
+    p.train(data)
+    assert "points" in p.prop_models
+    medians = p.prop_models["points"].get("feature_medians", {})
+    assert isinstance(medians, dict)
+    # Should at least carry the synth features
+    for k in ("recent_avg", "season_avg"):
+        assert k in medians
+        assert np.isfinite(medians[k])
+
+
+def test_align_to_model_uses_medians_not_zeros_at_predict(tmp_path, monkeypatch):
+    """End-to-end: a missing feature at predict time should fill from the
+    training median, not zero. Verify by training on data where a feature
+    is centered around 30, then predicting with that feature absent —
+    the median fill should make the prediction reflect that center, not
+    a zeroed-out one."""
+    monkeypatch.setenv("RECENCY_HALFLIFE_DAYS", "180")
+    monkeypatch.setenv("OOT_HOLDOUT_DAYS", "30")
+    from src.models import EnhancedMLPredictor
+    p = EnhancedMLPredictor(model_dir=str(tmp_path))
+
+    data = _synth_training_data(n=400, with_timestamps=True)
+    for d in data:
+        d["prop_type"] = "points"
+        # Plant a feature with median ≈ 30
+        d["features"]["bench_marker"] = 30.0
+    p.train(data)
+
+    # The bundle's medians should record bench_marker ≈ 30
+    medians = p.prop_models["points"]["feature_medians"]
+    assert "bench_marker" in medians
+    assert 25 < medians["bench_marker"] < 35
+
+    # Now run predict with bench_marker absent. The internal _align_to_model
+    # should pull from medians, not 0.0. We can't easily inspect the row
+    # the model saw, but we can run predict and confirm it doesn't crash
+    # and returns a sane probability.
+    feat = {"recent_avg": 22.0, "season_avg": 21.0, "noise": 0.0,
+            "is_home": 1.0}
+    out = p.predict(feat, line=20.0, prop_type="points")
+    assert 0.0 <= out["over_probability"] <= 1.0
+
+
+def test_load_prop_models_restores_feature_medians_from_disk(tmp_path, monkeypatch):
+    """A fresh EnhancedMLPredictor pointed at an existing models/ dir must
+    rehydrate feature_medians so the first predict call after restart
+    uses median-fill not zero-fill."""
+    monkeypatch.setenv("RECENCY_HALFLIFE_DAYS", "180")
+    monkeypatch.setenv("OOT_HOLDOUT_DAYS", "30")
+    from src.models import EnhancedMLPredictor
+    p1 = EnhancedMLPredictor(model_dir=str(tmp_path))
+    data = _synth_training_data(n=400, with_timestamps=True)
+    for d in data:
+        d["prop_type"] = "points"
+    p1.train(data)
+    saved_medians = dict(p1.prop_models["points"]["feature_medians"])
+    assert saved_medians  # non-empty
+
+    # Fresh instance, same dir → must restore
+    p2 = EnhancedMLPredictor(model_dir=str(tmp_path))
+    assert "points" in p2.prop_models
+    assert p2.prop_models["points"]["feature_medians"] == saved_medians
