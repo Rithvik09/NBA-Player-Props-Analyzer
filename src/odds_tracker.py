@@ -8,7 +8,7 @@ computes line movement features, and surfaces sharp action signals.
 import sqlite3
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import requests
 
@@ -141,6 +141,22 @@ class OddsTracker:
             )
         """)
 
+        # B3 — game_tipoffs records each upcoming game's commence_time so
+        # the close-only background poller (capture_closing_lines_for_
+        # imminent_games) can run on a tighter cadence than the line-
+        # snapshot loop without re-hitting the Odds API. Populated as a
+        # side-effect of fetch_upcoming_games. Old rows expire naturally
+        # (we LEFT JOIN them out once they're > 6h past tipoff).
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS game_tipoffs (
+                game_id TEXT PRIMARY KEY,
+                commence_time TEXT NOT NULL,
+                home_team TEXT,
+                away_team TEXT,
+                last_seen TEXT
+            )
+        """)
+
         conn.commit()
         conn.close()
         log.info("[odds] DB tables initialized")
@@ -179,7 +195,12 @@ class OddsTracker:
             return None
 
     def fetch_upcoming_games(self) -> list[dict]:
-        """Fetch upcoming NBA games with basic odds."""
+        """Fetch upcoming NBA games with basic odds.
+
+        Side-effect: persists each (game_id, commence_time) into
+        ``game_tipoffs`` so the close-only background poller can find
+        imminent games without re-hitting the API.
+        """
         url = f"{self.BASE_URL}/v4/sports/{self.SPORT}/odds/"
         data = self._get(url, {
             "regions": "us",
@@ -196,9 +217,48 @@ class OddsTracker:
                 "away_team": event.get("away_team", ""),
                 "commence_time": event.get("commence_time", ""),
             })
+        # Cache tipoffs for the close-only poller (best-effort)
+        try:
+            self._upsert_tipoffs(games)
+        except Exception as e:  # noqa: BLE001
+            log.warning("[odds] tipoff cache update failed: %s", e)
         log.info(f"[odds] Found {len(games)} upcoming games")
         print(f"[odds] Found {len(games)} upcoming games")
         return games
+
+    def _upsert_tipoffs(self, games: list[dict]) -> None:
+        """Persist (game_id, commence_time) for each upcoming game.
+
+        UPSERT semantics so a game's commence_time can be revised by
+        the API (rare but happens for postponements) without leaving
+        a stale row.
+        """
+        if not games:
+            return
+        now = datetime.now(timezone.utc).isoformat()
+        conn = sqlite3.connect(self.db_path)
+        try:
+            c = conn.cursor()
+            for g in games:
+                if not g.get("id") or not g.get("commence_time"):
+                    continue
+                c.execute(
+                    """
+                    INSERT INTO game_tipoffs
+                    (game_id, commence_time, home_team, away_team, last_seen)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(game_id) DO UPDATE SET
+                        commence_time = excluded.commence_time,
+                        home_team = excluded.home_team,
+                        away_team = excluded.away_team,
+                        last_seen = excluded.last_seen
+                    """,
+                    (g["id"], g["commence_time"],
+                     g.get("home_team", ""), g.get("away_team", ""), now),
+                )
+            conn.commit()
+        finally:
+            conn.close()
 
     def fetch_player_props(self, event_id: str) -> list[dict]:
         """Fetch all player prop lines for a single game event."""
@@ -519,6 +579,71 @@ class OddsTracker:
         finally:
             conn.close()
 
+    def capture_closing_lines_for_imminent_games(
+        self, window_minutes: int | None = None,
+    ) -> dict:
+        """Walk ``game_tipoffs`` and stamp closes for any game inside
+        the closing window. Pure SQL — no API calls.
+
+        Designed to run on a tight cron (every 5 min) so we don't miss
+        a tipoff that falls between line-snapshot polls. The line
+        snapshot loop runs every 30-60 min and has API quota limits;
+        this loop has no such constraint.
+
+        Returns ``{"checked": int, "stamped_total": int,
+        "games_inside_window": int, "skipped_no_window": int}``. The
+        primary signal for operators is ``games_inside_window > 0`` —
+        if it's always 0, the cron schedule isn't aligned with NBA
+        tipoffs.
+        """
+        if window_minutes is None:
+            window_minutes = self.CLOSING_WINDOW_MINUTES
+        conn = sqlite3.connect(self.db_path)
+        try:
+            # Drop tipoffs more than 6h in the past — the game has
+            # finished, capture would be a no-op anyway, and keeping
+            # them around makes this scan O(n_seasons) instead of
+            # O(n_active_games).
+            now = datetime.now(timezone.utc)
+            horizon = (now - timedelta(hours=6)).isoformat()
+            rows = conn.execute(
+                """
+                SELECT game_id, commence_time FROM game_tipoffs
+                WHERE commence_time >= ?
+                ORDER BY commence_time ASC
+                """,
+                (horizon,),
+            ).fetchall()
+        finally:
+            conn.close()
+
+        checked = len(rows)
+        inside = 0
+        stamped_total = 0
+        skipped_no_window = 0
+        for game_id, commence_time in rows:
+            if not self._inside_closing_window(commence_time):
+                skipped_no_window += 1
+                continue
+            inside += 1
+            try:
+                stamped_total += self.capture_closing_lines(
+                    game_id, commence_time, window_minutes=window_minutes,
+                )
+            except Exception as e:  # noqa: BLE001
+                log.warning("[odds] capture failed for %s: %s", game_id, e)
+
+        # Stash the result on _LAST_POLL so /odds/status + /healthz/clv
+        # can show it without a separate counter.
+        _LAST_POLL["closes_captured"] = int(stamped_total)
+        _LAST_POLL["closes_checked_at"] = now.isoformat()
+        return {
+            "checked": checked,
+            "games_inside_window": inside,
+            "stamped_total": stamped_total,
+            "skipped_no_window": skipped_no_window,
+        }
+
     def record_outcome(
         self,
         game_id: str,
@@ -813,6 +938,10 @@ _LAST_POLL: dict = {
     # window, so we can distinguish "feature off" from "feature ran but
     # found nothing."
     "closes_captured": None,
+    # B3: when the close-only sweeper last ran (independent of the
+    # full snapshot poll). Useful for verifying the tight cron is alive
+    # even on days when no game falls in the window.
+    "closes_checked_at": None,
 }
 
 

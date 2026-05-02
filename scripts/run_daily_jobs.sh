@@ -55,6 +55,16 @@ echo "[daily-jobs] DB_PATH=$DB_PATH MODELS_DIR=$MODELS_DIR"
 echo "[daily-jobs] INCREMENTAL_SEASON=$INCREMENTAL_SEASON INCREMENTAL_MAX_PLAYERS=$INCREMENTAL_MAX_PLAYERS"
 echo "[daily-jobs] BATCH_WEEKLY=$BATCH_WEEKLY BATCH_WEEKDAY=$BATCH_WEEKDAY BATCH_SEASONS=$BATCH_SEASONS BATCH_MAX_PLAYERS=$BATCH_MAX_PLAYERS"
 
+# Grade yesterday's predictions + settle linked bankroll bets BEFORE the
+# precompute / retrain steps. Why first: auto_grade_pending now also
+# emits prop_outcomes rows (via the B3 wiring), and the retrain step's
+# get_log_training_samples reads graded predictions. Running settle
+# before retrain means tonight's retrain sees yesterday's outcomes;
+# running it after would defer that signal a full day. Per-row errors
+# don't abort the script — || true keeps the rest of the pipeline
+# moving even if one prediction's gamelog lookup fails.
+PYTHONUNBUFFERED=1 python3 -u -m scripts.grade_and_settle --db "$DB_PATH" || true
+
 PYTHONUNBUFFERED=1 python3 -u scripts/update_precomputed.py --db "$DB_PATH"
 
 if [[ -z "$INCREMENTAL_SEASON" ]]; then

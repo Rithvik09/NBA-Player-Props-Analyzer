@@ -520,6 +520,146 @@ def test_snapshot_all_games_captures_closing_for_imminent_tipoff(tmp_path, monke
     assert far_close[0] is None
 
 
+# --------------------------------------------------------------------------- #
+# capture_closing_lines_for_imminent_games (close-only sweeper)
+# --------------------------------------------------------------------------- #
+
+def _seed_tipoff(tracker: OddsTracker, *, game_id: str, commence_time: str,
+                 home: str = "BOS", away: str = "LAL") -> None:
+    """Insert a row into game_tipoffs directly. The sweeper reads from
+    this table — in production it's populated by fetch_upcoming_games."""
+    conn = sqlite3.connect(tracker.db_path)
+    conn.execute(
+        """
+        INSERT INTO game_tipoffs (game_id, commence_time, home_team, away_team, last_seen)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (game_id, commence_time, home, away, datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_imminent_sweeper_stamps_only_imminent_games(tmp_path):
+    tracker = _make_tracker(tmp_path)
+
+    near = datetime.now(timezone.utc) + timedelta(minutes=8)
+    far = datetime.now(timezone.utc) + timedelta(hours=4)
+
+    _seed_tipoff(tracker, game_id="g_near",
+                 commence_time=near.strftime("%Y-%m-%dT%H:%M:%SZ"))
+    _seed_tipoff(tracker, game_id="g_far",
+                 commence_time=far.strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+    # Seed a snapshot inside the window for the near game and a row in
+    # prop_line_summary so capture_closing_lines has somewhere to UPDATE.
+    near_snap = (near - timedelta(minutes=3)).strftime("%Y-%m-%d %H:%M:%S")
+    _seed_history(
+        tracker.db_path,
+        game_id="g_near", player_name="Tatum", prop_type="points",
+        snapshots=[(near_snap, 27.5, "fanduel"),
+                   (near_snap, 28.0, "draftkings")],
+    )
+    _seed_summary_row(
+        tracker.db_path,
+        game_id="g_near", player_name="Tatum", prop_type="points",
+        current_line=27.0,
+    )
+
+    result = tracker.capture_closing_lines_for_imminent_games()
+    assert result["checked"] == 2
+    assert result["games_inside_window"] == 1
+    assert result["skipped_no_window"] == 1
+    assert result["stamped_total"] == 1
+
+    conn = sqlite3.connect(tracker.db_path)
+    closing = conn.execute(
+        "SELECT closing_line FROM prop_line_summary WHERE game_id = 'g_near'"
+    ).fetchone()[0]
+    conn.close()
+    # (27.5 + 28.0) / 2 = 27.75
+    assert closing == pytest.approx(27.75, abs=1e-6)
+
+
+def test_imminent_sweeper_drops_old_tipoffs_from_scan(tmp_path):
+    """A tipoff from yesterday should never even reach capture_closing_lines;
+    the SELECT filter cuts anything > 6h in the past out of the result."""
+    tracker = _make_tracker(tmp_path)
+
+    yesterday = datetime.now(timezone.utc) - timedelta(days=1)
+    _seed_tipoff(tracker, game_id="g_old",
+                 commence_time=yesterday.strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+    result = tracker.capture_closing_lines_for_imminent_games()
+    assert result["checked"] == 0
+    assert result["games_inside_window"] == 0
+
+
+def test_imminent_sweeper_updates_last_poll_telemetry(tmp_path):
+    """After the sweeper runs, _LAST_POLL must record closes_checked_at
+    so /healthz/clv can show liveness even on no-game days."""
+    from src.odds_tracker import last_poll_status
+    tracker = _make_tracker(tmp_path)
+    tracker.capture_closing_lines_for_imminent_games()
+    status = last_poll_status()
+    assert status["closes_checked_at"] is not None
+
+
+def test_fetch_upcoming_games_persists_tipoffs(tmp_path, monkeypatch):
+    """fetch_upcoming_games must side-effect into game_tipoffs so the
+    sweeper has data to walk without re-hitting the API."""
+    tracker = _make_tracker(tmp_path)
+    fake = [
+        {"id": "g1", "home_team": "BOS", "away_team": "LAL",
+         "commence_time": "2026-05-15T19:00:00Z"},
+        {"id": "g2", "home_team": "GSW", "away_team": "DEN",
+         "commence_time": "2026-05-15T22:00:00Z"},
+    ]
+    monkeypatch.setattr(tracker, "_get", lambda *a, **kw: [
+        {"id": g["id"], "home_team": g["home_team"],
+         "away_team": g["away_team"], "commence_time": g["commence_time"]}
+        for g in fake
+    ])
+    games = tracker.fetch_upcoming_games()
+    assert len(games) == 2
+
+    conn = sqlite3.connect(tracker.db_path)
+    rows = conn.execute(
+        "SELECT game_id, commence_time FROM game_tipoffs ORDER BY game_id"
+    ).fetchall()
+    conn.close()
+    assert rows == [
+        ("g1", "2026-05-15T19:00:00Z"),
+        ("g2", "2026-05-15T22:00:00Z"),
+    ]
+
+
+def test_fetch_upcoming_games_upserts_changed_tipoffs(tmp_path, monkeypatch):
+    """If the API returns a revised commence_time for a known game (game
+    postponed), the tipoff cache must reflect the new value, not stay
+    stale on the original."""
+    tracker = _make_tracker(tmp_path)
+
+    monkeypatch.setattr(tracker, "_get", lambda *a, **kw: [
+        {"id": "g1", "home_team": "BOS", "away_team": "LAL",
+         "commence_time": "2026-05-15T19:00:00Z"},
+    ])
+    tracker.fetch_upcoming_games()
+
+    monkeypatch.setattr(tracker, "_get", lambda *a, **kw: [
+        {"id": "g1", "home_team": "BOS", "away_team": "LAL",
+         "commence_time": "2026-05-16T19:00:00Z"},  # postponed by a day
+    ])
+    tracker.fetch_upcoming_games()
+
+    conn = sqlite3.connect(tracker.db_path)
+    ct = conn.execute(
+        "SELECT commence_time FROM game_tipoffs WHERE game_id = 'g1'"
+    ).fetchone()[0]
+    conn.close()
+    assert ct == "2026-05-16T19:00:00Z"
+
+
 def test_clv_training_rows_filters_by_prop_type(tmp_path):
     tracker = _make_tracker(tmp_path)
 

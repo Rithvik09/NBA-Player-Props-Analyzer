@@ -108,6 +108,37 @@ if _odds_key:
     threading.Thread(target=_odds_poll_loop, daemon=True, name='odds-poller').start()
     app.logger.info(f'Odds poller started (every {_odds_poll_interval}s)')
 
+# ── Close-only sweeper ───────────────────────────────────────────────────────
+# The full odds poll runs on _odds_poll_interval (default 60 min) which is too
+# coarse to reliably catch a tipoff inside the ±20-min closing window. This
+# sweeper is pure SQL — no API hits — so it can run every few minutes without
+# burning quota. It walks the game_tipoffs cache populated by fetch_upcoming_
+# games and stamps closes on any imminent game.
+_close_sweep_interval = int(os.environ.get('ODDS_CLOSE_SWEEP_INTERVAL', 300))  # default 5 min
+
+def _close_sweep_loop():
+    if not _odds_key:
+        return
+    from src.odds_tracker import OddsTracker
+    import time as _time
+    _time.sleep(30)  # let initial fetch_upcoming_games populate the cache
+    tracker = OddsTracker(api_key=None, db_path=betting_helper.db_name)
+    while True:
+        try:
+            result = tracker.capture_closing_lines_for_imminent_games()
+            if result["games_inside_window"]:
+                app.logger.info(
+                    "Close sweep: stamped %d closes across %d games",
+                    result["stamped_total"], result["games_inside_window"],
+                )
+        except Exception as e:
+            app.logger.error(f"Close sweep failed: {e}")
+        _time.sleep(_close_sweep_interval)
+
+if _odds_key:
+    threading.Thread(target=_close_sweep_loop, daemon=True, name='close-sweeper').start()
+    app.logger.info(f'Close sweeper started (every {_close_sweep_interval}s)')
+
 def _startup_auto_grade():
     try:
         result = betting_helper.auto_grade_pending()
@@ -869,6 +900,81 @@ def injuries_player(name):
         return jsonify(hit or {"player": name, "found": False})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/healthz/clv')
+def healthz_clv():
+    """CLV pipeline visibility.
+
+    Returns counts that let an operator answer "is the CLV pipeline
+    alive?" without poking at SQLite directly:
+
+      - prop_outcomes_total        — every settled outcome row
+      - prop_outcomes_with_close   — subset that's CLV-ready (joined w/ closing line)
+      - close_capture_rate         — ratio; healthy when >0.5 once tipoff window cron runs
+      - last_outcome_at            — most-recent settled_at
+      - last_close_captured_at     — sweeper telemetry from _LAST_POLL
+      - upcoming_games             — count of un-tipped games in game_tipoffs
+      - imminent_games             — count whose tipoff is inside the closing window now
+
+    The endpoint is advisory — never returns 503. CLV pipeline being
+    cold for a few hours is fine; the brier-decay endpoint owns the
+    real "should we page someone" decision.
+    """
+    import sqlite3 as _sqlite
+    from .odds_tracker import OddsTracker, last_poll_status
+    db = betting_helper.db_name
+    out = {
+        "prop_outcomes_total": 0,
+        "prop_outcomes_with_close": 0,
+        "close_capture_rate": None,
+        "last_outcome_at": None,
+        "last_close_captured_at": None,
+        "upcoming_games": 0,
+        "imminent_games": 0,
+    }
+    try:
+        conn = _sqlite.connect(db)
+        try:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS n,
+                       SUM(CASE WHEN closing_line IS NOT NULL THEN 1 ELSE 0 END) AS with_close,
+                       MAX(settled_at) AS last_at
+                FROM prop_outcomes
+                """
+            ).fetchone()
+            n_total, n_close, last_at = row[0] or 0, row[1] or 0, row[2]
+            out["prop_outcomes_total"] = int(n_total)
+            out["prop_outcomes_with_close"] = int(n_close)
+            out["last_outcome_at"] = last_at
+            if n_total:
+                out["close_capture_rate"] = round(n_close / n_total, 4)
+
+            # Upcoming + imminent counts. Wrap each in try/except so a
+            # missing game_tipoffs table on a freshly-init'd DB doesn't
+            # 500 the endpoint.
+            try:
+                tipoffs = conn.execute(
+                    "SELECT game_id, commence_time FROM game_tipoffs"
+                ).fetchall()
+                out["upcoming_games"] = len(tipoffs)
+                imm = sum(
+                    1 for _gid, ct in tipoffs
+                    if OddsTracker._inside_closing_window(ct or "")
+                )
+                out["imminent_games"] = imm
+            except _sqlite.OperationalError:
+                pass
+        finally:
+            conn.close()
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"healthz/clv read failed: {e}"}), 500
+
+    last = last_poll_status()
+    out["last_close_captured_at"] = last.get("closes_checked_at")
+    out["closes_captured_last_run"] = last.get("closes_captured")
+    return jsonify(out)
 
 
 @app.route('/odds/status')
