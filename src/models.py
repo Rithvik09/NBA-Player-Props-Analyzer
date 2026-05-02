@@ -1729,9 +1729,29 @@ class EnhancedMLPredictor:
 
         return 'PASS'
 
+    # Threshold below which we use sigmoid (Platt) instead of isotonic
+    # for the calibration head.
+    #
+    # Why 1500 (not the previous 100): isotonic is non-parametric and
+    # fits a step function with up to one step per training point. On
+    # small calibration sets it overfits — the step function captures
+    # noise and produces spiky probability outputs on test data. Niculescu-
+    # Mizil & Caruana (2005) found isotonic surpasses sigmoid only past
+    # ~1k samples; SciKit-Learn docs recommend ≥1k. We use 1500 to add
+    # margin (cal split is 20% of training, so 1500 cal rows means ≈7500
+    # training rows — comfortable for our thicker props) and still let
+    # thin props (blocks/steals at ≈5k rows total → ≈1k cal rows) keep
+    # sigmoid where it's safer.
+    ISOTONIC_MIN_CAL_SAMPLES = 1500
+
     def _make_calibrated_clf(self, base_clf, n_samples):
-        """Wrap a fitted GradientBoostingClassifier in CalibratedClassifierCV."""
-        method = 'isotonic' if n_samples >= 100 else 'sigmoid'
+        """Wrap a fitted classifier in CalibratedClassifierCV.
+
+        Picks the calibration method based on calibration-split size:
+        sigmoid (Platt) for small sets, isotonic for large. See
+        ``ISOTONIC_MIN_CAL_SAMPLES`` for the threshold rationale.
+        """
+        method = 'isotonic' if n_samples >= self.ISOTONIC_MIN_CAL_SAMPLES else 'sigmoid'
         # sklearn 1.8 removed cv='prefit'; wrap already-fitted estimator in FrozenEstimator instead
         if FrozenEstimator is not None:
             cal = CalibratedClassifierCV(FrozenEstimator(base_clf), method=method, cv=None)
@@ -2055,6 +2075,39 @@ class EnhancedMLPredictor:
         """
         if not training_data:
             raise ValueError("No training data provided")
+
+        # ── Low-minutes filter (Tier-1 data-quality pass) ────────────────
+        # Drop training rows where the player played < MIN_MINUTES_FOR_TRAIN
+        # minutes in the game we're predicting. These are DNPs, blowout
+        # garbage time, or injury-cut games whose "actual stat = 0"
+        # results pull the model toward zero in regimes the player would
+        # NEVER hit in a real betting context. Configurable via env so
+        # ablations are easy.
+        #
+        # Only filter rows that carry the ``minutes_played`` key — older
+        # samples (e.g. from get_log_training_samples) don't, and we
+        # want them to pass through untouched rather than silently
+        # disappear. The data_collector started writing the key in this
+        # batch; pre-filter samples will lack it.
+        try:
+            _min_thresh = float(os.getenv("MIN_MINUTES_FOR_TRAIN", "5.0"))
+        except (TypeError, ValueError):
+            _min_thresh = 5.0
+        if _min_thresh > 0:
+            _orig_n = len(training_data)
+            training_data = [
+                d for d in training_data
+                if "minutes_played" not in d
+                or not np.isfinite(d.get("minutes_played", float('nan')))
+                or float(d["minutes_played"]) >= _min_thresh
+            ]
+            _dropped = _orig_n - len(training_data)
+            if _dropped:
+                print(f"low-minutes filter: dropped {_dropped}/{_orig_n} rows "
+                      f"(min={_min_thresh})")
+
+        if not training_data:
+            raise ValueError("No training data after low-minutes filter")
 
         # build feature matrix and both target arrays
         X = pd.DataFrame([data['features'] for data in training_data])

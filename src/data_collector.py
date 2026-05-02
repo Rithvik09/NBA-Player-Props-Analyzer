@@ -952,12 +952,21 @@ class TrainingDataCollector:
             except (TypeError, ValueError):
                 # Already tz-aware or naive datetime — handle both
                 _ts_iso = pd.Timestamp(game_dates[i]).isoformat()
+            # Carry per-game minutes so models.train() can filter out
+            # DNPs / garbage / injury-cut games (Tier 1 cleanup). The
+            # rolling features.recent_minutes is a windowed average and
+            # can't tell us how long the player was in for *this* game.
+            try:
+                _mins_this_game = float(min_vals[i])
+            except (IndexError, ValueError, TypeError):
+                _mins_this_game = float('nan')
             samples.append({
-                'features':  features,
-                'result':    result,
-                'line':      line,
-                'prop_type': prop_type,
-                'timestamp': _ts_iso,
+                'features':       features,
+                'result':         result,
+                'line':           line,
+                'prop_type':      prop_type,
+                'timestamp':      _ts_iso,
+                'minutes_played': _mins_this_game,
             })
 
         return samples

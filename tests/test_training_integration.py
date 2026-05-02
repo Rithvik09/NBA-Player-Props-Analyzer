@@ -457,3 +457,87 @@ def test_train_recency_weighting_can_be_disabled_via_env(predictor, monkeypatch)
     timestamps = [(base - timedelta(days=d)).isoformat() for d in range(10)]
     w = predictor._compute_recency_weights(timestamps)
     assert (w == 1.0).all()
+
+
+# ─────────────────────────────────────────────── Tier-1: low-minutes filter
+def test_low_minutes_filter_drops_dnp_rows(predictor, capsys):
+    """Rows with minutes_played < 5 should be dropped before training so
+    DNP / garbage / injury-cut games don't pull the regressor toward 0."""
+    data = _synth_training_data(n=300, with_timestamps=True)
+    # Mark first 50 rows as DNP-equivalent (1 minute each).
+    for i, d in enumerate(data):
+        d["minutes_played"] = 1.0 if i < 50 else 28.0
+    predictor.train(data)
+    captured = capsys.readouterr().out
+    # The filter prints how many it dropped — assert it actually fired.
+    assert "low-minutes filter: dropped 50/300" in captured
+
+
+def test_low_minutes_filter_passes_through_rows_without_minutes_key(
+    predictor, capsys,
+):
+    """Legacy training rows that don't carry the new `minutes_played`
+    key (e.g. from get_log_training_samples) must NOT be silently
+    dropped — only rows with an explicit minutes_played < threshold."""
+    data = _synth_training_data(n=200, with_timestamps=True)
+    # Half the rows omit minutes_played entirely; the other half are 30.
+    for i, d in enumerate(data):
+        if i % 2 == 0:
+            d["minutes_played"] = 30.0
+        # else: no key, must pass through
+
+    predictor.train(data)
+    out = capsys.readouterr().out
+    # No drops should be printed (filter is silent when nothing dropped)
+    assert "low-minutes filter" not in out
+
+
+def test_low_minutes_filter_threshold_overridable_via_env(
+    predictor, monkeypatch, capsys,
+):
+    """The threshold should be configurable via MIN_MINUTES_FOR_TRAIN
+    so accuracy ablations can sweep it. Setting it to 0 disables the
+    filter entirely."""
+    data = _synth_training_data(n=200, with_timestamps=True)
+    for d in data:
+        d["minutes_played"] = 2.0  # would all be dropped at default
+
+    monkeypatch.setenv("MIN_MINUTES_FOR_TRAIN", "0")
+    predictor.train(data)
+    out = capsys.readouterr().out
+    assert "low-minutes filter" not in out  # filter disabled
+
+
+# ────────────────────────────────────── Tier-1: isotonic threshold
+def test_isotonic_threshold_uses_sigmoid_for_small_cal_split():
+    """At cal-split sizes below ISOTONIC_MIN_CAL_SAMPLES, the calibrator
+    must pick sigmoid, not isotonic. Isotonic on small sets overfits."""
+    from sklearn.calibration import CalibratedClassifierCV
+    from src.models import EnhancedMLPredictor as P
+    p = P()
+    # Use a dummy already-fit estimator
+    from sklearn.dummy import DummyClassifier
+    base = DummyClassifier(strategy="prior").fit([[0], [1]], [0, 1])
+    cal = p._make_calibrated_clf(base, n_samples=500)
+    assert isinstance(cal, CalibratedClassifierCV)
+    # The method attribute is set on the wrapper before fit
+    assert cal.method == "sigmoid"
+
+
+def test_isotonic_threshold_uses_isotonic_for_large_cal_split():
+    """At cal-split sizes ≥ ISOTONIC_MIN_CAL_SAMPLES, prefer isotonic
+    — non-parametric calibration generalises better when there's
+    enough data to support it."""
+    from src.models import EnhancedMLPredictor as P
+    from sklearn.dummy import DummyClassifier
+    p = P()
+    base = DummyClassifier(strategy="prior").fit([[0], [1]], [0, 1])
+    cal = p._make_calibrated_clf(base, n_samples=P.ISOTONIC_MIN_CAL_SAMPLES + 1)
+    assert cal.method == "isotonic"
+
+
+def test_isotonic_threshold_is_at_least_1k():
+    """Hard floor: don't accidentally regress to a tiny threshold (the
+    100-sample default we used to have was way too aggressive)."""
+    from src.models import EnhancedMLPredictor as P
+    assert P.ISOTONIC_MIN_CAL_SAMPLES >= 1000
