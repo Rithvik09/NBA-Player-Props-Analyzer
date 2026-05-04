@@ -1504,6 +1504,20 @@ class EnhancedMLPredictor:
                 _k, float(player_stats.get(_k, _v) or _v),
             )
 
+        # Position binary indicators (mirror of the data_collector
+        # block). Position is canonically in player_context but we
+        # accept it on either bag for robustness — older callers might
+        # only populate one. Unknown / missing → all zeros.
+        _pos = ''
+        if isinstance(player_context, dict):
+            _pos = str(player_context.get('position', '') or '')
+        if not _pos and isinstance(player_stats, dict):
+            _pos = str(player_stats.get('position', '') or '')
+        _pos_u = _pos.upper().strip()
+        features.setdefault('is_guard', 1.0 if 'G' in _pos_u else 0.0)
+        features.setdefault('is_forward', 1.0 if 'F' in _pos_u else 0.0)
+        features.setdefault('is_center', 1.0 if 'C' in _pos_u else 0.0)
+
         return features
 
     def predict(self, features, line, prop_type=None):
@@ -1881,6 +1895,32 @@ class EnhancedMLPredictor:
     # Training helpers — sample weighting + temporal split
     # ────────────────────────────────────────────────────────────────────
     @staticmethod
+    def _volatility_factor(volatility, scale=15.0):
+        """Down-weight rows from high-minutes-volatility players.
+
+        Players whose minutes swing wildly (rotation experiments, foul
+        trouble, blowouts, sporadic starting role) produce high-variance
+        stats that the model can't reliably extrapolate from. We multiply
+        the reliability factor by ``1 / (1 + volatility / scale)`` so the
+        weight curve is:
+
+          volatility=0  → 1.000  (rock-stable rotation)
+          volatility=5  → 0.750
+          volatility=10 → 0.600
+          volatility=15 → 0.500
+          volatility=30 → 0.333  (extreme — third-string-or-bench-mob)
+
+        The model already SEES ``minutes_volatility_10`` as a feature, so
+        the trees can learn "when this is high, predict closer to season
+        avg." But up-weighting low-volatility rows to dominate gradient
+        steps makes the LEARNED function more reliable on the players
+        who are bet on most. Toggleable via VOLATILITY_WEIGHT=0.
+        """
+        arr = np.asarray(volatility, dtype=float)
+        arr = np.where(np.isfinite(arr) & (arr >= 0), arr, 0.0)
+        return 1.0 / (1.0 + arr / float(scale))
+
+    @staticmethod
     def _reliability_factor(games_played, cap=20):
         """Sample-size confidence multiplier per training row.
 
@@ -2228,6 +2268,18 @@ class EnhancedMLPredictor:
                 weights_all = weights_all * self._reliability_factor(gp_arr)
             except Exception as e:
                 print(f"reliability weight skipped: {e}")
+        # Volatility down-weighting: rows from players with chaotic minute
+        # patterns get reduced influence. Multiplicative on top of recency
+        # × reliability so the three signals stack cleanly.
+        if os.environ.get("VOLATILITY_WEIGHT", "1") not in ("0", "false", "False"):
+            try:
+                vol_arr = np.array(
+                    [float((d.get('features') or {}).get('minutes_volatility_10', 0.0))
+                     for d in training_data]
+                )
+                weights_all = weights_all * self._volatility_factor(vol_arr)
+            except Exception as e:
+                print(f"volatility weight skipped: {e}")
 
         # Apply both index splits
         X_train = X.iloc[train_idx].reset_index(drop=True)
@@ -2440,6 +2492,26 @@ class EnhancedMLPredictor:
                 Xp = Xp.fillna(value=prop_feature_medians).fillna(0)
                 yp_class = np.array([1 if s['result'] > s['line'] else 0 for s in samples])
                 yp_reg = np.array([s['result'] for s in samples], dtype=float)
+
+                # Outlier result capping (regularisation). A 50-pt game on a
+                # player whose recent_avg is 22 pulls the regressor as hard
+                # as a 25-pt game would. Cap yp_reg at the per-prop 99th
+                # percentile so a handful of outlier outputs can't anchor
+                # the regressor — the classifier label (binary over/under)
+                # is left untouched because the outlier game still
+                # ACTUALLY went over, and that signal is preserved.
+                # Toggleable for ablation via OUTLIER_CAP_QUANTILE; set to
+                # 0 to disable, or e.g. 0.995 to cap less aggressively.
+                try:
+                    _q = float(os.environ.get("OUTLIER_CAP_QUANTILE", "0.99"))
+                except (TypeError, ValueError):
+                    _q = 0.99
+                if 0.0 < _q < 1.0 and len(yp_reg) >= 50:
+                    cap = float(np.quantile(yp_reg, _q))
+                    n_capped = int(np.sum(yp_reg > cap))
+                    if n_capped:
+                        yp_reg = np.minimum(yp_reg, cap)
+                        print(f"[{prop_type}] outlier cap: clipped {n_capped} values > {cap:.2f}")
                 p_timestamps = [s.get('timestamp') for s in samples]
 
                 # Apply the same OOT split + recency weighting + 3-way fit/cal/blend
@@ -2458,6 +2530,15 @@ class EnhancedMLPredictor:
                         p_weights_all = p_weights_all * self._reliability_factor(p_gp)
                     except Exception as e:
                         print(f"[{prop_type}] reliability weight skipped: {e}")
+                if os.environ.get("VOLATILITY_WEIGHT", "1") not in ("0", "false", "False"):
+                    try:
+                        p_vol = np.array([
+                            float((s.get('features') or {}).get('minutes_volatility_10', 0.0))
+                            for s in samples
+                        ])
+                        p_weights_all = p_weights_all * self._volatility_factor(p_vol)
+                    except Exception as e:
+                        print(f"[{prop_type}] volatility weight skipped: {e}")
 
                 Xp_train = Xp.iloc[p_train_idx].reset_index(drop=True)
                 Xp_test = Xp.iloc[p_test_idx].reset_index(drop=True)

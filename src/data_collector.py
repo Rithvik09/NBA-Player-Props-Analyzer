@@ -36,6 +36,30 @@ def _dvp_position_keys(raw_pos: str):
     return 'SF', 'F'
 
 
+def _position_indicators(raw_pos: str | None) -> dict:
+    """Binary one-hot for guard/forward/center groups.
+
+    Trees can split on these directly to capture position-specific
+    expectations (centers don't shoot threes; guards don't grab as many
+    boards). Hybrids are encoded with both flags set so a SG-SF gets
+    half of each effect — slightly more honest than picking one.
+    Unknown / blank position falls through to all zeros, which the
+    model interprets as "no positional prior" and leans on the rest of
+    the features.
+    """
+    out = {"is_guard": 0.0, "is_forward": 0.0, "is_center": 0.0}
+    if not raw_pos:
+        return out
+    p = raw_pos.upper().strip()
+    if "G" in p:
+        out["is_guard"] = 1.0
+    if "F" in p:
+        out["is_forward"] = 1.0
+    if "C" in p:
+        out["is_center"] = 1.0
+    return out
+
+
 def _set_dvp_defaults(features: dict) -> None:
     """
     Zero-fill DVP features when precomputed data is unavailable.
@@ -784,6 +808,14 @@ class TrainingDataCollector:
                 features.setdefault('cross_blk_recent5', 0.5)
                 features.setdefault('cross_tov_recent5', 1.5)
                 features.setdefault('cross_fg3m_recent5', 1.2)
+
+            # ---- Position binary indicators ----
+            # is_guard / is_forward / is_center. Hybrids (SG-SF, PF-C)
+            # get both flags. Trees split on these natively to capture
+            # position-specific priors — e.g. centers don't take threes,
+            # guards don't grab as many boards. Unknown position → all
+            # zeros (no prior), letting other features carry the load.
+            features.update(_position_indicators(player_position))
 
             # ---- Return-from-injury trajectory (from game log gaps) ----
             try:

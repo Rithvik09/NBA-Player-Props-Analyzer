@@ -719,6 +719,116 @@ def test_prepare_features_handles_zero_in_cross_stat_value(predictor):
     assert feat["cross_stl_recent5"] == pytest.approx(0.8)
 
 
+# ─────────────────────────── Outlier capping
+def test_outlier_capping_clips_top_percent(predictor, capsys):
+    """yp_reg values above the 99th percentile per prop should be clipped
+    to that percentile so a single 50-pt outlier doesn't anchor the
+    regressor. Classifier label (binary over/under) is left untouched."""
+    data = _synth_training_data(n=300, with_timestamps=True)
+    for d in data:
+        d["prop_type"] = "points"
+    # Plant one extreme outlier at result=200 so cap clearly fires.
+    data[0]["result"] = 200.0
+    predictor.train(data)
+    out = capsys.readouterr().out
+    assert "outlier cap" in out
+    assert "[points]" in out
+
+
+def test_outlier_capping_can_be_disabled(predictor, monkeypatch, capsys):
+    """OUTLIER_CAP_QUANTILE=0 should disable the cap entirely."""
+    monkeypatch.setenv("OUTLIER_CAP_QUANTILE", "0")
+    data = _synth_training_data(n=300, with_timestamps=True)
+    for d in data:
+        d["prop_type"] = "points"
+    data[0]["result"] = 200.0
+    predictor.train(data)
+    out = capsys.readouterr().out
+    assert "outlier cap" not in out
+
+
+# ─────────────────────────── Position binary features
+def test_prepare_features_position_indicators_default_to_zero(predictor):
+    feat = predictor.prepare_features(
+        {"recent_avg": 22.0, "season_avg": 21.0, "recent_minutes": 30.0},
+        {}, {}, {},
+    )
+    assert feat["is_guard"] == 0.0
+    assert feat["is_forward"] == 0.0
+    assert feat["is_center"] == 0.0
+
+
+def test_prepare_features_position_indicators_pure_guard(predictor):
+    feat = predictor.prepare_features(
+        {"recent_avg": 22.0, "season_avg": 21.0, "recent_minutes": 30.0},
+        {"position": "PG"}, {}, {},
+    )
+    assert feat["is_guard"] == 1.0
+    assert feat["is_forward"] == 0.0
+    assert feat["is_center"] == 0.0
+
+
+def test_prepare_features_position_indicators_hybrid_forward_center(predictor):
+    """A PF-C should set both forward AND center flags so the trees
+    can blend the two positional priors."""
+    feat = predictor.prepare_features(
+        {"recent_avg": 12.0, "season_avg": 11.5, "recent_minutes": 28.0},
+        {"position": "F-C"}, {}, {},
+    )
+    assert feat["is_forward"] == 1.0
+    assert feat["is_center"] == 1.0
+    assert feat["is_guard"] == 0.0
+
+
+def test_position_indicators_helper_unknown_input():
+    """Lower-level helper in data_collector returns all zeros for
+    unknown / blank input — the canary for serve-time absence."""
+    from src.data_collector import _position_indicators
+    out = _position_indicators(None)
+    assert out == {"is_guard": 0.0, "is_forward": 0.0, "is_center": 0.0}
+    assert _position_indicators("")["is_guard"] == 0.0
+    assert _position_indicators("nonsense")["is_center"] == 0.0
+
+
+# ─────────────────────────── Volatility down-weighting
+def test_volatility_factor_at_zero_returns_one():
+    from src.models import EnhancedMLPredictor as P
+    out = P._volatility_factor([0.0, 0.0])
+    assert out[0] == pytest.approx(1.0)
+    assert out[1] == pytest.approx(1.0)
+
+
+def test_volatility_factor_decreases_with_volatility():
+    from src.models import EnhancedMLPredictor as P
+    out = P._volatility_factor([0, 5, 10, 15, 30])
+    # Strictly decreasing
+    assert all(out[i] > out[i + 1] for i in range(len(out) - 1))
+    # Sanity-check the ballpark from the docstring
+    assert out[0] == pytest.approx(1.0)
+    assert 0.7 < out[1] < 0.8
+    assert 0.45 < out[3] < 0.55
+
+
+def test_volatility_factor_handles_negative_and_nan():
+    from src.models import EnhancedMLPredictor as P
+    out = P._volatility_factor([-3.0, np.nan, 5.0])
+    # Negative + NaN clamp to 0 (full weight)
+    assert out[0] == out[1] == pytest.approx(1.0)
+    assert out[2] < 1.0
+
+
+def test_volatility_weight_can_be_disabled(predictor, monkeypatch):
+    """VOLATILITY_WEIGHT=0 should leave training weights unaffected by
+    the volatility column."""
+    monkeypatch.setenv("VOLATILITY_WEIGHT", "0")
+    data = _synth_training_data(n=300, with_timestamps=True)
+    for i, d in enumerate(data):
+        d["prop_type"] = "points"
+        d["features"]["minutes_volatility_10"] = 50.0 if i % 2 == 0 else 0.0
+    predictor.train(data)
+    assert predictor.models_trained
+
+
 def test_load_prop_models_restores_feature_medians_from_disk(tmp_path, monkeypatch):
     """A fresh EnhancedMLPredictor pointed at an existing models/ dir must
     rehydrate feature_medians so the first predict call after restart
