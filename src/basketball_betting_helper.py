@@ -1256,6 +1256,28 @@ class BasketballBettingHelper:
             _rest = int(team_context.get('rest_days', 2)) if team_context else 2
             stat_data['b2b_flag'] = int(_rest <= 1)
 
+            # Multi-task cross-stat recent-5 averages. Pulled from the
+            # already-computed per-prop stat dicts (`stats['points']`,
+            # `stats['assists']`, ...) rather than re-walking the gamelog.
+            # Each one mirrors the data_collector training-time block. If
+            # any prop's stat dict is missing (unusual — would mean the
+            # gamelog had a bad column), fall back to league-typical.
+            _cross_keys = (
+                ('cross_pts_recent5',  'points',         14.0),
+                ('cross_ast_recent5',  'assists',         3.0),
+                ('cross_reb_recent5',  'rebounds',        4.0),
+                ('cross_stl_recent5',  'steals',          0.8),
+                ('cross_blk_recent5',  'blocks',          0.5),
+                ('cross_tov_recent5',  'turnovers',       1.5),
+                ('cross_fg3m_recent5', 'three_pointers',  1.2),
+            )
+            for _ck, _stat_name, _league_default in _cross_keys:
+                _src = stats.get(_stat_name) or {}
+                stat_data[_ck] = float(
+                    _src.get('last5_avg', _src.get('avg', _league_default))
+                    or _league_default
+                )
+
             # ---- extended game-log features (computed from values array) ----
             try:
                 _vals_ext = list(stat_data.get('values') or [])

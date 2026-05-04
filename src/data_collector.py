@@ -283,7 +283,13 @@ class TrainingDataCollector:
             return []
 
         # --- coerce all numeric columns we'll use ---
-        for _c in [col, 'FG_PCT', 'FT_PCT', 'MIN', 'FGA', 'FTA', 'TOV', 'FG3_PCT', 'FG3A', 'OREB', 'DREB', 'PLUS_MINUS', 'PF', 'WL']:
+        # AST/REB/STL/BLK/FG3M added so the multi-task cross-stat features
+        # (cross_*_recent5) below have clean source columns even when the
+        # prop being trained isn't one of them.
+        for _c in [col, 'FG_PCT', 'FT_PCT', 'MIN', 'FGA', 'FTA', 'TOV',
+                   'FG3_PCT', 'FG3A', 'FG3M', 'OREB', 'DREB',
+                   'AST', 'REB', 'STL', 'BLK',
+                   'PLUS_MINUS', 'PF', 'WL']:
             if _c in games_df.columns:
                 if _c == 'WL':
                     continue  # handled separately
@@ -312,6 +318,18 @@ class TrainingDataCollector:
         pf_vals      = games_df['PF'].values.astype(float)      if 'PF'     in games_df.columns else np.full(len(games_df), 2.0)
         wl_vals      = np.array([1.0 if str(w).upper() == 'W' else 0.0 for w in games_df.get('WL', pd.Series([''] * len(games_df)))])
         pts_vals     = games_df['PTS'].values.astype(float) if 'PTS' in games_df.columns else stat_values
+        # Multi-task cross-stat arrays. Used to derive cross_*_recent5
+        # features so a trained head for one prop can see what the
+        # player just did in OTHER counting categories. Concretely, an
+        # assists head can learn "points-recent5 high → assists usually
+        # rises too" because high usage drives both. Trees pick up the
+        # interaction once the raw signal is in the feature set.
+        ast_vals  = games_df['AST'].values.astype(float)  if 'AST'  in games_df.columns else np.zeros(len(games_df))
+        reb_vals  = games_df['REB'].values.astype(float)  if 'REB'  in games_df.columns else np.zeros(len(games_df))
+        stl_vals  = games_df['STL'].values.astype(float)  if 'STL'  in games_df.columns else np.zeros(len(games_df))
+        blk_vals  = games_df['BLK'].values.astype(float)  if 'BLK'  in games_df.columns else np.zeros(len(games_df))
+        tov_vals  = games_df['TOV'].values.astype(float)  if 'TOV'  in games_df.columns else np.zeros(len(games_df))
+        fg3m_vals = games_df['FG3M'].values.astype(float) if 'FG3M' in games_df.columns else np.zeros(len(games_df))
 
         # Rest-days array: actual gap between consecutive games
         game_dates = games_df['GAME_DATE'].values  # numpy datetime64
@@ -734,6 +752,38 @@ class TrainingDataCollector:
                 features.setdefault('usage_jump_3v10', 1.0)
                 features.setdefault('minutes_volatility_10', 0.0)
                 features.setdefault('outlier_minutes_share_10', 0.0)
+
+            # ---- Multi-task cross-stat features ----
+            # Each prop's head currently only sees ``recent_avg`` of its
+            # own stat. But assists, points, turnovers etc. all share the
+            # same upstream driver (usage * pace * minutes), so an assists
+            # row's prediction quality improves when the head can also
+            # see how much the player has been scoring lately. We give
+            # every row the prior-5-game mean of every counting stat;
+            # gradient-boosted trees pick up the interactions cheaply.
+            #
+            # Strict use of prior games (slice [i-5:i]) — never the
+            # current game — so this can't leak label info. For i < 5
+            # we use whatever prior history exists.
+            try:
+                _start = max(0, i - 5)
+                features['cross_pts_recent5']  = float(np.mean(pts_vals[_start:i]))  if i >= 1 else 0.0
+                features['cross_ast_recent5']  = float(np.mean(ast_vals[_start:i]))  if i >= 1 else 0.0
+                features['cross_reb_recent5']  = float(np.mean(reb_vals[_start:i]))  if i >= 1 else 0.0
+                features['cross_stl_recent5']  = float(np.mean(stl_vals[_start:i]))  if i >= 1 else 0.0
+                features['cross_blk_recent5']  = float(np.mean(blk_vals[_start:i]))  if i >= 1 else 0.0
+                features['cross_tov_recent5']  = float(np.mean(tov_vals[_start:i]))  if i >= 1 else 0.0
+                features['cross_fg3m_recent5'] = float(np.mean(fg3m_vals[_start:i])) if i >= 1 else 0.0
+            except Exception:
+                # Defaults are league-typical so a missing-data row
+                # doesn't anchor the model to zeros.
+                features.setdefault('cross_pts_recent5', 14.0)
+                features.setdefault('cross_ast_recent5', 3.0)
+                features.setdefault('cross_reb_recent5', 4.0)
+                features.setdefault('cross_stl_recent5', 0.8)
+                features.setdefault('cross_blk_recent5', 0.5)
+                features.setdefault('cross_tov_recent5', 1.5)
+                features.setdefault('cross_fg3m_recent5', 1.2)
 
             # ---- Return-from-injury trajectory (from game log gaps) ----
             try:

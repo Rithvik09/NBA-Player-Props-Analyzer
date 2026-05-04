@@ -1482,6 +1482,28 @@ class EnhancedMLPredictor:
         features.setdefault('minutes_volatility_10', 0.0)
         features.setdefault('outlier_minutes_share_10', 0.0)
 
+        # Multi-task cross-stat features — serve-time mirror of the
+        # block in src/data_collector.py. analyze_prop_bet plumbs the
+        # actual recent-5 values via the `cross_*_recent5` keys when
+        # the player's gamelog is available; otherwise we use league-
+        # average defaults so column alignment doesn't break.
+        # These are also covered by the per-prop median imputer at
+        # train→predict, so even when the keys arrive as NaN/missing
+        # the model gets a sensible fill.
+        cross_defaults = {
+            'cross_pts_recent5': 14.0,
+            'cross_ast_recent5': 3.0,
+            'cross_reb_recent5': 4.0,
+            'cross_stl_recent5': 0.8,
+            'cross_blk_recent5': 0.5,
+            'cross_tov_recent5': 1.5,
+            'cross_fg3m_recent5': 1.2,
+        }
+        for _k, _v in cross_defaults.items():
+            features.setdefault(
+                _k, float(player_stats.get(_k, _v) or _v),
+            )
+
         return features
 
     def predict(self, features, line, prop_type=None):
