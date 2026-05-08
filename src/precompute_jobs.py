@@ -2340,38 +2340,79 @@ def compute_team_rest_splits(season: str = '2024-25') -> list[dict[str, Any]]:
         except Exception:
             return default
 
+    def _find_rest_frame(frames_list):
+        for frame in frames_list:
+            if frame.empty:
+                continue
+            if 'GROUP_SET' in frame.columns:
+                gsets = [str(v).upper() for v in frame['GROUP_SET'].unique()]
+                if any('REST' in g for g in gsets):
+                    return frame
+            if 'GROUP_VALUE' in frame.columns:
+                gvals = [str(v).upper() for v in frame['GROUP_VALUE'].unique()]
+                if any('REST' in g for g in gvals):
+                    return frame
+        return None
+
     for t in all_teams:
         tid = int(t['id'])
         try:
+            # The Base measure type has PTS / FGA / etc. but lacks the
+            # rate stats we actually want here (DEF_RATING, PACE). Pull
+            # Advanced too and merge on GROUP_VALUE so b2b_def_rating /
+            # b2b_pace / rested_def_rating / rested_pace land as real
+            # values rather than the placeholder defaults that gave every
+            # team identical features and zero training importance.
             frames = teamdashboardbygeneralsplits.TeamDashboardByGeneralSplits(
                 team_id=tid,
                 season=season,
                 per_mode_detailed='PerGame',
             ).get_data_frames()
             time.sleep(1.2)
+            adv_frames = teamdashboardbygeneralsplits.TeamDashboardByGeneralSplits(
+                team_id=tid,
+                season=season,
+                per_mode_detailed='PerGame',
+                measure_type_detailed_defense='Advanced',
+            ).get_data_frames()
+            time.sleep(1.2)
 
-            rest_df = None
-            for frame in frames:
-                if frame.empty:
-                    continue
-                if 'GROUP_SET' in frame.columns:
-                    gsets = [str(v).upper() for v in frame['GROUP_SET'].unique()]
-                    if any('REST' in g for g in gsets):
-                        rest_df = frame
-                        break
-                if 'GROUP_VALUE' in frame.columns:
-                    gvals = [str(v).upper() for v in frame['GROUP_VALUE'].unique()]
-                    if any('REST' in g for g in gvals):
-                        rest_df = frame
-                        break
+            rest_df = _find_rest_frame(frames)
+            adv_rest_df = _find_rest_frame(adv_frames)
+
+            # Merge advanced columns onto base on GROUP_VALUE so both PTS
+            # (for b2b_pts_allowed) and DEF_RATING/PACE are accessible.
+            if rest_df is not None and adv_rest_df is not None and not adv_rest_df.empty:
+                if 'GROUP_VALUE' in rest_df.columns and 'GROUP_VALUE' in adv_rest_df.columns:
+                    keep_cols = ['GROUP_VALUE'] + [
+                        c for c in adv_rest_df.columns
+                        if c not in rest_df.columns and c in (
+                            'OFF_RATING', 'DEF_RATING', 'NET_RATING', 'PACE',
+                        )
+                    ]
+                    rest_df = rest_df.merge(
+                        adv_rest_df[keep_cols], on='GROUP_VALUE', how='left',
+                    )
 
             if rest_df is None or rest_df.empty:
                 continue
 
-            # filter for rest-day rows
+            # filter for rest-day rows. The NBA API's actual GROUP_VALUE
+            # strings are "0 Days Rest", "1 Days Rest", ..., "6+ Days Rest"
+            # — the previous regex looked for "0 REST"/"1 REST" without
+            # the intervening "DAYS" word and never matched anything,
+            # which is why every team's rest-split features defaulted to
+            # the same placeholder values (112/100/115/110/100) and had
+            # zero importance in trained models. Match by the leading
+            # digit instead so we're robust to phrasing changes.
             gv_col = 'GROUP_VALUE' if 'GROUP_VALUE' in rest_df.columns else rest_df.columns[1]
-            b2b_rows = rest_df[rest_df[gv_col].astype(str).str.upper().str.contains('REST DAYS 0|REST DAYS 1|0 REST|1 REST|BACK TO BACK|B2B', na=False)]
-            rested_rows = rest_df[rest_df[gv_col].astype(str).str.upper().str.contains(r'REST DAYS 2|REST DAYS 3|2\+ REST|3\+ REST', na=False)]
+            _gv_upper = rest_df[gv_col].astype(str).str.upper()
+            b2b_rows = rest_df[_gv_upper.str.contains(
+                r'^(?:0|1)\s*DAYS?\s*REST|BACK\s*TO\s*BACK|^B2B', na=False, regex=True,
+            )]
+            rested_rows = rest_df[_gv_upper.str.contains(
+                r'^(?:[2-9]|1[0-9])\s*\+?\s*DAYS?\s*REST', na=False, regex=True,
+            )]
 
             def _avg_rows(df_sub, col, default):
                 vals = []

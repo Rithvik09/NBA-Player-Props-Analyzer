@@ -112,19 +112,44 @@ def _compute_primary_defender_active(
     gl_df: pd.DataFrame,
     up_to_idx: int,
 ) -> float:
-    """Estimate whether the primary defender was active around the game at up_to_idx.
+    """How "active" was this player's primary defender heading into the game.
 
-    Uses the player's own game log as a proxy: if the opponent team had a game
-    within 2 days of this game, we assume the primary defender was active (1.0).
-    Falls back to 1.0 (active) when unknown — conservative assumption.
+    Without the defender's own gamelog at training time we proxy with what
+    we DO have: the strength score of the matchup defender (score01 ∈ [0,1])
+    AND the freshness of when their team last played (≤2 days = recent =
+    less likely to have rested through DNP). Returns a continuous [0,1]
+    score so the model can split on intermediate values rather than a
+    boolean. Old behaviour ("score01 > 0 → 1.0 else 0.0") collapsed every
+    matchup with an assigned defender to the same value, eliminating the
+    feature's variance.
     """
     if not primary_def:
-        return 1.0
-    # We don't have the defender's game log in training, but we can use the
-    # fact that the opponent played this game (opp_id is known) as a proxy.
-    # If the primary defender has a score01 > 0 they are an active elite defender.
+        return 0.0
     score = float((primary_def or {}).get("score01", 0.0) or 0.0)
-    return 1.0 if score > 0 else 0.0
+    if score <= 0:
+        return 0.0
+
+    # Freshness: if the opponent's last game (== this player's last game's
+    # opponent abbrev) was very recent OR very far, modulate the score.
+    # Mid-range rest (1-3 days) → defender likely fresh and playing →
+    # higher activity multiplier. >7 days since their last game → more
+    # likely a long-term DNP → lower multiplier.
+    freshness = 1.0
+    try:
+        if 0 < up_to_idx < len(gl_df):
+            cur_date = pd.to_datetime(gl_df.iloc[up_to_idx]["GAME_DATE"])
+            prior_date = pd.to_datetime(gl_df.iloc[up_to_idx - 1]["GAME_DATE"])
+            gap_days = max(0.0, (cur_date - prior_date).days)
+            if gap_days <= 3:
+                freshness = 1.0
+            elif gap_days <= 7:
+                freshness = 0.7
+            else:
+                freshness = 0.3
+    except Exception:
+        freshness = 1.0
+
+    return float(score * freshness)
 
 
 def _estimate_opp_lineup_changes(dvp_rolling: dict, opp_id: int) -> float:
@@ -661,13 +686,32 @@ def build_training_examples(
             if _player_birthdate is not None:
                 _player_age = float((_cur_date - _player_birthdate).days / 365.25)
 
-            # Travel / arena features
+            # Travel / arena features. The previous implementation was a
+            # silent zero-emitter: both args to calculate_travel_metrics
+            # were passed the player's own team_id regardless of where
+            # the games were actually played. For an away game in LA the
+            # current location is the LAKERS' arena, not the player's
+            # home arena. For a previous home game the location is the
+            # player's team; for a previous away game it's the opponent.
+            # Both need to be derived from the @ / vs. flag in MATCHUP.
             _arena_info = ARENA_DATA.get(int(team_id) if team_id else 0, {})
             try:
-                _prev_matchup = hist.iloc[-1].get("MATCHUP") if len(hist) >= 1 else None
-                _prev_team_abbr = _parse_matchup(_prev_matchup)[0] if _prev_matchup else None
-                _prev_team_id = _team_id(_prev_team_abbr) if _prev_team_abbr else None
-                _tz_change, _coast_to_coast, _travel_dist = calculate_travel_metrics(_prev_team_id, team_id, is_home)
+                # Current-game location: player's team if home, opponent if away
+                _cur_loc_id = int(team_id) if (team_id and is_home) else (int(opp_id) if opp_id else None)
+                # Previous-game location: parse the prior MATCHUP
+                _prev_loc_id = None
+                if len(hist) >= 1:
+                    _prev_matchup = hist.iloc[-1].get("MATCHUP")
+                    _prev_team_abbr, _prev_opp_abbr, _prev_was_home = _parse_matchup(_prev_matchup)
+                    if _prev_team_abbr and _prev_opp_abbr:
+                        if _prev_was_home is True:
+                            _prev_loc_id = _team_id(_prev_team_abbr)
+                        elif _prev_was_home is False:
+                            _prev_loc_id = _team_id(_prev_opp_abbr)
+                        # _prev_was_home None → unknown, keep as None
+                _tz_change, _coast_to_coast, _travel_dist = calculate_travel_metrics(
+                    _prev_loc_id, _cur_loc_id, is_home,
+                )
             except Exception:
                 _tz_change, _coast_to_coast, _travel_dist = 0.0, 0.0, 0.0
 
@@ -1328,6 +1372,22 @@ def build_training_examples(
                         "games_remaining_approx": float(_games_remaining_approx),
                         "season_phase_numeric":   _season_phase_numeric,
                         # Referee tendencies (aggregate over all refs for this game — use league avg)
+                        # Referee features: dead until we replace the
+                        # data source. The basketball-reference scrape we
+                        # used to populate referee_stats turned out to
+                        # only have a directory page (Name / First Game /
+                        # Last Game) — no foul-rate / pace / home-bias
+                        # stats are exposed there. Even the
+                        # _precomp["referee"] table that IS populated has
+                        # all stat columns at 0.0 because of this. To get
+                        # real ref features we'd need to walk the NBA
+                        # BoxScoreSummaryV2 endpoint per game (~3000 API
+                        # calls) and aggregate per ref, then match
+                        # officials per game at training time. Logged
+                        # league-mean fallbacks here so the schema slot
+                        # stays consistent — model treats them as
+                        # constants and assigns zero importance, which
+                        # is the right behaviour given the data quality.
                         "ref_foul_rate": float(np.mean([v["foul_rate"] for v in _precomp["referee"].values()]) if _precomp["referee"] else 0.0),
                         "ref_home_bias": float(np.mean([v["home_win_pct"] for v in _precomp["referee"].values()]) if _precomp["referee"] else 0.5),
                         "ref_pace_tendency": float(np.mean([v["pace"] for v in _precomp["referee"].values()]) if _precomp["referee"] else 100.0),
