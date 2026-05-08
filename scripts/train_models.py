@@ -1,5 +1,27 @@
 from __future__ import annotations
 
+# ---------------------------------------------------------------------------
+# Known-zero-importance features (audit 2026-05-08, 161/417 features).
+# Most fall into three buckets:
+#
+#   (a) Single-snapshot precompute joined to multi-season training data.
+#       Every row gets the same 2025-26 value → zero variance → zero
+#       importance. Affected: opp_b2b_def_rating, opp_b2b_pace,
+#       opp_rested_*, opening_line/current_line/* (no historical odds).
+#       Real fix: point-in-time recomputation in precompute_jobs.py — out
+#       of scope for this commit. See compute_team_rest_splits's regex
+#       which reportedly fails on current API GROUP_VALUE strings.
+#
+#   (b) Empty precompute output. referee_stats has 222 ref rows but every
+#       stat is 0.0 — the compute_referee_stats job is producing zeros.
+#       Same probable root cause: API endpoint return shape changed.
+#
+#   (c) Hardcoded to 0/0.0 in this file with TODO. Fixed in this commit
+#       for: primary_teammate_out, secondary_teammate_out, new_teammate_
+#       games, career_vs_defender, recent_vs_defender, team_l10_wins,
+#       team_current_streak.
+# ---------------------------------------------------------------------------
+
 import argparse
 import json
 import os
@@ -801,6 +823,34 @@ def build_training_examples(
             _vs_opp_games = hist[hist["MATCHUP"].str.contains(str(opp_abbrev), na=False)] if ("MATCHUP" in hist.columns and opp_abbrev) else pd.DataFrame()
             _vs_team_win_pct = float((_vs_opp_games["WL"] == "W").mean()) if (len(_vs_opp_games) > 0 and "WL" in _vs_opp_games.columns) else 0.5
 
+            # 6. Point-in-time team momentum from player's own game log (his
+            # team played these games, so the W/L pattern is the team's
+            # recent record from this player's perspective). Replaces the
+            # single-snapshot team_standings join which gave every multi-
+            # season training row the same 2025-26 standings value (zero
+            # variance → zero importance).
+            _team_l10_wins_pit = 0.0
+            _team_current_streak_pit = 0.0
+            if "WL" in hist.columns and len(hist) > 0:
+                _wl_recent = [str(v) for v in hist["WL"].tail(10).tolist()]
+                _team_l10_wins_pit = float(sum(1 for v in _wl_recent if v == "W"))
+                # Signed streak from the end of hist: + for W run, − for L run
+                _last_wl = _wl_recent[-1] if _wl_recent else ""
+                if _last_wl in ("W", "L"):
+                    _streak_n = 0
+                    for v in reversed(_wl_recent):
+                        if v == _last_wl:
+                            _streak_n += 1
+                        else:
+                            break
+                    _team_current_streak_pit = float(_streak_n if _last_wl == "W" else -_streak_n)
+
+            # 7. Recent vs this opponent (last ≤5 matchups from hist) is
+            # PROP-SPECIFIC, so compute it inside make_features where
+            # target_col is correctly bound. Stash the filtered df here to
+            # avoid recomputing the str.contains for every prop.
+            _recent_vs_opp_subset = _vs_opp_games.tail(5) if len(_vs_opp_games) > 0 else _vs_opp_games
+
             # 4 & 5. Home/away performance split (target_col-dependent part moved
             # inside make_features so each prop gets its OWN home/away split instead
             # of everything defaulting to PTS).
@@ -822,6 +872,21 @@ def build_training_examples(
                     _away_avg_target = _target_mean
                 _vs_team_home_away_split = _home_avg_target - _away_avg_target
                 _player_vs_arena = (_away_avg_target - _target_mean) if _is_away_now else (_home_avg_target - _target_mean)
+
+                # Prop-specific "recent vs this opponent" — replaces the
+                # hardcoded recent_vs_defender = 0.0. Per-row variance is
+                # real because hist is point-in-time correct.
+                if target_col in _recent_vs_opp_subset.columns and len(_recent_vs_opp_subset) > 0:
+                    _recent_vs_opp_target = float(_recent_vs_opp_subset[target_col].mean())
+                else:
+                    _recent_vs_opp_target = _target_mean
+                # "Career vs this opponent" = same idea over the FULL hist
+                # filter rather than just the last 5. _vs_opp_games is the
+                # all-time-against-this-opponent subset.
+                if target_col in _vs_opp_games.columns and len(_vs_opp_games) > 0:
+                    _career_vs_opp_target = float(_vs_opp_games[target_col].mean())
+                else:
+                    _career_vs_opp_target = _target_mean
                 # --- Prop-specific time-series features (computed from stat_values) ---
                 _sv = stat_values  # shorthand
                 # EWM
@@ -934,9 +999,20 @@ def build_training_examples(
                     "rivalry_game": 0,
                     "national_tv_game": 0,  # Not available in game log data
                     "season_phase": float(_season_phase),
-                    "primary_teammate_out": 0,
-                    "secondary_teammate_out": 0,
-                    "new_teammate_games": 0,
+                    # Best signal we have without per-game team box scores:
+                    # team_key_players_out → 1+ implies primary teammate
+                    # missing, ≥2 implies secondary too. The injury_status
+                    # snapshot is current-only, but the precompute job
+                    # populates it from real injury reports. When richer
+                    # historical injury data is available these can be
+                    # backfilled per-row from team gamelogs.
+                    "primary_teammate_out": 1 if int(_precomp["injury_status"].get(int(team_id) if team_id else 0, {}).get("key_players_out", 0)) >= 1 else 0,
+                    "secondary_teammate_out": 1 if int(_precomp["injury_status"].get(int(team_id) if team_id else 0, {}).get("key_players_out", 0)) >= 2 else 0,
+                    # new_teammate_games proxied by inverse of lineup
+                    # continuity: low continuity → many new lineups → high
+                    # value. Continuity is in [0, 1]; we map to a rough
+                    # game count (15 - 15 * continuity capped at 0).
+                    "new_teammate_games": float(max(0.0, 15.0 * (1.0 - float(_precomp["lineup_stats"].get(int(team_id) if team_id else 0, {}).get("lineup_continuity", 1.0))))),
                     "lineup_stability_score": float(_precomp["lineup_stats"].get(int(team_id) if team_id else 0, {}).get("lineup_continuity", 1.0)),
                     "bench_strength": float(_precomp["lineup_stats"].get(int(team_id) if team_id else 0, {}).get("bench_strength", 0.0)),
                     "pts_vs_top10_defenses": float(pts_mean),
@@ -963,8 +1039,17 @@ def build_training_examples(
                         "garbage_time_minutes_pct": float(blowout_game_pct * 0.15),
                         "typical_substitution_minute": float(min(48.0, mins_season + 3.0)),
                         "crunch_time_usage": 0.28 if mins_season > 28 else 0.15,
-                        "career_vs_defender": 0.0,
-                        "recent_vs_defender": 0.0,
+                        # Without per-game defender_id we use this player's
+                        # career / recent stat against this *team* as the
+                        # closest computable proxy. Per-row variance is
+                        # real (different player×team combos differ; the
+                        # same player across years vs the same team
+                        # differs). Both expressed as a delta vs the
+                        # player's overall season mean for this prop, so
+                        # the feature is interpretable as "+1 if I'm
+                        # 1 unit better than usual against this team."
+                        "career_vs_defender": float(_career_vs_opp_target - _target_mean),
+                        "recent_vs_defender": float(_recent_vs_opp_target - _target_mean),
                         "player_vs_arena": float(_player_vs_arena),
                         "avg_shot_distance": float(_sz.get("rim_fga_pct", 0.25)) * 3.0 + float(_sz.get("paint_fga_pct", 0.20)) * 8.0 + float(_sz.get("midrange_fga_pct", 0.20)) * 16.0 + float(_sz.get("corner3_fga_pct", 0.10)) * 22.0 + float(_sz.get("above_break3_fga_pct", 0.25)) * 24.0,
                         "contested_shot_pct": float(_sp.get("tight_shot_freq", 0.5)),
@@ -1264,8 +1349,15 @@ def build_training_examples(
                         # Team standings context
                         "team_win_pct":       _team_win_pct,
                         "team_conf_rank":     _team_conf_rank,
-                        "team_current_streak": _team_streak,
-                        "team_l10_wins":      _team_l10_wins,
+                        # Team momentum: prefer the point-in-time values
+                        # computed from this player's hist (signed streak +
+                        # last-10 W count from games this team played
+                        # *before* the prediction date). The single-snapshot
+                        # standings join was constant per multi-season row,
+                        # producing zero variance and zero importance — the
+                        # PIT version actually changes per row.
+                        "team_current_streak": _team_current_streak_pit,
+                        "team_l10_wins":      _team_l10_wins_pit,
                         "opp_win_pct":        _opp_win_pct,
                         "opp_conf_rank":      _opp_conf_rank,
                         "opp_current_streak": _opp_streak,
