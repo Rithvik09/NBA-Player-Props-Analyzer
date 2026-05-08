@@ -35,6 +35,11 @@ class PrecomputedStore:
 
         refs: dict[str, dict] = {}
         refs_meta: dict[str, Any] = {'updated_at': None}
+        # game_id (str) -> list of ref names assigned to that game.
+        # Populated from the game_officials table when present. Used by
+        # train_models.py to compute per-game ref features (avg of THIS
+        # game's refs' stats) instead of the league-mean fallback.
+        game_officials: dict[str, list[str]] = {}
         team_foul: dict[int, dict] = {}
         dvp_rolling: dict[tuple, dict] = {}
         team_stats: dict[int, dict] = {}
@@ -129,6 +134,21 @@ class PrecomputedStore:
                         'pace':         float(pace) if pace is not None else 0.0,
                     }
                 # updated_at is not selected here but refs_meta can stay None safely
+            except Exception:
+                pass
+
+            # --- per-game officials assignments ---
+            # If the table doesn't exist (DB pre-dates the schema commit)
+            # the lookup quietly stays empty and trainers fall back to
+            # league-mean ref stats — same as before.
+            try:
+                cur.execute(
+                    "SELECT game_id, ref_name FROM game_officials"
+                )
+                for (gid, rname) in cur.fetchall():
+                    if gid is None or rname is None:
+                        continue
+                    game_officials.setdefault(str(gid), []).append(str(rname).lower())
             except Exception:
                 pass
 
@@ -682,6 +702,7 @@ class PrecomputedStore:
             'defenders_meta': defenders_meta,
             'refs': refs,
             'refs_meta': refs_meta,
+            'game_officials': game_officials,
             'team_foul': team_foul,
             'dvp_rolling': dvp_rolling,
             'team_stats': team_stats,

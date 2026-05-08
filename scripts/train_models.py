@@ -223,7 +223,28 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
     def _load_referee_stats() -> dict[str, dict]:
         try:
             c.execute("SELECT * FROM referee_stats")
-            return {str(row["ref_name"]): dict(row) for row in c.fetchall()}
+            # Key by lower-cased name so the per-game lookup (which also
+            # lower-cases) finds them regardless of source-table casing.
+            return {str(row["ref_name"]).lower(): dict(row) for row in c.fetchall()}
+        except Exception:
+            return {}
+
+    def _load_game_officials() -> dict[str, list[str]]:
+        """game_id (str) -> list of ref names assigned to that game.
+
+        Empty when the game_officials table doesn't exist or hasn't been
+        backfilled yet — trainer falls through to league-mean ref stats.
+        """
+        try:
+            c.execute("SELECT game_id, ref_name FROM game_officials")
+            out: dict[str, list[str]] = {}
+            for row in c.fetchall():
+                gid = row["game_id"]
+                rname = row["ref_name"]
+                if gid is None or rname is None:
+                    continue
+                out.setdefault(str(gid), []).append(str(rname).lower())
+            return out
         except Exception:
             return {}
 
@@ -254,6 +275,7 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
         "vs_opponent":   _load_vs_opponent(),
         "dvp_rolling":   _load_dvp_rolling(),
         "referee":       _load_referee_stats(),
+        "game_officials": _load_game_officials(),
     }
     conn.close()
 
@@ -714,6 +736,32 @@ def build_training_examples(
                 )
             except Exception:
                 _tz_change, _coast_to_coast, _travel_dist = 0.0, 0.0, 0.0
+
+            # Per-game referee features. Look up the officials assigned
+            # to this game_id and avg their per-ref stats from
+            # _precomp["referee"]. Falls back to league mean when:
+            #   - game_id not in game_officials (older season we haven't
+            #     backfilled with the new ref pipeline)
+            #   - none of the assigned refs have aggregated stats (e.g.
+            #     all worked < 3 games in the observed window so they
+            #     were filtered out of referee_stats)
+            _refs_for_game = _precomp.get("game_officials", {}).get(_gid_str, [])
+            _ref_stats = _precomp.get("referee", {})
+            _matched_ref_stats = [
+                _ref_stats[name] for name in _refs_for_game if name in _ref_stats
+            ]
+            if _matched_ref_stats:
+                _ref_foul_rate = float(np.mean([v["foul_rate"] for v in _matched_ref_stats]))
+                _ref_home_bias = float(np.mean([v["home_win_pct"] for v in _matched_ref_stats]))
+                _ref_pace_tendency = float(np.mean([v["pace"] for v in _matched_ref_stats]))
+            else:
+                _all_refs = list(_ref_stats.values())
+                if _all_refs:
+                    _ref_foul_rate = float(np.mean([v["foul_rate"] for v in _all_refs]))
+                    _ref_home_bias = float(np.mean([v["home_win_pct"] for v in _all_refs]))
+                    _ref_pace_tendency = float(np.mean([v["pace"] for v in _all_refs]))
+                else:
+                    _ref_foul_rate, _ref_home_bias, _ref_pace_tendency = 0.0, 0.5, 100.0
 
             # Season-phase calendar features
             # NBA regular season runs roughly Oct 22 – Apr 14
@@ -1372,25 +1420,15 @@ def build_training_examples(
                         "games_remaining_approx": float(_games_remaining_approx),
                         "season_phase_numeric":   _season_phase_numeric,
                         # Referee tendencies (aggregate over all refs for this game — use league avg)
-                        # Referee features: dead until we replace the
-                        # data source. The basketball-reference scrape we
-                        # used to populate referee_stats turned out to
-                        # only have a directory page (Name / First Game /
-                        # Last Game) — no foul-rate / pace / home-bias
-                        # stats are exposed there. Even the
-                        # _precomp["referee"] table that IS populated has
-                        # all stat columns at 0.0 because of this. To get
-                        # real ref features we'd need to walk the NBA
-                        # BoxScoreSummaryV2 endpoint per game (~3000 API
-                        # calls) and aggregate per ref, then match
-                        # officials per game at training time. Logged
-                        # league-mean fallbacks here so the schema slot
-                        # stays consistent — model treats them as
-                        # constants and assigns zero importance, which
-                        # is the right behaviour given the data quality.
-                        "ref_foul_rate": float(np.mean([v["foul_rate"] for v in _precomp["referee"].values()]) if _precomp["referee"] else 0.0),
-                        "ref_home_bias": float(np.mean([v["home_win_pct"] for v in _precomp["referee"].values()]) if _precomp["referee"] else 0.5),
-                        "ref_pace_tendency": float(np.mean([v["pace"] for v in _precomp["referee"].values()]) if _precomp["referee"] else 100.0),
+                        # Referee features: per-row variance, finally.
+                        # Look up THIS game's officials from
+                        # _precomp["game_officials"] and average their
+                        # stats. If the game isn't in the lookup table
+                        # (older seasons we haven't backfilled), fall
+                        # back to league mean.
+                        "ref_foul_rate":     _ref_foul_rate,
+                        "ref_home_bias":     _ref_home_bias,
+                        "ref_pace_tendency": _ref_pace_tendency,
                         # Rolling DVP (opponent's recent defensive form)
                         "dvp_pts_delta_last5":  _dvp_pts_delta_last5,
                         "dvp_pts_delta_last10": _dvp_pts_delta_last10,

@@ -101,6 +101,25 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    # game → assigned officials. Used at training time to look up which
+    # refs worked a specific historical game so the row's ref_* features
+    # come from the AVG of THIS game's refs (real per-row variance) rather
+    # than a league-mean constant. Populated by
+    # compute_game_officials_for_season() walking BoxScoreSummaryV2.
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS game_officials (
+            game_id TEXT NOT NULL,
+            ref_name TEXT NOT NULL,
+            ref_id INTEGER,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (game_id, ref_name)
+        )
+        """
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_game_officials_game ON game_officials(game_id)"
+    )
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS team_foul_rates (
@@ -696,6 +715,220 @@ def scrape_ref_stats() -> list[dict[str, Any]]:
         return results
     except Exception:
         return []
+
+
+def compute_game_refs_for_season(
+    season: str,
+    *,
+    max_games: int | None = None,
+    sleep_between: float = 0.7,
+    progress_every: int = 50,
+    on_progress=None,
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Walk every game of ``season`` and return:
+
+      1. ``game_officials_rows``: one row per (game, ref) — the lookup
+         table the trainer uses to know who refereed a given game.
+      2. ``ref_aggregates``: dict ``ref_name -> {games, foul_rate,
+         home_win_pct, pace}``, aggregated over every game we observed.
+
+    Replaces the basketball-reference scrape (``scrape_ref_stats``)
+    which is data-source-blocked: BBR's /referees/ page is just a
+    directory of names with no stats. The NBA-API path is an order of
+    magnitude slower (~3 calls × 0.7s × 1230 games ≈ 75 min/season)
+    but it's the only source that actually has the data.
+
+    Per game we make 3 calls:
+      - BoxScoreSummaryV2 → list of officials + winner
+      - BoxScoreTraditionalV2 → team-level PF (personal fouls)
+      - BoxScoreAdvancedV3 → team-level pace
+
+    For each ref, the season aggregates use simple unweighted means.
+    Refs who worked < 3 games in the observed window get filtered out
+    of the aggregates dict — too few samples to be useful, and they'd
+    pull league averages around. The game_officials rows are kept for
+    them anyway so a future re-run with more seasons can re-aggregate.
+    """
+    from nba_api.stats.endpoints import (
+        leaguegamefinder, boxscoresummaryv2,
+        boxscoretraditionalv2, boxscoreadvancedv3,
+    )
+    import time as _time
+
+    try:
+        gf = leaguegamefinder.LeagueGameFinder(
+            season_nullable=season,
+            season_type_nullable='Regular Season',
+            league_id_nullable='00',
+        ).get_data_frames()[0]
+        _time.sleep(sleep_between)
+    except Exception as e:
+        print(f"compute_game_refs: game finder failed for {season}: {e}")
+        return [], {}
+
+    # Process oldest-first. The NBA-API's BoxScoreSummaryV2 endpoint has
+    # a hard data-availability cutoff at 4/10/2025 — games AFTER that
+    # date return empty officials frames. By starting from the start of
+    # the season we hit the populated games first; if max_games is set
+    # for a smoke test we get useful data instead of all-empty rows.
+    if 'GAME_DATE' in gf.columns:
+        gf = gf.sort_values('GAME_DATE', ascending=True)
+    distinct_games = list(gf['GAME_ID'].drop_duplicates())
+    if max_games:
+        distinct_games = distinct_games[:max_games]
+    print(f"compute_game_refs: {len(distinct_games)} games for {season}")
+
+    game_rows: list[dict[str, Any]] = []
+    # ref_name -> running totals
+    accum: dict[str, dict[str, Any]] = {}
+
+    def _get_summary_officials_winner(gid: str):
+        frames = boxscoresummaryv2.BoxScoreSummaryV2(game_id=gid).get_data_frames()
+        officials = frames[2]
+        line_score = frames[5] if len(frames) > 5 else None
+        if officials.empty:
+            return [], None  # data not yet available for this game
+        refs = []
+        for _, row in officials.iterrows():
+            first = str(row.get("FIRST_NAME", "") or "").strip()
+            last = str(row.get("LAST_NAME", "") or "").strip()
+            name = f"{first} {last}".strip()
+            ref_id = row.get("OFFICIAL_ID")
+            try:
+                ref_id = int(ref_id) if ref_id is not None else None
+            except (TypeError, ValueError):
+                ref_id = None
+            if name:
+                refs.append({"name": name, "id": ref_id})
+        # Winner = team with higher PTS in line_score
+        winner_abbrev = None
+        is_home_winner = None
+        if line_score is not None and not line_score.empty and "PTS" in line_score.columns:
+            try:
+                # frame 5 has 2 rows ordered (away, home) by GAME_SEQUENCE
+                pts_rows = line_score.dropna(subset=["PTS"]).sort_values("PTS", ascending=False)
+                if len(pts_rows) >= 1:
+                    winner_abbrev = str(pts_rows.iloc[0].get("TEAM_ABBREVIATION", "") or "")
+                # Home is the second row of frame 5 (after away, by NBA's convention)
+                if len(line_score) == 2:
+                    home_pts = float(line_score.iloc[1].get("PTS") or 0)
+                    away_pts = float(line_score.iloc[0].get("PTS") or 0)
+                    is_home_winner = home_pts > away_pts
+            except Exception:
+                pass
+        return refs, is_home_winner
+
+    def _get_team_fouls(gid: str) -> float | None:
+        frames = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=gid).get_data_frames()
+        team_totals = frames[1] if len(frames) > 1 else None
+        if team_totals is None or team_totals.empty or "PF" not in team_totals.columns:
+            return None
+        try:
+            return float(team_totals["PF"].sum())
+        except Exception:
+            return None
+
+    def _get_pace(gid: str) -> float | None:
+        try:
+            frames = boxscoreadvancedv3.BoxScoreAdvancedV3(game_id=gid).get_data_frames()
+        except Exception:
+            return None
+        # Frame 1 is the team-level totals row with `pace`
+        if len(frames) < 2 or frames[1].empty or "pace" not in frames[1].columns:
+            return None
+        try:
+            return float(frames[1]["pace"].mean())
+        except Exception:
+            return None
+
+    now = int(_time.time())
+    completed = 0
+    for gid in distinct_games:
+        try:
+            refs, is_home_winner = _get_summary_officials_winner(gid)
+            _time.sleep(sleep_between)
+            if not refs:
+                continue  # data unavailable for this game
+            total_fouls = _get_team_fouls(gid)
+            _time.sleep(sleep_between)
+            pace = _get_pace(gid)
+            _time.sleep(sleep_between)
+
+            for ref in refs:
+                game_rows.append({
+                    "game_id": str(gid),
+                    "ref_name": ref["name"],
+                    "ref_id": ref["id"],
+                    "updated_at": now,
+                })
+                bucket = accum.setdefault(ref["name"], {
+                    "games": 0,
+                    "fouls_sum": 0.0, "fouls_n": 0,
+                    "home_wins": 0, "wl_n": 0,
+                    "pace_sum": 0.0, "pace_n": 0,
+                })
+                bucket["games"] += 1
+                if total_fouls is not None:
+                    bucket["fouls_sum"] += total_fouls
+                    bucket["fouls_n"] += 1
+                if is_home_winner is not None:
+                    bucket["wl_n"] += 1
+                    if is_home_winner:
+                        bucket["home_wins"] += 1
+                if pace is not None:
+                    bucket["pace_sum"] += pace
+                    bucket["pace_n"] += 1
+        except Exception as e:
+            print(f"compute_game_refs: game {gid} failed: {e}")
+            _time.sleep(sleep_between)
+        finally:
+            completed += 1
+            if on_progress and completed % progress_every == 0:
+                on_progress(completed, len(distinct_games))
+            elif completed % progress_every == 0:
+                print(f"compute_game_refs: {completed}/{len(distinct_games)} games done")
+
+    # Roll up aggregates. Refs with < 3 games go in game_rows but get
+    # filtered out of the per-ref stats — too noisy to be useful.
+    ref_aggregates: dict[str, dict[str, Any]] = {}
+    for name, b in accum.items():
+        if b["games"] < 3:
+            continue
+        ref_aggregates[name] = {
+            "ref_name": name,
+            "games": b["games"],
+            "foul_rate": float(b["fouls_sum"] / b["fouls_n"]) if b["fouls_n"] else 0.0,
+            "home_win_pct": float(b["home_wins"] / b["wl_n"]) if b["wl_n"] else 0.5,
+            "pace": float(b["pace_sum"] / b["pace_n"]) if b["pace_n"] else 100.0,
+        }
+
+    print(f"compute_game_refs: {len(game_rows)} ref-game rows, "
+          f"{len(ref_aggregates)} aggregated refs (≥3 games each)")
+    return game_rows, ref_aggregates
+
+
+def upsert_game_officials(
+    conn: sqlite3.Connection,
+    rows: list[dict[str, Any]],
+) -> None:
+    """Idempotent upsert of (game_id, ref_name, ref_id) rows."""
+    if not rows:
+        return
+    cur = conn.cursor()
+    for r in rows:
+        try:
+            cur.execute(
+                """
+                INSERT OR REPLACE INTO game_officials
+                  (game_id, ref_name, ref_id, updated_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (str(r["game_id"]), str(r["ref_name"]),
+                 r.get("ref_id"), int(r.get("updated_at") or 0)),
+            )
+        except Exception as e:
+            print(f"upsert_game_officials: row failed: {e}")
+    conn.commit()
 
 
 def compute_team_foul_rates(season: str) -> list[dict[str, Any]]:
