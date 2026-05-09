@@ -120,6 +120,46 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         "CREATE INDEX IF NOT EXISTS idx_game_officials_game ON game_officials(game_id)"
     )
+    # Per-game team stats — used to derive rolling opp_pace / def_rating
+    # features at training time. Populated by the same NBA-API box-score
+    # walk that fills game_officials, so backfilling both is one pass.
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS game_team_stats (
+            game_id TEXT NOT NULL,
+            team_id INTEGER NOT NULL,
+            game_date TEXT,
+            pace REAL,
+            off_rating REAL,
+            def_rating REAL,
+            pts REAL,
+            opp_pts REAL,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (game_id, team_id)
+        )
+        """
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_game_team_stats_team_date ON game_team_stats(team_id, game_date)"
+    )
+
+    # Per-game national-TV broadcaster from NBA's daily Scoreboard.
+    # Raw value is something like "ABC/ESPN/Disney+" or NULL for
+    # non-nationally-televised games. We store the raw string so
+    # downstream code can do feature engineering (presence flag,
+    # specific-network flag, etc.) without re-scraping.
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS game_broadcasts (
+            game_id TEXT PRIMARY KEY,
+            game_date TEXT,
+            natl_tv TEXT,
+            home_tv TEXT,
+            away_tv TEXT,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS team_foul_rates (
@@ -411,6 +451,24 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         """
     )
     conn.commit()
+
+    # Idempotent per-season migration of per-player snapshot tables.
+    # First run promotes the schema; subsequent runs are no-ops.
+    # Existing rows get tagged with current_season; older seasons are
+    # filled in by re-running the per-season compute jobs.
+    try:
+        cur_season = compute_current_season()
+        for tbl in PER_PLAYER_TABLES_TO_MIGRATE:
+            try:
+                _migrate_player_table_to_per_season(conn, tbl, cur_season)
+            except Exception as e:
+                # Migration is best-effort — if one table can't be
+                # migrated (e.g. permission, in-use), log and continue.
+                # The table just keeps the per-player schema and won't
+                # benefit from per-season variance until manually fixed.
+                print(f"[migrate] {tbl} skipped: {e}")
+    except Exception as e:
+        print(f"[migrate] could not determine current season: {e}")
 
 
 def _team_id_from_abbrev(abbrev: str) -> int | None:
@@ -724,13 +782,17 @@ def compute_game_refs_for_season(
     sleep_between: float = 0.7,
     progress_every: int = 50,
     on_progress=None,
-) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]], list[dict[str, Any]]]:
     """Walk every game of ``season`` and return:
 
       1. ``game_officials_rows``: one row per (game, ref) — the lookup
          table the trainer uses to know who refereed a given game.
       2. ``ref_aggregates``: dict ``ref_name -> {games, foul_rate,
          home_win_pct, pace}``, aggregated over every game we observed.
+      3. ``game_team_stats_rows``: one row per (game, team) with pace,
+         off_rating, def_rating, pts, opp_pts. Used downstream to
+         compute rolling team stats (opp_pace_last5, etc.) per training
+         row. Costs nothing extra — same 3 box-score calls per game.
 
     Replaces the basketball-reference scrape (``scrape_ref_stats``)
     which is data-source-blocked: BBR's /referees/ page is just a
@@ -764,7 +826,7 @@ def compute_game_refs_for_season(
         _time.sleep(sleep_between)
     except Exception as e:
         print(f"compute_game_refs: game finder failed for {season}: {e}")
-        return [], {}
+        return [], {}, []
 
     # Process oldest-first. The NBA-API's BoxScoreSummaryV2 endpoint has
     # a hard data-availability cutoff at 4/10/2025 — games AFTER that
@@ -787,7 +849,7 @@ def compute_game_refs_for_season(
         officials = frames[2]
         line_score = frames[5] if len(frames) > 5 else None
         if officials.empty:
-            return [], None  # data not yet available for this game
+            return [], None, None, []  # data not yet available
         refs = []
         for _, row in officials.iterrows():
             first = str(row.get("FIRST_NAME", "") or "").strip()
@@ -800,23 +862,29 @@ def compute_game_refs_for_season(
                 ref_id = None
             if name:
                 refs.append({"name": name, "id": ref_id})
-        # Winner = team with higher PTS in line_score
-        winner_abbrev = None
+        # Winner = team with higher PTS in line_score; also extract per-
+        # team (team_id, pts) so the caller can build game_team_stats
+        # rows with opp_pts. game_date comes from GAME_DATE_EST.
         is_home_winner = None
+        team_ls = []  # [(team_id, pts), ...]
+        game_date = None
         if line_score is not None and not line_score.empty and "PTS" in line_score.columns:
             try:
-                # frame 5 has 2 rows ordered (away, home) by GAME_SEQUENCE
-                pts_rows = line_score.dropna(subset=["PTS"]).sort_values("PTS", ascending=False)
-                if len(pts_rows) >= 1:
-                    winner_abbrev = str(pts_rows.iloc[0].get("TEAM_ABBREVIATION", "") or "")
-                # Home is the second row of frame 5 (after away, by NBA's convention)
+                if "GAME_DATE_EST" in line_score.columns:
+                    game_date = str(line_score.iloc[0].get("GAME_DATE_EST", "") or "")[:10] or None
+                # frame 5 ordering is (away, home) by GAME_SEQUENCE
                 if len(line_score) == 2:
                     home_pts = float(line_score.iloc[1].get("PTS") or 0)
                     away_pts = float(line_score.iloc[0].get("PTS") or 0)
                     is_home_winner = home_pts > away_pts
+                for _, lrow in line_score.iterrows():
+                    tid = lrow.get("TEAM_ID")
+                    pts = lrow.get("PTS")
+                    if tid is not None and pts is not None and not pd.isna(pts):
+                        team_ls.append((int(tid), float(pts)))
             except Exception:
                 pass
-        return refs, is_home_winner
+        return refs, is_home_winner, game_date, team_ls
 
     def _get_team_fouls(gid: str) -> float | None:
         frames = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=gid).get_data_frames()
@@ -841,18 +909,69 @@ def compute_game_refs_for_season(
         except Exception:
             return None
 
+    def _get_team_advanced(gid: str) -> dict[int, dict]:
+        """Return {team_id: {pace, off_rating, def_rating}} from frame 1 of
+        BoxScoreAdvancedV3 — the team-level totals row(s)."""
+        try:
+            frames = boxscoreadvancedv3.BoxScoreAdvancedV3(game_id=gid).get_data_frames()
+        except Exception:
+            return {}
+        if len(frames) < 2 or frames[1].empty:
+            return {}
+        out: dict[int, dict] = {}
+        f = frames[1]
+        for _, r in f.iterrows():
+            tid = r.get("teamId")
+            if tid is None:
+                continue
+            try:
+                out[int(tid)] = {
+                    "pace": float(r["pace"]) if "pace" in r and pd.notna(r.get("pace")) else None,
+                    "off_rating": float(r["offensiveRating"]) if "offensiveRating" in r and pd.notna(r.get("offensiveRating")) else None,
+                    "def_rating": float(r["defensiveRating"]) if "defensiveRating" in r and pd.notna(r.get("defensiveRating")) else None,
+                }
+            except Exception:
+                continue
+        return out
+
     now = int(_time.time())
     completed = 0
+    game_team_stats_rows: list[dict[str, Any]] = []
     for gid in distinct_games:
         try:
-            refs, is_home_winner = _get_summary_officials_winner(gid)
+            refs, is_home_winner, game_date, team_ls = _get_summary_officials_winner(gid)
             _time.sleep(sleep_between)
             if not refs:
                 continue  # data unavailable for this game
             total_fouls = _get_team_fouls(gid)
             _time.sleep(sleep_between)
-            pace = _get_pace(gid)
+            team_adv = _get_team_advanced(gid)
             _time.sleep(sleep_between)
+
+            # Per-team game stats: pace + off/def rating + pts + opp_pts
+            # (the latter two from line_score). We have 2 teams per game;
+            # opp_pts for team A is team B's pts.
+            for tid, pts in team_ls:
+                opp_pts = next((p for tid2, p in team_ls if tid2 != tid), None)
+                adv = team_adv.get(tid, {})
+                game_team_stats_rows.append({
+                    "game_id": str(gid),
+                    "team_id": tid,
+                    "game_date": game_date,
+                    "pace":       adv.get("pace"),
+                    "off_rating": adv.get("off_rating"),
+                    "def_rating": adv.get("def_rating"),
+                    "pts":        pts,
+                    "opp_pts":    opp_pts,
+                    "updated_at": now,
+                })
+
+            # League-level pace for the per-ref aggregator (avg of two team paces)
+            pace_for_ref = None
+            if team_adv:
+                paces = [v["pace"] for v in team_adv.values() if v.get("pace") is not None]
+                if paces:
+                    pace_for_ref = sum(paces) / len(paces)
 
             for ref in refs:
                 game_rows.append({
@@ -875,8 +994,8 @@ def compute_game_refs_for_season(
                     bucket["wl_n"] += 1
                     if is_home_winner:
                         bucket["home_wins"] += 1
-                if pace is not None:
-                    bucket["pace_sum"] += pace
+                if pace_for_ref is not None:
+                    bucket["pace_sum"] += pace_for_ref
                     bucket["pace_n"] += 1
         except Exception as e:
             print(f"compute_game_refs: game {gid} failed: {e}")
@@ -903,8 +1022,230 @@ def compute_game_refs_for_season(
         }
 
     print(f"compute_game_refs: {len(game_rows)} ref-game rows, "
-          f"{len(ref_aggregates)} aggregated refs (≥3 games each)")
-    return game_rows, ref_aggregates
+          f"{len(ref_aggregates)} aggregated refs (≥3 games each), "
+          f"{len(game_team_stats_rows)} game-team-stats rows")
+    return game_rows, ref_aggregates, game_team_stats_rows
+
+
+def _migrate_player_table_to_per_season(
+    conn: sqlite3.Connection,
+    table_name: str,
+    current_season: str,
+) -> None:
+    """Promote a per-player snapshot table to per-(player, season).
+
+    Many of our trained features come from tables like
+    ``player_advanced_stats`` that store ONE row per player. When we
+    train on multi-season data, every season's training rows for the
+    same player get the same snapshot value → zero within-player
+    variance → zero XGBoost importance.
+
+    This helper adds a ``season`` column and switches the primary key
+    to ``(player_id, season)``. SQLite doesn't support changing a
+    primary key in place, so we rebuild via rename → create → copy →
+    drop. Idempotent: if ``season`` already exists, no-op.
+
+    Existing rows get tagged with ``current_season`` since that's where
+    the data came from. The caller can then re-run the per-season
+    compute jobs for older seasons to fill in historical rows.
+    """
+    cur = conn.cursor()
+    info = cur.execute(f"PRAGMA table_info({table_name})").fetchall()
+    if not info:
+        return  # table doesn't exist yet — nothing to migrate
+    cols = [row[1] for row in info]
+    if 'season' in cols:
+        return  # already migrated
+
+    # Reconstruct full column DDL so the new table matches the old
+    # exactly (preserves types, NOT NULL flags, defaults).
+    col_defs = []
+    col_names = []
+    for cid, name, typ, notnull, dflt, pk in info:
+        clause = f"{name} {typ}"
+        if notnull:
+            clause += " NOT NULL"
+        if dflt is not None:
+            clause += f" DEFAULT {dflt}"
+        col_defs.append(clause)
+        col_names.append(name)
+
+    # Build the new schema with composite PK
+    non_pk_defs = [c for c, n in zip(col_defs, col_names) if n != 'player_id']
+    new_schema = f"""
+        CREATE TABLE {table_name}_new (
+            player_id INTEGER NOT NULL,
+            season TEXT NOT NULL,
+            {", ".join(non_pk_defs)},
+            PRIMARY KEY (player_id, season)
+        )
+    """
+    transfer_cols = ", ".join(c for c in col_names if c != 'player_id')
+    cur.execute(new_schema)
+    cur.execute(
+        f"INSERT INTO {table_name}_new (player_id, season, {transfer_cols}) "
+        f"SELECT player_id, ?, {transfer_cols} FROM {table_name}",
+        (current_season,),
+    )
+    cur.execute(f"DROP TABLE {table_name}")
+    cur.execute(f"ALTER TABLE {table_name}_new RENAME TO {table_name}")
+    cur.execute(
+        f"CREATE INDEX IF NOT EXISTS idx_{table_name}_pid ON {table_name}(player_id)"
+    )
+    conn.commit()
+    print(f"[migrate] {table_name}: tagged existing rows with season={current_season}")
+
+
+# Tables that store one snapshot per player and would benefit from
+# per-season storage. Listed here so a single migration call can
+# promote all of them in a consistent way.
+PER_PLAYER_TABLES_TO_MIGRATE = (
+    "player_advanced_stats",
+    "player_clutch_stats",
+    "player_hustle_stats",
+    "player_shot_profile",
+    "player_play_types",
+    "player_on_off",
+    "player_shot_zones",
+    "player_quarter_splits",
+    "player_tracking_stats",
+    "player_scoring_breakdown",
+    "player_yoy_stats",
+)
+
+
+def compute_game_broadcasts_for_dates(
+    dates: list[str],
+    *,
+    sleep_between: float = 0.7,
+) -> list[dict[str, Any]]:
+    """Walk NBA scoreboard day-by-day to collect national-TV broadcaster
+    info per game.
+
+    NBA-API's ScoreboardV2 (legacy) and ScoreboardV3 expose
+    NATL_TV_BROADCASTER_ABBREVIATION on each game in frame 0. Most days
+    return None for that field; nationally-televised games (ESPN, ABC,
+    TNT, NBA TV slots) get a populated string.
+
+    Walking by date hits the same endpoint once per day, so a full
+    season costs ~180 calls × 0.7s ≈ 2 min per season. Dates that
+    return no games (off-days) pass cleanly.
+
+    ``dates`` should be ISO YYYY-MM-DD strings.
+    """
+    from nba_api.stats.endpoints import scoreboardv2
+    import time as _time
+
+    rows: list[dict[str, Any]] = []
+    now = int(_time.time())
+    for d in dates:
+        try:
+            frames = scoreboardv2.ScoreboardV2(game_date=d).get_data_frames()
+            _time.sleep(sleep_between)
+        except Exception as e:
+            print(f"compute_game_broadcasts: {d} failed: {e}")
+            continue
+        if not frames or frames[0].empty:
+            continue
+        sb = frames[0]
+
+        def _str_or_none(v):
+            """Treat pandas NaN, empty string, and the literal 'nan'
+            as missing. The default ``str(nan or "") or None`` pattern
+            doesn't work because pandas nan is truthy and str(nan) is
+            the literal 'nan' string."""
+            try:
+                import math as _m
+                if v is None or (isinstance(v, float) and _m.isnan(v)):
+                    return None
+            except Exception:
+                pass
+            s = str(v).strip()
+            if not s or s.lower() == 'nan':
+                return None
+            return s
+
+        for _, r in sb.iterrows():
+            gid = r.get("GAME_ID")
+            if not gid:
+                continue
+            rows.append({
+                "game_id": str(gid),
+                "game_date": d,
+                "natl_tv": _str_or_none(r.get("NATL_TV_BROADCASTER_ABBREVIATION")),
+                "home_tv": _str_or_none(r.get("HOME_TV_BROADCASTER_ABBREVIATION")),
+                "away_tv": _str_or_none(r.get("AWAY_TV_BROADCASTER_ABBREVIATION")),
+                "updated_at": now,
+            })
+    print(f"compute_game_broadcasts: {len(rows)} game-broadcast rows over "
+          f"{len(dates)} dates")
+    return rows
+
+
+def upsert_game_team_stats(
+    conn: sqlite3.Connection,
+    rows: list[dict[str, Any]],
+) -> None:
+    """Persist per-(game, team) pace / off_rating / def_rating / pts.
+    The trainer reads from here to derive rolling opp stats per game."""
+    if not rows:
+        return
+    cur = conn.cursor()
+    for r in rows:
+        try:
+            cur.execute(
+                """
+                INSERT OR REPLACE INTO game_team_stats
+                  (game_id, team_id, game_date, pace, off_rating, def_rating,
+                   pts, opp_pts, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (str(r["game_id"]), int(r["team_id"]), r.get("game_date"),
+                 _ndf(r.get("pace")), _ndf(r.get("off_rating")),
+                 _ndf(r.get("def_rating")),
+                 _ndf(r.get("pts")), _ndf(r.get("opp_pts")),
+                 int(r.get("updated_at") or 0)),
+            )
+        except Exception as e:
+            print(f"upsert_game_team_stats: row failed: {e}")
+    conn.commit()
+
+
+def _ndf(v):
+    """Cast to float, treat NaN/None as NULL via returning None."""
+    try:
+        if v is None:
+            return None
+        f = float(v)
+        if f != f:  # NaN check
+            return None
+        return f
+    except (TypeError, ValueError):
+        return None
+
+
+def upsert_game_broadcasts(
+    conn: sqlite3.Connection,
+    rows: list[dict[str, Any]],
+) -> None:
+    if not rows:
+        return
+    cur = conn.cursor()
+    for r in rows:
+        try:
+            cur.execute(
+                """
+                INSERT OR REPLACE INTO game_broadcasts
+                  (game_id, game_date, natl_tv, home_tv, away_tv, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (str(r["game_id"]), r.get("game_date"),
+                 r.get("natl_tv"), r.get("home_tv"), r.get("away_tv"),
+                 int(r.get("updated_at") or 0)),
+            )
+        except Exception as e:
+            print(f"upsert_game_broadcasts: row failed: {e}")
+    conn.commit()
 
 
 def upsert_game_officials(
@@ -1953,20 +2294,34 @@ def compute_synergy_team_defense(season: str) -> list[dict[str, Any]]:
 
 # ---- Upsert functions for new tables ----
 
-def upsert_advanced_player_stats(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_advanced_player_stats(
+    conn: sqlite3.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist advanced stats per (player, season).
+
+    ``season`` defaults to the current season for backward compatibility
+    with callers that haven't been updated yet. Multi-season backfill
+    callers MUST pass ``season=`` explicitly so each row is tagged with
+    the correct year — otherwise multi-season runs would just keep
+    overwriting the same (player_id, current_season) row.
+    """
+    eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
             INSERT OR REPLACE INTO player_advanced_stats
-              (player_id, usg_pct, ts_pct, efg_pct, ast_pct,
+              (player_id, season, usg_pct, ts_pct, efg_pct, ast_pct,
                oreb_pct, dreb_pct, reb_pct, pie,
                off_rating, def_rating, pace, net_rating,
                age, height_inches, weight, years_experience, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                int(r['player_id']),
+                int(r['player_id']), eff_season,
                 float(r.get('usg_pct', 0.18)), float(r.get('ts_pct', 0.55)),
                 float(r.get('efg_pct', 0.50)), float(r.get('ast_pct', 0.15)),
                 float(r.get('oreb_pct', 0.05)), float(r.get('dreb_pct', 0.15)),

@@ -40,6 +40,15 @@ class PrecomputedStore:
         # train_models.py to compute per-game ref features (avg of THIS
         # game's refs' stats) instead of the league-mean fallback.
         game_officials: dict[str, list[str]] = {}
+        # game_id (str) -> {natl_tv, home_tv, away_tv}. Populated from
+        # the game_broadcasts table when present. Used to set
+        # national_tv_game per row instead of the previous hardcoded 0.
+        game_broadcasts: dict[str, dict] = {}
+        # team_id (int) -> sorted list of {game_date, pace, off_rating,
+        # def_rating, pts, opp_pts}. Used to compute rolling opp_pace
+        # / opp_def_rating per training row. Sorted ascending by date
+        # so a per-row consumer can binary-search the prior-N games.
+        game_team_stats: dict[int, list[dict]] = {}
         team_foul: dict[int, dict] = {}
         dvp_rolling: dict[tuple, dict] = {}
         team_stats: dict[int, dict] = {}
@@ -152,6 +161,47 @@ class PrecomputedStore:
             except Exception:
                 pass
 
+            # --- per-game national-TV broadcasts ---
+            try:
+                cur.execute(
+                    "SELECT game_id, natl_tv, home_tv, away_tv FROM game_broadcasts"
+                )
+                for (gid, natl, home_tv, away_tv) in cur.fetchall():
+                    if gid is None:
+                        continue
+                    game_broadcasts[str(gid)] = {
+                        "natl_tv": natl, "home_tv": home_tv, "away_tv": away_tv,
+                    }
+            except Exception:
+                pass
+
+            # --- per-game team stats (for rolling opp features) ---
+            # Sorted by date ascending per team so the trainer can take
+            # a list slice of the past N games without re-sorting.
+            try:
+                cur.execute(
+                    """
+                    SELECT team_id, game_date, pace, off_rating, def_rating,
+                           pts, opp_pts
+                    FROM game_team_stats
+                    WHERE game_date IS NOT NULL
+                    ORDER BY team_id, game_date ASC
+                    """
+                )
+                for (tid, gdate, pace, off_r, def_r, pts, opp_pts) in cur.fetchall():
+                    if tid is None or gdate is None:
+                        continue
+                    game_team_stats.setdefault(int(tid), []).append({
+                        "game_date": str(gdate),
+                        "pace": float(pace) if pace is not None else None,
+                        "off_rating": float(off_r) if off_r is not None else None,
+                        "def_rating": float(def_r) if def_r is not None else None,
+                        "pts": float(pts) if pts is not None else None,
+                        "opp_pts": float(opp_pts) if opp_pts is not None else None,
+                    })
+            except Exception:
+                pass
+
             # --- team foul rates ---
             try:
                 cur.execute(
@@ -244,9 +294,19 @@ class PrecomputedStore:
         # ---- New enriched tables ----
         player_advanced: dict[int, dict] = {}
         try:
+            # player_advanced_stats was promoted to (player_id, season)
+            # PK so multi-season training can look up per-season values
+            # instead of a single snapshot. We probe for the season
+            # column and SELECT it conditionally so the loader works on
+            # both the new and the legacy schema.
+            _adv_cols = {row[1] for row in cur.execute(
+                "PRAGMA table_info(player_advanced_stats)"
+            ).fetchall()}
+            _has_season = 'season' in _adv_cols
             cur.execute(
-                """
-                SELECT player_id, usg_pct, ts_pct, efg_pct, ast_pct,
+                f"""
+                SELECT player_id, {"season, " if _has_season else ""}
+                       usg_pct, ts_pct, efg_pct, ast_pct,
                        oreb_pct, dreb_pct, reb_pct, pie,
                        off_rating, def_rating, pace, net_rating,
                        age, height_inches, weight, years_experience
@@ -254,9 +314,14 @@ class PrecomputedStore:
                 """
             )
             for row in cur.fetchall():
-                (pid, usg, ts, efg, ast_p, oreb, dreb, reb, pie,
-                 offr, defr, pace, net, age, ht, wt, yrs) = row
-                player_advanced[int(pid)] = {
+                if _has_season:
+                    (pid, season_str, usg, ts, efg, ast_p, oreb, dreb, reb, pie,
+                     offr, defr, pace, net, age, ht, wt, yrs) = row
+                else:
+                    (pid, usg, ts, efg, ast_p, oreb, dreb, reb, pie,
+                     offr, defr, pace, net, age, ht, wt, yrs) = row
+                    season_str = None
+                stat_dict = {
                     'usg_pct_official':    float(usg)  if usg  is not None else 0.18,
                     'ts_pct_official':     float(ts)   if ts   is not None else 0.55,
                     'efg_pct_official':    float(efg)  if efg  is not None else 0.50,
@@ -274,6 +339,18 @@ class PrecomputedStore:
                     'player_weight':       float(wt)   if wt   is not None else 220.0,
                     'years_experience':    float(yrs)  if yrs  is not None else 5.0,
                 }
+                # Index by both (player_id, season) AND player_id alone.
+                # The first lets training rows look up the season-
+                # specific snapshot; the second is the backward-compat
+                # fallback when a row's season hasn't been backfilled
+                # yet. A repeated player_id wins by most-recent season
+                # since SELECT order isn't guaranteed without ORDER BY,
+                # but in practice the multi-season backfill writes
+                # newest last so the fallback ends up on the most
+                # recent row (good default).
+                if season_str:
+                    player_advanced[(int(pid), season_str)] = stat_dict
+                player_advanced[int(pid)] = stat_dict
         except Exception:
             pass
 
@@ -703,6 +780,8 @@ class PrecomputedStore:
             'refs': refs,
             'refs_meta': refs_meta,
             'game_officials': game_officials,
+            'game_broadcasts': game_broadcasts,
+            'game_team_stats': game_team_stats,
             'team_foul': team_foul,
             'dvp_rolling': dvp_rolling,
             'team_stats': team_stats,

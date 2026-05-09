@@ -29,21 +29,39 @@ from __future__ import annotations
 #     pace-derived proxies.
 #
 # What's still dead (and why):
-#   - 11 odds features (opening_line / sharp_action_score / etc.) —
-#     gated on B3 CLV pipeline accumulating polled closing lines.
-#     Will fill themselves in 4-8 weeks of polling.
-#   - ~51 player-level snapshot features (shot_zones, tracking,
-#     advanced, play_types). Each has ONE current-season value per
-#     player; multi-season training rows for the same player all see
-#     that one value → no within-player variance. Fixing requires
-#     storing seasonal snapshots (precompute_jobs needs to be re-run
-#     per season and tagged with season_id). Substantial precompute
-#     rework; not blocking accuracy as much as it sounds because trees
-#     can still split across players.
-#   - opp_pace_last5 / opp_def_rating_last10 — would need a per-game
-#     opponent stats precompute (rolling box-score aggregator). Not
-#     trivial.
-#   - national_tv_game — no TV-schedule data source wired up.
+#   - 11 historical player-prop odds features (opening_line / etc.) —
+#     gated on either (a) B3 CLV pipeline accumulating polled closing
+#     lines (4-8 weeks of forward data) or (b) paid Odds API historical
+#     endpoint. Free historical sources expose game-level odds (spread,
+#     total, moneyline) but not per-player props. Documented blocker.
+#
+# Redundancy candidates (ZERO importance + a non-zero alternative
+# already covers the same signal). Schema cleanup — DROP THESE on the
+# next retrain after testing the smaller schema works:
+#   paint_fga_pct        ⇒ paint_fga_per_game / paint_attempts_per_game
+#   rim_fga_pct          ⇒ rim_fga_per_game (imp=0.002)
+#   midrange_fga_pct     ⇒ mid_range_fga_per_game
+#   corner3_fga_pct      ⇒ corner_3_pct
+#   above_break3_fga_pct ⇒ above_break_3_pct
+#   above_break_three_pct ⇒ above_break3_fg_pct
+#   corner_three_pct     ⇒ corner3_fg_pct
+#   is_back_to_back      ⇒ rest_days (imp=0.007)
+#   days_since_last_game ⇒ rest_days
+#   opponent_back_to_back ⇒ days_rest_opponent
+#   playoff_home, playoff_away ⇒ is_playoff (imp=0.011) + is_home
+#   opp_l10_wins         ⇒ opp_win_rate_last10 (imp=0.002)
+#   opp_series_wins_in   ⇒ team_series_wins_in (imp=0.004)
+#   on_court_plus_minus  ⇒ plus_minus_avg (imp=0.003)
+#   net_rating           ⇒ net_rating_player (imp=0.003)
+#   off_court_net_rating ⇒ off_court_plus_minus (imp=0.003)
+#   paint_attempts_per_game ⇒ paint_fga_per_game
+#   paint_fg_pct         ⇒ rim_fg_pct
+#   dvp_pts_delta_last5  ⇒ dvp_pts_delta (imp=0.006)
+#   performance_when_tied ⇒ season_avg (literally equals it)
+#   performance_in_overtime ⇒ season_avg (same)
+# Pruning is reversible but breaks existing joblibs (feature_names_in_
+# mismatch). Recommended order: retrain, then drop these features in a
+# follow-up commit, then retrain again.
 # ---------------------------------------------------------------------------
 
 import argparse
@@ -208,10 +226,36 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
-    def _load_player_table(table: str) -> dict[int, dict]:
+    def _load_player_table(table: str) -> dict:
+        """Load a per-player precompute table.
+
+        After the per-season migration (added 2026-05-09 to all 11
+        player tables) these tables can have multiple rows per
+        player_id keyed by (player_id, season). We populate BOTH index
+        forms: the (player_id, season) tuple key for season-aware
+        lookups, and the bare player_id key as the most-recent
+        backward-compatible fallback. Rows without a season column fall
+        back to the bare player_id key only.
+        """
         try:
             c.execute(f"SELECT * FROM {table}")
-            return {int(row["player_id"]): dict(row) for row in c.fetchall()}
+            out: dict = {}
+            cols = {row[1] for row in c.execute(
+                f"PRAGMA table_info({table})"
+            ).fetchall()}
+            has_season = "season" in cols
+            c.execute(f"SELECT * FROM {table}")
+            for row in c.fetchall():
+                d = dict(row)
+                pid = int(d["player_id"])
+                if has_season and d.get("season"):
+                    out[(pid, str(d["season"]))] = d
+                # Backward-compat single-key lookup; later rows overwrite
+                # so the most-recently-inserted row wins (typically the
+                # current season since multi-season backfills write
+                # newest last).
+                out[pid] = d
+            return out
         except Exception:
             return {}
 
@@ -272,6 +316,65 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
         except Exception:
             return {}
 
+    def _load_game_broadcasts() -> dict[str, dict]:
+        """game_id (str) -> {natl_tv, home_tv, away_tv}. Empty when the
+        game_broadcasts table doesn't exist or hasn't been backfilled —
+        national_tv_game falls back to 0.
+        """
+        try:
+            c.execute("SELECT game_id, natl_tv, home_tv, away_tv FROM game_broadcasts")
+            out: dict[str, dict] = {}
+            for row in c.fetchall():
+                gid = row["game_id"]
+                if gid is None:
+                    continue
+                out[str(gid)] = {
+                    "natl_tv": row["natl_tv"],
+                    "home_tv": row["home_tv"],
+                    "away_tv": row["away_tv"],
+                }
+            return out
+        except Exception:
+            return {}
+
+    def _load_game_team_stats() -> dict:
+        """team_id (int) -> sorted list of per-game team stats dicts.
+
+        Each entry has keys game_date / pace / off_rating / def_rating /
+        pts / opp_pts. The list is sorted ascending by game_date so the
+        trainer can compute rolling features over the past N games
+        before the prediction date with a simple list slice.
+
+        Empty when game_team_stats hasn't been backfilled — opp_pace_last5
+        / opp_def_rating_last10 fall back to season-snapshot values.
+        """
+        try:
+            c.execute(
+                """
+                SELECT team_id, game_date, pace, off_rating, def_rating,
+                       pts, opp_pts
+                FROM game_team_stats
+                WHERE game_date IS NOT NULL
+                ORDER BY team_id, game_date ASC
+                """
+            )
+            out: dict = {}
+            for row in c.fetchall():
+                tid = row["team_id"]
+                if tid is None or row["game_date"] is None:
+                    continue
+                out.setdefault(int(tid), []).append({
+                    "game_date": str(row["game_date"]),
+                    "pace": float(row["pace"]) if row["pace"] is not None else None,
+                    "off_rating": float(row["off_rating"]) if row["off_rating"] is not None else None,
+                    "def_rating": float(row["def_rating"]) if row["def_rating"] is not None else None,
+                    "pts": float(row["pts"]) if row["pts"] is not None else None,
+                    "opp_pts": float(row["opp_pts"]) if row["opp_pts"] is not None else None,
+                })
+            return out
+        except Exception:
+            return {}
+
     data: dict[str, Any] = {
         # Player tables
         "advanced":      _load_player_table("player_advanced_stats"),
@@ -300,6 +403,8 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
         "dvp_rolling":   _load_dvp_rolling(),
         "referee":       _load_referee_stats(),
         "game_officials": _load_game_officials(),
+        "game_broadcasts": _load_game_broadcasts(),
+        "game_team_stats": _load_game_team_stats(),
     }
     conn.close()
 
@@ -395,6 +500,38 @@ _RIVALRY_PAIRS = frozenset({
     ("MIL","TOR"),("TOR","MIL"),
     ("MIL","CHI"),("CHI","MIL"),
 })
+
+
+def _rolling_team_stat(
+    team_games: list[dict] | None,
+    pred_date_iso: str,
+    field: str,
+    n: int,
+    fallback: float,
+) -> float:
+    """Compute the team's mean of ``field`` over its last ``n`` games
+    strictly BEFORE ``pred_date_iso``.
+
+    ``team_games`` is the date-sorted list emitted by
+    PrecomputedStore for a given team_id. Looking up "last 5" is a
+    bisect + slice; no recomputation needed at scale.
+    Falls back to ``fallback`` when:
+      - team_games is empty or missing
+      - no games landed before pred_date_iso
+      - the field is None on every observed row
+    """
+    if not team_games:
+        return float(fallback)
+    # Binary search for the first game on/after pred_date_iso (excluded
+    # — the rolling window is the prior N).
+    import bisect
+    dates = [g["game_date"] for g in team_games]
+    idx = bisect.bisect_left(dates, pred_date_iso)
+    prior = team_games[max(0, idx - n): idx]
+    vals = [g.get(field) for g in prior if g.get(field) is not None]
+    if not vals:
+        return float(fallback)
+    return float(sum(vals) / len(vals))
 
 
 def _parse_matchup(matchup: str):
@@ -811,6 +948,17 @@ def build_training_examples(
             # player's team; for a previous away game it's the opponent.
             # Both need to be derived from the @ / vs. flag in MATCHUP.
             _arena_info = ARENA_DATA.get(int(team_id) if team_id else 0, {})
+
+            # Pre-fetch the opponent's chronological game-stats list and
+            # ISO-format the prediction date once per row, so the
+            # _rolling_team_stat helper can binary-search inside it for
+            # opp_pace_last5 / opp_def_rating_last10 without redoing the
+            # lookup on every assignment.
+            _pred_date_iso = _cur_date.strftime("%Y-%m-%d")
+            _opp_recent_games = (
+                _precomp.get("game_team_stats", {}).get(int(opp_id) if opp_id else 0)
+                or []
+            )
             try:
                 # Current-game location: player's team if home, opponent if away
                 _cur_loc_id = int(team_id) if (team_id and is_home) else (int(opp_id) if opp_id else None)
@@ -1209,10 +1357,15 @@ def build_training_examples(
                                 and (team_abbrev, opp_abbrev) in _RIVALRY_PAIRS)
                         else 0.0
                     ),
-                    # national_tv_game stays at 0 — would need a TV
-                    # schedule join (TNT/ESPN/ABC slot data) which we
-                    # don't have a source for. Documented blocker.
-                    "national_tv_game": 0,
+                    # National-TV broadcast flag, sourced from
+                    # nba_api ScoreboardV2 NATL_TV_BROADCASTER_ABBREVIATION.
+                    # 1 if any national broadcaster is listed for this
+                    # game, else 0. Falls back to 0 when game_id isn't in
+                    # game_broadcasts (older games we haven't backfilled).
+                    "national_tv_game": (
+                        1 if (_precomp.get("game_broadcasts", {}).get(_gid_str, {}) or {}).get("natl_tv")
+                        else 0
+                    ),
                     "season_phase": float(_season_phase),
                     # Best signal we have without per-game team box scores:
                     # team_key_players_out → 1+ implies primary teammate
@@ -1437,28 +1590,28 @@ def build_training_examples(
                         "rest_advantage_abs": _rest_advantage_abs,
                         "both_teams_rested": _both_rested,
                         # Tier 8: Opponent Recent Form
-                        "opp_def_rating_last5": float(_ts.get("opp_def_rating_last5", (opp_ctx or {}).get("defensive_rating", 110.0))),
-                        # opp_def_rating_last10: blend last5 (rolling)
-                        # with season baseline so the value moves toward
-                        # whichever has more weight. team_stats doesn't
-                        # have a true last10 column so this is the best
-                        # we have without a dedicated rolling team_stats
-                        # precompute. Was a single-snapshot constant.
-                        "opp_def_rating_last10": float(
-                            0.7 * float(_ts.get("opp_def_rating_last5",
-                                                (opp_ctx or {}).get("defensive_rating", 110.0)))
-                            + 0.3 * float((opp_ctx or {}).get("defensive_rating", 110.0))
+                        # Real per-row rolling opponent stats from
+                        # game_team_stats (populated by the box-score
+                        # walker, same pass that produces game_officials).
+                        # Computes the opponent's mean def_rating / pace
+                        # over their last N games strictly BEFORE the
+                        # prediction date. Falls back to the snapshot
+                        # value when game_team_stats hasn't been
+                        # backfilled for that team.
+                        "opp_def_rating_last5": _rolling_team_stat(
+                            _opp_recent_games, _pred_date_iso, "def_rating", 5,
+                            float(_ts.get("opp_def_rating_last5",
+                                          (opp_ctx or {}).get("defensive_rating", 110.0))),
+                        ),
+                        "opp_def_rating_last10": _rolling_team_stat(
+                            _opp_recent_games, _pred_date_iso, "def_rating", 10,
+                            float((opp_ctx or {}).get("defensive_rating", 110.0)),
                         ),
                         "opp_def_rating_trend": float(_dvp_pts_delta_last5),
-                        # opp_pace_last5: stays at season-snapshot pace
-                        # because we don't have a true rolling-pace
-                        # precompute (dvp_rolling has pts-allowed, not
-                        # pace). Documented blocker — fixing this needs
-                        # a per-game opp pace precompute walking
-                        # historical box scores. Until then this feature
-                        # carries season-level signal only (low row-to-
-                        # row variance).
-                        "opp_pace_last5": float((opp_ctx or {}).get("pace", 100.0)),
+                        "opp_pace_last5": _rolling_team_stat(
+                            _opp_recent_games, _pred_date_iso, "pace", 5,
+                            float((opp_ctx or {}).get("pace", 100.0)),
+                        ),
                         "opp_win_rate_last10": _opp_win_rate_l10,
                         # Tier 8: Player Age & Experience (DB precomputed > CommonPlayerInfo)
                         "player_age": float(_adv.get("age", _player_age)),

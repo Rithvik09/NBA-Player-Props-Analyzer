@@ -55,6 +55,8 @@ from src.precompute_jobs import (  # noqa: E402
     compute_game_refs_for_season,
     upsert_game_officials,
     upsert_ref_stats,
+    upsert_game_team_stats,
+    ensure_tables,
 )
 
 log = logging.getLogger("backfill_game_refs")
@@ -137,19 +139,26 @@ def main() -> int:
     existing_by_name: dict[str, dict] = {r["ref_name"]: r for r in existing_rows}
     log.info("starting from %d refs already aggregated", len(existing_by_name))
 
+    # Make sure schema is current (game_team_stats etc.) before upserts.
+    ensure_tables(conn)
+
     total_game_rows = 0
+    total_team_stats_rows = 0
     overall_aggs = existing_by_name
     for season in seasons:
         t0 = time.time()
-        game_rows, season_aggs = compute_game_refs_for_season(
+        game_rows, season_aggs, team_stats_rows = compute_game_refs_for_season(
             season,
             max_games=args.max_games,
             sleep_between=args.sleep,
         )
-        log.info("[%s] %d game-ref rows, %d refs aggregated in %.0fs",
-                 season, len(game_rows), len(season_aggs), time.time() - t0)
+        log.info("[%s] %d game-ref rows, %d refs, %d game-team-stats in %.0fs",
+                 season, len(game_rows), len(season_aggs),
+                 len(team_stats_rows), time.time() - t0)
         total_game_rows += len(game_rows)
+        total_team_stats_rows += len(team_stats_rows)
         upsert_game_officials(conn, game_rows)
+        upsert_game_team_stats(conn, team_stats_rows)
         overall_aggs = _merge_ref_aggregates(overall_aggs, season_aggs)
 
     # Write merged ref aggregates back
