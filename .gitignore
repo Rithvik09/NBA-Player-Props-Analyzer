@@ -35,3 +35,9 @@ models/incremental.broken_*/
 .vscode/
 *.swp
 *.swo
+
+# local-only
+*.db-shm
+*.db-wal
+models.backup.*/
+.DS_Store
