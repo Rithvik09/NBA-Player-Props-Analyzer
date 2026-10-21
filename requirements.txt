@@ -2,6 +2,7 @@ flask
 pandas
 numpy
 scikit-learn
+xgboost
 nba_api
 joblib
 scipy

@@ -137,9 +137,15 @@ Run `python3 scripts/update_precomputed.py` to refresh. Jobs live in `src/precom
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-# Optional but recommended for training:
-pip install xgboost optuna
+# Optional, for hyperparameter search during training:
+pip install optuna
 ```
+
+`xgboost` is in `requirements.txt` because the shipped per-prop models in
+`models/` are XGBoost boosters — without it they fail to deserialize and the app
+silently falls back to the statistical baseline. Watch startup for
+`models loaded from disk`; a run of `failed to load per-prop model for <prop>`
+lines means the ML pipeline is not actually running.
 
 ### Configure (optional)
 
