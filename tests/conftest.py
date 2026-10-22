@@ -370,3 +370,16 @@ def three_win_playoff_games_df():
             "MATCHUP": "BOS vs. LAL",
         })
     return pd.DataFrame(rows)
+
+
+@pytest.fixture
+def precompute_schema(db_conn):
+    """``db_conn`` with every precompute table created and migrated.
+
+    ``ensure_tables`` also promotes the eleven ``PER_PLAYER_TABLES_TO_MIGRATE``
+    to a ``(player_id, season)`` primary key, so anything testing those
+    upserts needs to have run it first.
+    """
+    from src import precompute_jobs
+    precompute_jobs.ensure_tables(db_conn)
+    return db_conn

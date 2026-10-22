@@ -10,6 +10,7 @@ Writes to PostgreSQL:
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
@@ -37,6 +38,8 @@ from nba_api.stats.endpoints import (
 from nba_api.stats.static import teams
 
 from src import db
+
+log = logging.getLogger(__name__)
 
 FANTASYPROS_DVP_URL = "https://www.fantasypros.com/daily-fantasy/nba/fanduel-defense-vs-position.php"
 
@@ -2440,14 +2443,25 @@ def upsert_advanced_player_stats(
     conn.commit()
 
 
-def upsert_clutch_stats(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_clutch_stats(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist clutch stats per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
+    eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT INTO player_clutch_stats (player_id, clutch_pts_pg, clutch_fg_pct, clutch_fg3_pct,
+            INSERT INTO player_clutch_stats (player_id, season, clutch_pts_pg, clutch_fg_pct, clutch_fg3_pct,
                clutch_fta_pg, clutch_plus_minus, clutch_min_pg, clutch_games, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (player_id, season) DO UPDATE SET
                 clutch_pts_pg = excluded.clutch_pts_pg,
                 clutch_fg_pct = excluded.clutch_fg_pct,
@@ -2459,7 +2473,7 @@ def upsert_clutch_stats(conn: psycopg.Connection, rows: list[dict[str, Any]], up
                 updated_at = excluded.updated_at
             """,
             (
-                int(r['player_id']),
+                int(r['player_id']), eff_season,
                 float(r.get('clutch_pts_pg', 0.0)), float(r.get('clutch_fg_pct', 0.45)),
                 float(r.get('clutch_fg3_pct', 0.33)), float(r.get('clutch_fta_pg', 0.0)),
                 float(r.get('clutch_plus_minus', 0.0)), float(r.get('clutch_min_pg', 0.0)),
@@ -2469,14 +2483,25 @@ def upsert_clutch_stats(conn: psycopg.Connection, rows: list[dict[str, Any]], up
     conn.commit()
 
 
-def upsert_hustle_stats(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_hustle_stats(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist hustle stats per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
+    eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT INTO player_hustle_stats (player_id, contested_shots_pg, deflections_pg,
+            INSERT INTO player_hustle_stats (player_id, season, contested_shots_pg, deflections_pg,
                charges_drawn_pg, screen_assists_pg, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (player_id, season) DO UPDATE SET
                 contested_shots_pg = excluded.contested_shots_pg,
                 deflections_pg = excluded.deflections_pg,
@@ -2485,7 +2510,7 @@ def upsert_hustle_stats(conn: psycopg.Connection, rows: list[dict[str, Any]], up
                 updated_at = excluded.updated_at
             """,
             (
-                int(r['player_id']),
+                int(r['player_id']), eff_season,
                 float(r.get('contested_shots_pg', 3.0)), float(r.get('deflections_pg', 1.0)),
                 float(r.get('charges_drawn_pg', 0.1)), float(r.get('screen_assists_pg', 0.5)),
                 int(updated_at),
@@ -2494,16 +2519,27 @@ def upsert_hustle_stats(conn: psycopg.Connection, rows: list[dict[str, Any]], up
     conn.commit()
 
 
-def upsert_shot_profile(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_shot_profile(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist shot profile per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
+    eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT INTO player_shot_profile (player_id, open_shot_fg_pct, open_shot_freq,
+            INSERT INTO player_shot_profile (player_id, season, open_shot_fg_pct, open_shot_freq,
                tight_shot_fg_pct, tight_shot_freq,
                catch_shoot_fg_pct, catch_shoot_freq,
                pullup_fg_pct, pullup_freq, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (player_id, season) DO UPDATE SET
                 open_shot_fg_pct = excluded.open_shot_fg_pct,
                 open_shot_freq = excluded.open_shot_freq,
@@ -2516,7 +2552,7 @@ def upsert_shot_profile(conn: psycopg.Connection, rows: list[dict[str, Any]], up
                 updated_at = excluded.updated_at
             """,
             (
-                int(r['player_id']),
+                int(r['player_id']), eff_season,
                 float(r.get('open_shot_fg_pct', 0.50)), float(r.get('open_shot_freq', 0.30)),
                 float(r.get('tight_shot_fg_pct', 0.38)), float(r.get('tight_shot_freq', 0.15)),
                 float(r.get('catch_shoot_fg_pct', 0.40)), float(r.get('catch_shoot_freq', 0.25)),
@@ -2527,18 +2563,29 @@ def upsert_shot_profile(conn: psycopg.Connection, rows: list[dict[str, Any]], up
     conn.commit()
 
 
-def upsert_play_types(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_play_types(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist play-type usage per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
+    eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT INTO player_play_types (player_id, iso_poss_pct, iso_ppp,
+            INSERT INTO player_play_types (player_id, season, iso_poss_pct, iso_ppp,
                pnr_bh_poss_pct, pnr_bh_ppp,
                pnr_roll_poss_pct, pnr_roll_ppp,
                spotup_poss_pct, spotup_ppp,
                transition_poss_pct, transition_ppp,
                postup_poss_pct, cut_poss_pct, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (player_id, season) DO UPDATE SET
                 iso_poss_pct = excluded.iso_poss_pct,
                 iso_ppp = excluded.iso_ppp,
@@ -2555,7 +2602,7 @@ def upsert_play_types(conn: psycopg.Connection, rows: list[dict[str, Any]], upda
                 updated_at = excluded.updated_at
             """,
             (
-                int(r['player_id']),
+                int(r['player_id']), eff_season,
                 float(r.get('iso_poss_pct', 0.0)), float(r.get('iso_ppp', 0.9)),
                 float(r.get('pnr_bh_poss_pct', 0.0)), float(r.get('pnr_bh_ppp', 0.9)),
                 float(r.get('pnr_roll_poss_pct', 0.0)), float(r.get('pnr_roll_ppp', 0.9)),
@@ -2568,14 +2615,25 @@ def upsert_play_types(conn: psycopg.Connection, rows: list[dict[str, Any]], upda
     conn.commit()
 
 
-def upsert_on_off(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_on_off(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist on/off ratings per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
+    eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT INTO player_on_off (player_id, on_court_net_rating, off_court_net_rating,
+            INSERT INTO player_on_off (player_id, season, on_court_net_rating, off_court_net_rating,
                on_off_differential, updated_at)
-            VALUES (%s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s)
             ON CONFLICT (player_id, season) DO UPDATE SET
                 on_court_net_rating = excluded.on_court_net_rating,
                 off_court_net_rating = excluded.off_court_net_rating,
@@ -2583,7 +2641,7 @@ def upsert_on_off(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_
                 updated_at = excluded.updated_at
             """,
             (
-                int(r['player_id']),
+                int(r['player_id']), eff_season,
                 float(r.get('on_court_net_rating', 0.0)),
                 float(r.get('off_court_net_rating', 0.0)),
                 float(r.get('on_off_differential', 0.0)),
@@ -2593,17 +2651,28 @@ def upsert_on_off(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_
     conn.commit()
 
 
-def upsert_shot_zones(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_shot_zones(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist shot-zone breakdown per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
+    eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT INTO player_shot_zones (player_id, rim_fga_pct, rim_fg_pct,
+            INSERT INTO player_shot_zones (player_id, season, rim_fga_pct, rim_fg_pct,
                paint_fga_pct, paint_fg_pct,
                midrange_fga_pct, midrange_fg_pct,
                corner3_fga_pct, corner3_fg_pct,
                above_break3_fga_pct, above_break3_fg_pct, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (player_id, season) DO UPDATE SET
                 rim_fga_pct = excluded.rim_fga_pct,
                 rim_fg_pct = excluded.rim_fg_pct,
@@ -2618,7 +2687,7 @@ def upsert_shot_zones(conn: psycopg.Connection, rows: list[dict[str, Any]], upda
                 updated_at = excluded.updated_at
             """,
             (
-                int(r['player_id']),
+                int(r['player_id']), eff_season,
                 float(r.get('rim_fga_pct', 0.25)), float(r.get('rim_fg_pct', 0.62)),
                 float(r.get('paint_fga_pct', 0.30)), float(r.get('paint_fg_pct', 0.55)),
                 float(r.get('midrange_fga_pct', 0.20)), float(r.get('midrange_fg_pct', 0.42)),
@@ -2630,13 +2699,24 @@ def upsert_shot_zones(conn: psycopg.Connection, rows: list[dict[str, Any]], upda
     conn.commit()
 
 
-def upsert_quarter_splits(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_quarter_splits(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist quarter splits per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
+    eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT INTO player_quarter_splits (player_id, q1_avg, q2_avg, q3_avg, q4_avg, q4_min_pg, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO player_quarter_splits (player_id, season, q1_avg, q2_avg, q3_avg, q4_avg, q4_min_pg, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (player_id, season) DO UPDATE SET
                 q1_avg = excluded.q1_avg,
                 q2_avg = excluded.q2_avg,
@@ -2646,7 +2726,7 @@ def upsert_quarter_splits(conn: psycopg.Connection, rows: list[dict[str, Any]], 
                 updated_at = excluded.updated_at
             """,
             (
-                int(r['player_id']),
+                int(r['player_id']), eff_season,
                 float(r.get('q1_avg', 0.0)), float(r.get('q2_avg', 0.0)),
                 float(r.get('q3_avg', 0.0)), float(r.get('q4_avg', 0.0)),
                 float(r.get('q4_min_pg', 0.0)),
@@ -2820,17 +2900,28 @@ def compute_player_tracking(season: str = '2024-25') -> list[dict[str, Any]]:
     return results
 
 
-def upsert_player_tracking(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_player_tracking(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist player tracking stats per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
+    eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT INTO player_tracking_stats (player_id, avg_speed, avg_speed_off, avg_speed_def,
+            INSERT INTO player_tracking_stats (player_id, season, avg_speed, avg_speed_off, avg_speed_def,
                dist_miles, dist_miles_off, dist_miles_def,
                touches_pg, time_of_poss_pg, avg_drib_per_touch,
                paint_touches_pg, elbow_touches_pg,
                passes_made_pg, potential_ast_pg, secondary_ast_pg, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (player_id, season) DO UPDATE SET
                 avg_speed = excluded.avg_speed,
                 avg_speed_off = excluded.avg_speed_off,
@@ -2849,7 +2940,7 @@ def upsert_player_tracking(conn: psycopg.Connection, rows: list[dict[str, Any]],
                 updated_at = excluded.updated_at
             """,
             (
-                int(r['player_id']),
+                int(r['player_id']), eff_season,
                 float(r.get('avg_speed', 0.0)), float(r.get('avg_speed_off', 0.0)),
                 float(r.get('avg_speed_def', 0.0)), float(r.get('dist_miles', 0.0)),
                 float(r.get('dist_miles_off', 0.0)), float(r.get('dist_miles_def', 0.0)),
@@ -3025,14 +3116,25 @@ def compute_player_scoring_breakdown(season: str = '2024-25') -> list[dict[str, 
     return results
 
 
-def upsert_player_scoring_breakdown(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_player_scoring_breakdown(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist scoring breakdown per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
+    eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT INTO player_scoring_breakdown (player_id, pct_pts_3pt, pct_pts_paint, pct_pts_ft,
+            INSERT INTO player_scoring_breakdown (player_id, season, pct_pts_3pt, pct_pts_paint, pct_pts_ft,
                pct_pts_midrange, pct_uast_fgm, pct_ast_fgm, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (player_id, season) DO UPDATE SET
                 pct_pts_3pt = excluded.pct_pts_3pt,
                 pct_pts_paint = excluded.pct_pts_paint,
@@ -3043,7 +3145,7 @@ def upsert_player_scoring_breakdown(conn: psycopg.Connection, rows: list[dict[st
                 updated_at = excluded.updated_at
             """,
             (
-                int(r['player_id']),
+                int(r['player_id']), eff_season,
                 float(r.get('pct_pts_3pt', 0.0)), float(r.get('pct_pts_paint', 0.0)),
                 float(r.get('pct_pts_ft', 0.0)), float(r.get('pct_pts_midrange', 0.0)),
                 float(r.get('pct_uast_fgm', 0.0)), float(r.get('pct_ast_fgm', 0.0)),
@@ -3348,14 +3450,25 @@ def compute_player_yoy(season: str = '2024-25', max_players: int = 400) -> list[
     return results
 
 
-def upsert_player_yoy(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_player_yoy(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist year-over-year stats per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
+    eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT INTO player_yoy_stats (player_id, yoy_pts_change, yoy_ts_change, yoy_usage_change,
+            INSERT INTO player_yoy_stats (player_id, season, yoy_pts_change, yoy_ts_change, yoy_usage_change,
                seasons_in_league, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (player_id, season) DO UPDATE SET
                 yoy_pts_change = excluded.yoy_pts_change,
                 yoy_ts_change = excluded.yoy_ts_change,
@@ -3364,7 +3477,7 @@ def upsert_player_yoy(conn: psycopg.Connection, rows: list[dict[str, Any]], upda
                 updated_at = excluded.updated_at
             """,
             (
-                int(r['player_id']),
+                int(r['player_id']), eff_season,
                 float(r.get('yoy_pts_change', 0.0)),
                 float(r.get('yoy_ts_change', 0.0)),
                 float(r.get('yoy_usage_change', 0.0)),
@@ -3556,6 +3669,30 @@ def upsert_injury_status(conn: psycopg.Connection, rows: list[dict[str, Any]], u
     conn.commit()
 
 
+def _record_job_failure(
+    conn: psycopg.Connection,
+    failed: list[str],
+    job: str,
+    exc: Exception,
+) -> None:
+    """Note a failed precompute job instead of losing it.
+
+    Every job below is wrapped on its own so one dead NBA endpoint can't kill
+    the nightly run. For years that also meant a *write* failure was
+    indistinguishable from success: ten per-season upserts raised on every
+    row and all the caller ever saw was a stdout line. The name goes into the
+    summary's ``failed_jobs`` so the next one is visible.
+
+    The rollback is what keeps that list honest. A failed statement aborts
+    the whole PostgreSQL transaction, so without it every later job fails too
+    and the summary can't say which one actually broke — same reasoning as
+    the per-table rollback in the migration loop in :func:`ensure_tables`.
+    """
+    log.error("%s failed: %s", job, exc)
+    failed.append(job)
+    conn.rollback()
+
+
 def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any]:
     """
     Runs full update and returns summary.
@@ -3563,6 +3700,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
     """
     season = season or compute_current_season()
     updated_at = int(time.time())
+    failed_jobs: list[str] = []
 
     conn = db.connect(db_path)
     ensure_tables(conn)
@@ -3597,73 +3735,73 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
     try:
         print("computing advanced player stats...")
         adv_rows = compute_advanced_player_stats(season=season)
-        upsert_advanced_player_stats(conn, adv_rows, updated_at=updated_at)
+        upsert_advanced_player_stats(conn, adv_rows, updated_at=updated_at, season=season)
         print(f"  advanced player stats: {len(adv_rows)} rows")
     except Exception as _e:
-        print(f"advanced player stats failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "advanced player stats", _e)
 
     clutch_rows: list[dict[str, Any]] = []
     try:
         print("computing clutch stats...")
         clutch_rows = compute_clutch_stats(season=season)
-        upsert_clutch_stats(conn, clutch_rows, updated_at=updated_at)
+        upsert_clutch_stats(conn, clutch_rows, updated_at=updated_at, season=season)
         print(f"  clutch stats: {len(clutch_rows)} rows")
     except Exception as _e:
-        print(f"clutch stats failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "clutch stats", _e)
 
     hustle_rows: list[dict[str, Any]] = []
     try:
         print("computing hustle stats...")
         hustle_rows = compute_hustle_stats(season=season)
-        upsert_hustle_stats(conn, hustle_rows, updated_at=updated_at)
+        upsert_hustle_stats(conn, hustle_rows, updated_at=updated_at, season=season)
         print(f"  hustle stats: {len(hustle_rows)} rows")
     except Exception as _e:
-        print(f"hustle stats failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "hustle stats", _e)
 
     shot_profile_rows: list[dict[str, Any]] = []
     try:
         print("computing shot profile...")
         shot_profile_rows = compute_shot_profile(season=season)
-        upsert_shot_profile(conn, shot_profile_rows, updated_at=updated_at)
+        upsert_shot_profile(conn, shot_profile_rows, updated_at=updated_at, season=season)
         print(f"  shot profile: {len(shot_profile_rows)} rows")
     except Exception as _e:
-        print(f"shot profile failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "shot profile", _e)
 
     play_type_rows: list[dict[str, Any]] = []
     try:
         print("computing synergy play types...")
         play_type_rows = compute_synergy_play_types(season=season)
-        upsert_play_types(conn, play_type_rows, updated_at=updated_at)
+        upsert_play_types(conn, play_type_rows, updated_at=updated_at, season=season)
         print(f"  play types: {len(play_type_rows)} rows")
     except Exception as _e:
-        print(f"synergy play types failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "synergy play types", _e)
 
     on_off_rows: list[dict[str, Any]] = []
     try:
         print("computing on/off ratings...")
         on_off_rows = compute_on_off_ratings(season=season)
-        upsert_on_off(conn, on_off_rows, updated_at=updated_at)
+        upsert_on_off(conn, on_off_rows, updated_at=updated_at, season=season)
         print(f"  on/off ratings: {len(on_off_rows)} rows")
     except Exception as _e:
-        print(f"on/off ratings failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "on/off ratings", _e)
 
     shot_zone_rows: list[dict[str, Any]] = []
     try:
         print("computing shot zone breakdown (up to 400 players)...")
         shot_zone_rows = compute_shot_zone_breakdown(season=season)
-        upsert_shot_zones(conn, shot_zone_rows, updated_at=updated_at)
+        upsert_shot_zones(conn, shot_zone_rows, updated_at=updated_at, season=season)
         print(f"  shot zones: {len(shot_zone_rows)} rows")
     except Exception as _e:
-        print(f"shot zone breakdown failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "shot zone breakdown", _e)
 
     quarter_split_rows: list[dict[str, Any]] = []
     try:
         print("computing quarter splits (up to 400 players)...")
         quarter_split_rows = compute_quarter_splits(season=season)
-        upsert_quarter_splits(conn, quarter_split_rows, updated_at=updated_at)
+        upsert_quarter_splits(conn, quarter_split_rows, updated_at=updated_at, season=season)
         print(f"  quarter splits: {len(quarter_split_rows)} rows")
     except Exception as _e:
-        print(f"quarter splits failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "quarter splits", _e)
 
     opp_shot_zone_rows: list[dict[str, Any]] = []
     try:
@@ -3672,7 +3810,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_opp_shot_zones(conn, opp_shot_zone_rows, updated_at=updated_at)
         print(f"  opp shot zones: {len(opp_shot_zone_rows)} rows")
     except Exception as _e:
-        print(f"opp shot zones failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "opp shot zones", _e)
 
     synergy_def_rows: list[dict[str, Any]] = []
     try:
@@ -3681,17 +3819,17 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_synergy_defense(conn, synergy_def_rows, updated_at=updated_at)
         print(f"  synergy defense: {len(synergy_def_rows)} rows")
     except Exception as _e:
-        print(f"synergy team defense failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "synergy team defense", _e)
 
     # ---- New feature group jobs ----
     tracking_rows: list[dict[str, Any]] = []
     try:
         print("computing player tracking stats...")
         tracking_rows = compute_player_tracking(season=season)
-        upsert_player_tracking(conn, tracking_rows, updated_at=updated_at)
+        upsert_player_tracking(conn, tracking_rows, updated_at=updated_at, season=season)
         print(f"  player tracking: {len(tracking_rows)} rows")
     except Exception as _e:
-        print(f"player tracking failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "player tracking", _e)
 
     standings_rows: list[dict[str, Any]] = []
     try:
@@ -3700,16 +3838,16 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_team_standings(conn, standings_rows, updated_at=updated_at)
         print(f"  team standings: {len(standings_rows)} rows")
     except Exception as _e:
-        print(f"team standings failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "team standings", _e)
 
     scoring_breakdown_rows: list[dict[str, Any]] = []
     try:
         print("computing player scoring breakdown...")
         scoring_breakdown_rows = compute_player_scoring_breakdown(season=season)
-        upsert_player_scoring_breakdown(conn, scoring_breakdown_rows, updated_at=updated_at)
+        upsert_player_scoring_breakdown(conn, scoring_breakdown_rows, updated_at=updated_at, season=season)
         print(f"  scoring breakdown: {len(scoring_breakdown_rows)} rows")
     except Exception as _e:
-        print(f"player scoring breakdown failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "player scoring breakdown", _e)
 
     player_vs_opp_rows: list[dict[str, Any]] = []
     try:
@@ -3718,7 +3856,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_player_vs_opponent(conn, player_vs_opp_rows)
         print(f"  player vs opponent: {len(player_vs_opp_rows)} rows")
     except Exception as _e:
-        print(f"player vs opponent failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "player vs opponent", _e)
 
     team_rest_rows: list[dict[str, Any]] = []
     try:
@@ -3727,16 +3865,16 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_team_rest_splits(conn, team_rest_rows, updated_at=updated_at)
         print(f"  team rest splits: {len(team_rest_rows)} rows")
     except Exception as _e:
-        print(f"team rest splits failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "team rest splits", _e)
 
     player_yoy_rows: list[dict[str, Any]] = []
     try:
         print("computing player year-over-year stats (up to 400 players)...")
         player_yoy_rows = compute_player_yoy(season=season)
-        upsert_player_yoy(conn, player_yoy_rows, updated_at=updated_at)
+        upsert_player_yoy(conn, player_yoy_rows, updated_at=updated_at, season=season)
         print(f"  player yoy: {len(player_yoy_rows)} rows")
     except Exception as _e:
-        print(f"player yoy stats failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "player yoy stats", _e)
 
     # ---- New Tier B jobs ----
     home_away_rows: list[dict[str, Any]] = []
@@ -3746,7 +3884,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_team_home_away_splits(conn, home_away_rows, updated_at=updated_at)
         print(f"  home/away splits: {len(home_away_rows)} rows")
     except Exception as _e:
-        print(f"team home/away splits failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "team home/away splits", _e)
 
     lineup_rows: list[dict[str, Any]] = []
     try:
@@ -3755,7 +3893,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_lineup_stats(conn, lineup_rows, updated_at=updated_at)
         print(f"  lineup stats: {len(lineup_rows)} rows")
     except Exception as _e:
-        print(f"lineup stats failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "lineup stats", _e)
 
     injury_rows: list[dict[str, Any]] = []
     try:
@@ -3764,12 +3902,16 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_injury_status(conn, injury_rows, updated_at=updated_at)
         print(f"  injury status: {len(injury_rows)} rows")
     except Exception as _e:
-        print(f"injury status failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "injury status", _e)
 
     conn.close()
     return {
         "season": season,
         "updated_at": updated_at,
+        # Jobs that raised. Non-empty means the run wrote less than the
+        # row counts below suggest — they count what was computed.
+        "failed_jobs": failed_jobs,
+        "failed_job_count": len(failed_jobs),
         "dvp_rows": len(dvp),
         "defender_rows": len(defenders),
         "ref_rows": len(ref_rows),
