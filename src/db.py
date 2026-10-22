@@ -22,6 +22,7 @@ from urllib.parse import unquote
 
 import psycopg
 from psycopg.rows import dict_row, tuple_row  # noqa: F401  (dict_row is re-exported)
+from psycopg.types.numeric import FloatLoader, NumericBinaryLoader
 
 __all__ = [
     "connect",
@@ -173,6 +174,44 @@ def connect(dsn: str | None = None, *, row_factory=None, autocommit: bool = Fals
         except Exception:  # noqa: BLE001 — exotic subclass, still must not leak
             scrubbed = psycopg.Error(message)
         raise scrubbed from None
+
+
+# ---------------------------------------------------------------------------
+# numeric → float
+#
+# SQLite returned REAL for every aggregate. PostgreSQL returns ``numeric``
+# for ``ROUND(x, n)``, for ``AVG`` over a decimal literal, and for anything
+# divided by one — and psycopg loads ``numeric`` as ``Decimal``, which
+# ``flask.jsonify`` serialises as a JSON *string*. The front end calls
+# ``.toFixed`` on those fields, so /bias threw in the browser.
+#
+# Converting here rather than casting per query is the point: there were
+# ten such expressions across two reports, and the next ``ROUND(...)``
+# anyone writes would have reintroduced it. It goes on psycopg's global
+# adapter map rather than inside :func:`connect` because the test suite
+# patches :func:`connect` out and some scripts reach for
+# ``psycopg.connect`` directly — the map covers every connection this
+# process opens either way.
+#
+# Safe because no column in this schema is NUMERIC/DECIMAL: balances,
+# stakes, prices and probabilities are all DOUBLE PRECISION, so nothing
+# here relies on exact decimal arithmetic. Adding a NUMERIC money column
+# would mean revisiting this.
+# ---------------------------------------------------------------------------
+
+class _NumericBinaryAsFloatLoader(NumericBinaryLoader):
+    """Binary-format ``numeric`` → ``float``.
+
+    ``FloatLoader`` handles the text format only; psycopg reaches for the
+    binary one whenever a query runs with ``binary=True``.
+    """
+
+    def load(self, data):
+        return float(super().load(data))
+
+
+psycopg.adapters.register_loader("numeric", FloatLoader)
+psycopg.adapters.register_loader("numeric", _NumericBinaryAsFloatLoader)
 
 
 # ---------------------------------------------------------------------------

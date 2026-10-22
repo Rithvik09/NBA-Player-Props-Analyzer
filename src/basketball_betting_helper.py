@@ -702,7 +702,11 @@ class BasketballBettingHelper:
                     COUNT(*) as total,
                     SUM(correct) as correct,
                     ROUND(100.0 * SUM(correct) / NULLIF(COUNT(*), 0), 1) as accuracy_pct,
-                    ROUND(AVG(edge) * 100, 1) as avg_edge_pct
+                    -- ``edge`` is double precision and PostgreSQL only
+                    -- defines the two-argument ROUND for numeric, so the
+                    -- cast is required. (The expression above is already
+                    -- numeric: 100.0 is a numeric literal.)
+                    ROUND((AVG(edge) * 100)::numeric, 1) as avg_edge_pct
                 FROM prediction_logs
                 WHERE correct IN (0, 1)
                 GROUP BY prop_type
@@ -711,8 +715,15 @@ class BasketballBettingHelper:
             cols = [d[0] for d in cursor.description]
             by_prop = [dict(zip(cols, row)) for row in cursor.fetchall()]
 
+            # MAX(player_name) rather than adding it to the GROUP BY: this is
+            # "top 10 players by volume", so one player_id has to mean one
+            # row. A player logged under two spellings — an accent restored,
+            # a "Jr." gaining a full stop — would otherwise split into two
+            # partial rows, either of which the split could push out of the
+            # LIMIT 10. MAX picks one spelling deterministically and the
+            # counts stay whole.
             cursor.execute('''
-                SELECT player_name, player_id,
+                SELECT MAX(player_name) as player_name, player_id,
                     COUNT(*) as total,
                     SUM(correct) as correct,
                     ROUND(100.0 * SUM(correct) / NULLIF(COUNT(*), 0), 1) as accuracy_pct
