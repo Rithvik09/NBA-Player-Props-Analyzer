@@ -124,6 +124,18 @@ def test_refusal_does_not_echo_the_dsn():
     assert "db.example.com" in str(excinfo.value)  # the host is the useful part
 
 
+@pytest.mark.parametrize("dsn", [
+    "postgresql://u:Sw0rdf1shTunaMackerel%ZZ@localhost/nba_props_test",
+    "host=localhost Sw0rdf1shTunaMackerel",
+])
+def test_a_malformed_dsn_is_refused_without_echoing_it(dsn):
+    """psycopg's own parse error quotes the offending token, which on a
+    typo'd URL is the password."""
+    with pytest.raises(RuntimeError, match="refusing to reset") as excinfo:
+        ct.assert_local_reset_target(dsn)
+    assert "Sw0rdf1shTunaMackerel" not in str(excinfo.value)
+
+
 # ---------------------------------------------------------------------------
 # The application under test must follow TEST_DATABASE_URL
 # ---------------------------------------------------------------------------

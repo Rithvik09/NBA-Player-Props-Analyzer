@@ -96,7 +96,17 @@ def assert_local_reset_target(dsn: str) -> None:
     A managed host is never a test database, whatever it is called, and
     Neon is where this project's real data lives — so it is named.
     """
-    host = (psycopg.conninfo.conninfo_to_dict(dsn).get("host") or "").strip()
+    try:
+        params = psycopg.conninfo.conninfo_to_dict(dsn)
+    except psycopg.Error:
+        # psycopg's message quotes the token it choked on, and on a typo'd
+        # DSN that token is as likely as not the password — so none of it
+        # is passed on. ``from None`` keeps the original off the traceback.
+        raise RuntimeError(
+            f"refusing to reset: {TEST_DSN_ENV_VAR} is not a DSN psycopg "
+            f"can parse (not echoed here: it may carry a password)."
+        ) from None
+    host = (params.get("host") or "").strip()
     # The message travels into CI logs, so it carries the host and nothing
     # else from the DSN.
     if host.endswith(".neon.tech"):
