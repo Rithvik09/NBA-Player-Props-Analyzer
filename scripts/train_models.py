@@ -304,6 +304,13 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
         except Exception:
             return {}
 
+    def _load_referee_history() -> dict:
+        c.execute("SELECT to_regclass('public.referee_game_features') AS reg")
+        if c.fetchone()['reg'] is None:
+            return {}
+        c.execute('SELECT game_id,ref_name,games,foul_rate,home_win_pct,pace FROM referee_game_features')
+        return {(str(r['game_id']), str(r['ref_name']).lower()): dict(r) for r in c.fetchall()}
+
     def _load_game_officials() -> dict[str, list[str]]:
         """game_id (str) -> list of ref names assigned to that game.
 
@@ -410,6 +417,7 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
         "dvp_rolling":   _load_dvp_rolling(),
         "referee":       _load_referee_stats(),
         "game_officials": _load_game_officials(),
+        "referee_history": _load_referee_history(),
         "game_broadcasts": _load_game_broadcasts(),
         "game_team_stats": _load_game_team_stats(),
     }
@@ -986,31 +994,9 @@ def build_training_examples(
             except Exception:
                 _tz_change, _coast_to_coast, _travel_dist = 0.0, 0.0, 0.0
 
-            # Per-game referee features. Look up the officials assigned
-            # to this game_id and avg their per-ref stats from
-            # _precomp["referee"]. Falls back to league mean when:
-            #   - game_id not in game_officials (older season we haven't
-            #     backfilled with the new ref pipeline)
-            #   - none of the assigned refs have aggregated stats (e.g.
-            #     all worked < 3 games in the observed window so they
-            #     were filtered out of referee_stats)
-            _refs_for_game = _precomp.get("game_officials", {}).get(_gid_str, [])
-            _ref_stats = _precomp.get("referee", {})
-            _matched_ref_stats = [
-                _ref_stats[name] for name in _refs_for_game if name in _ref_stats
-            ]
-            if _matched_ref_stats:
-                _ref_foul_rate = float(np.mean([v["foul_rate"] for v in _matched_ref_stats]))
-                _ref_home_bias = float(np.mean([v["home_win_pct"] for v in _matched_ref_stats]))
-                _ref_pace_tendency = float(np.mean([v["pace"] for v in _matched_ref_stats]))
-            else:
-                _all_refs = list(_ref_stats.values())
-                if _all_refs:
-                    _ref_foul_rate = float(np.mean([v["foul_rate"] for v in _all_refs]))
-                    _ref_home_bias = float(np.mean([v["home_win_pct"] for v in _all_refs]))
-                    _ref_pace_tendency = float(np.mean([v["pace"] for v in _all_refs]))
-                else:
-                    _ref_foul_rate, _ref_home_bias, _ref_pace_tendency = 0.0, 0.5, 100.0
+            # Referee tendencies may only include earlier calendar days.
+            from src.referee_history import historical_features
+            _ref_foul_rate, _ref_home_bias, _ref_pace_tendency = historical_features(_precomp, _gid_str)
 
             # Season-phase calendar features
             # NBA regular season runs roughly Oct 22 – Apr 14

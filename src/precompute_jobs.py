@@ -717,90 +717,21 @@ def upsert_defenders(conn: psycopg.Connection, rows: list[dict[str, Any]], updat
     conn.commit()
 
 
-def scrape_ref_stats() -> list[dict[str, Any]]:
-    """
-    Scrape referee statistics from Basketball-Reference.
-    Returns list of dicts with ref_name, games, foul_rate, home_win_pct, pace.
-    Returns empty list silently on any failure.
-    """
-    try:
-        url = "https://www.basketball-reference.com/referees/"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        resp = requests.get(url, timeout=30, headers=headers)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
-
-        table = soup.find("table", {"id": "referees"}) or soup.find("table")
-        if not table:
+def compute_referee_stats_from_history(db_path: str | None = None) -> list[dict[str, Any]]:
+    """Recompute measured NBA observations instead of scraping a names directory."""
+    from .referee_history import rebuild_aggregates
+    with db.connect(db_path) as conn:
+        if not db.table_columns(conn, 'referee_game_stats'):
             return []
+        conn.commit()
+        rebuild_aggregates(conn)
+        rows = conn.execute('SELECT ref_name,games,foul_rate,home_win_pct,pace FROM referee_stats').fetchall()
+        return [dict(zip(('ref_name','games','foul_rate','home_win_pct','pace'), row)) for row in rows]
 
-        # Parse header row to find column indices
-        header_row = table.find("thead")
-        col_names: list[str] = []
-        if header_row:
-            for th in header_row.find_all("th"):
-                col_names.append((th.get("data-stat") or th.get_text(strip=True) or "").lower())
 
-        def _col_idx(*candidates) -> int | None:
-            for cand in candidates:
-                for idx, name in enumerate(col_names):
-                    if cand in name:
-                        return idx
-            return None
-
-        name_idx     = _col_idx("referee", "ref_name", "name")
-        games_idx    = _col_idx("g", "games")
-        fouls_idx    = _col_idx("foul", "pf", "personal_foul")
-        home_pct_idx = _col_idx("home_w", "hw_pct", "home_win")
-        pace_idx     = _col_idx("pace", "poss")
-
-        def _safe_float(tds, idx) -> float:
-            if idx is None or idx >= len(tds):
-                return 0.0
-            try:
-                return float(tds[idx].get_text(strip=True).replace(",", "") or 0)
-            except Exception:
-                return 0.0
-
-        def _safe_int(tds, idx) -> int:
-            if idx is None or idx >= len(tds):
-                return 0
-            try:
-                return int(float(tds[idx].get_text(strip=True).replace(",", "") or 0))
-            except Exception:
-                return 0
-
-        results: list[dict[str, Any]] = []
-        tbody = table.find("tbody") or table
-        for tr in tbody.find_all("tr"):
-            tds = tr.find_all(["td", "th"])
-            if len(tds) < 2:
-                continue
-            # Get ref name
-            if name_idx is not None and name_idx < len(tds):
-                raw_name = tds[name_idx].get_text(strip=True)
-            else:
-                # first td with a link is typically the name
-                link_td = tr.find("td", {"data-stat": lambda x: x and "name" in x.lower()})
-                if link_td:
-                    raw_name = link_td.get_text(strip=True)
-                elif tds:
-                    raw_name = tds[0].get_text(strip=True)
-                else:
-                    continue
-            if not raw_name or raw_name.lower() in ("", "referee"):
-                continue
-
-            results.append({
-                "ref_name":     raw_name.strip(),
-                "games":        _safe_int(tds, games_idx),
-                "foul_rate":    _safe_float(tds, fouls_idx),
-                "home_win_pct": _safe_float(tds, home_pct_idx),
-                "pace":         _safe_float(tds, pace_idx),
-            })
-        return results
-    except Exception:
-        return []
+def scrape_ref_stats() -> list[dict[str, Any]]:
+    """Compatibility alias for the validated NBA history collector."""
+    return compute_referee_stats_from_history()
 
 
 def compute_game_refs_for_season(
@@ -3573,7 +3504,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
     defenders = compute_special_defenders(season=season)
     upsert_defenders(conn, defenders, updated_at=updated_at)
 
-    ref_rows = scrape_ref_stats()
+    ref_rows = compute_referee_stats_from_history(db_path=db_path)
     upsert_ref_stats(conn, ref_rows, updated_at=updated_at)
 
     team_stats_rows = compute_team_stats(season=season)
