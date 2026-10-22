@@ -1,8 +1,13 @@
 """Kelly math + bankroll ledger tests."""
 from __future__ import annotations
 
+import contextlib
 import math
+import threading
+import time
+import uuid
 
+import psycopg
 import pytest
 
 from src.bankroll import (
@@ -337,3 +342,134 @@ def test_summary_rolls_up(db_url):
     assert s["losses"] == 1
     assert s["pushes"] == 1
     assert s["open_bets"] == 1
+
+
+# ---------------- concurrent settlement ------------------------------------
+#
+# ``settle`` used to read ``status``, then run an unconditional
+# ``UPDATE ... WHERE id = %s`` and credit the bankroll. SQLite's
+# whole-database lock serialised that; PostgreSQL READ COMMITTED does not,
+# so two settlers of the same bet both saw 'open' and both credited —
+# real money, paid twice. The fix is a compare-and-set.
+#
+# ``_LOCK`` is deliberately taken out of the picture below. It is a
+# ``threading`` lock, so it only ever covered one process, and the
+# scenario this guards against is cross-process: ``scripts/grade_and_settle.py``
+# runs from cron while someone settles the same bet through ``/bankroll``.
+# Neutralising it lets two threads model two processes without paying for
+# two interpreters.
+
+
+@pytest.fixture
+def committed_dsn(pg_dsn):
+    """DSN pinned to a throwaway schema that outlives a transaction.
+
+    The shared ``db_conn`` fixture hands every caller one connection inside
+    one transaction, which is precisely what a race cannot be written
+    against. This creates a real schema instead, so each ``db.connect``
+    opens a genuinely separate backend that can block on another's locks.
+    """
+    schema = f"race_{uuid.uuid4().hex[:12]}"
+    with psycopg.connect(pg_dsn, autocommit=True) as conn:
+        conn.execute(f'CREATE SCHEMA "{schema}"')
+    try:
+        yield f"{pg_dsn}?options=-csearch_path%3D{schema}"
+    finally:
+        with psycopg.connect(pg_dsn, autocommit=True) as conn:
+            conn.execute(f'DROP SCHEMA "{schema}" CASCADE')
+
+
+def _await_blocked_backends(observer, n, timeout=15.0):
+    """Block until ``n`` backends in this database are waiting on a lock.
+
+    Polled from its own autocommit connection on purpose: PostgreSQL caches
+    backend status for the duration of a transaction, so a long-running
+    reader would keep seeing the state it first observed.
+    """
+    deadline = time.monotonic() + timeout
+    waiting = 0
+    while time.monotonic() < deadline:
+        waiting = observer.execute(
+            """SELECT COUNT(*) FROM pg_stat_activity
+               WHERE datname = current_database()
+                 AND pid <> pg_backend_pid()
+                 AND wait_event_type = 'Lock'"""
+        ).fetchone()[0]
+        if waiting >= n:
+            return
+        time.sleep(0.02)
+    raise AssertionError(f"only {waiting} of {n} backends blocked on a lock")
+
+
+def test_concurrent_settle_credits_the_bankroll_once(committed_dsn, pg_dsn,
+                                                     monkeypatch):
+    """Two settlers that both see the bet 'open' must produce one credit.
+
+    The interleave is forced rather than hoped for: the test holds a
+    ``SELECT ... FOR UPDATE`` on the bet row, so both workers get past the
+    status read — which does not block under MVCC — and then pile up on the
+    ``UPDATE``. Releasing the lock lets exactly one of them claim the row.
+    """
+    import src.bankroll as bankroll_mod
+
+    monkeypatch.setattr(bankroll_mod, "_LOCK", contextlib.nullcontext())
+
+    br = BankrollTracker(committed_dsn)
+    br.set_balance(1000.0)
+    bet_id = br.record_bet(player_name="Jayson Tatum", prop_type="points",
+                           side="over", line=27.5, american_odds=-110,
+                           our_prob=0.6, stake=50)
+    assert br.get_balance() == 950.0
+
+    # Each worker builds its tracker here, not in the thread: the schema
+    # migration an unbuilt tracker runs takes locks of its own and would
+    # otherwise be mistaken for a worker blocked on the bet row.
+    workers = [BankrollTracker(committed_dsn) for _ in range(2)]
+    results: list = [None, None]
+
+    def _settle(slot):
+        try:
+            results[slot] = workers[slot].settle(bet_id, "win")
+        except Exception as exc:  # recorded, then re-asserted on the main thread
+            results[slot] = exc
+
+    gate = psycopg.connect(committed_dsn)
+    observer = psycopg.connect(pg_dsn, autocommit=True)
+    threads = [threading.Thread(target=_settle, args=(i,)) for i in range(2)]
+    try:
+        gate.execute("SELECT 1 FROM bankroll_bets WHERE id = %s FOR UPDATE",
+                     (bet_id,)).fetchone()
+        for t in threads:
+            t.start()
+        _await_blocked_backends(observer, 2)
+        gate.commit()  # both workers now contend for the row
+    finally:
+        for t in threads:
+            t.join(timeout=30)
+        gate.close()
+        observer.close()
+
+    assert not any(t.is_alive() for t in threads), "a settle thread never finished"
+    for r in results:
+        assert not isinstance(r, Exception), f"settle raised: {r!r}"
+
+    settled = [r for r in results if r.get("status") != "already_settled"]
+    skipped = [r for r in results if r.get("status") == "already_settled"]
+    assert len(settled) == 1, f"both settles claimed the bet: {results}"
+    assert len(skipped) == 1, f"nobody reported a lost race: {results}"
+    assert math.isclose(settled[0]["pnl"], 45.4545, rel_tol=1e-4)
+    assert skipped[0]["pnl"] == 0.0
+
+    # 950 + stake back + profit, credited exactly once.
+    final = BankrollTracker(committed_dsn).get_balance()
+    assert math.isclose(final, 1045.4545, rel_tol=1e-6), (
+        f"balance is {final}, expected 1045.4545 "
+        f"(1140.909 would mean the bet was credited twice)"
+    )
+
+    with psycopg.connect(committed_dsn) as conn:
+        status, pnl = conn.execute(
+            "SELECT status, pnl FROM bankroll_bets WHERE id = %s", (bet_id,)
+        ).fetchone()
+    assert status == "settled"
+    assert math.isclose(pnl, 45.4545, rel_tol=1e-4)

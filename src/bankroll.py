@@ -841,7 +841,13 @@ class BankrollTracker:
         }
 
     def settle(self, bet_id: int, result: str) -> dict:
-        """Settle a bet. ``result`` ∈ {'win', 'loss', 'push'}."""
+        """Settle a bet. ``result`` ∈ {'win', 'loss', 'push'}.
+
+        Raises ``ValueError`` when the bet is already settled on arrival.
+        When a *concurrent* settler claims it first the bankroll is left
+        untouched and the returned dict carries ``status='already_settled'``
+        with ``pnl=0.0`` — a lost race is not the caller's error.
+        """
         if result not in ("win", "loss", "push"):
             raise ValueError(f"bad result: {result}")
         now = datetime.now(timezone.utc).isoformat()
@@ -867,12 +873,32 @@ class BankrollTracker:
                 credit = 0.0
                 pnl = -float(stake)
 
-            conn.execute(
+            # Compare-and-set, not a bare ``WHERE id = %s``. The status read
+            # above settles nothing: under READ COMMITTED two settlers of the
+            # same bet both see 'open', and SQLite's whole-database lock is
+            # no longer there to serialise them. ``_LOCK`` does not help
+            # either — it is a threading lock, so it covers this process only,
+            # and the realistic collision is scripts/grade_and_settle.py on
+            # cron against someone clicking settle in /bankroll. Claiming the
+            # row here is what makes the credit below happen exactly once.
+            claimed = conn.execute(
                 """UPDATE bankroll_bets
                    SET status = 'settled', result = %s, pnl = %s, settled_utc = %s
-                   WHERE id = %s""",
+                   WHERE id = %s AND status = 'open'""",
                 (result, pnl, now, int(bet_id)),
-            )
+            ).rowcount
+
+            if not claimed:
+                # Lost the race. Someone else already credited this bet, so
+                # crediting it again is a double payout — report it and leave
+                # the balance alone. Not an error: the bet *is* settled, which
+                # is all the caller wanted.
+                balance = conn.execute(
+                    "SELECT balance FROM bankroll_state WHERE id = 1"
+                ).fetchone()[0]
+                return {"bet_id": int(bet_id), "result": None, "pnl": 0.0,
+                        "status": "already_settled", "new_balance": float(balance)}
+
             # Credit the bankroll, then bump peak_balance if this settlement
             # set a new high-water mark (drives the drawdown calculation).
             conn.execute(
@@ -888,7 +914,7 @@ class BankrollTracker:
                 "SELECT balance FROM bankroll_state WHERE id = 1"
             ).fetchone()[0]
             return {"bet_id": int(bet_id), "result": result, "pnl": pnl,
-                    "new_balance": float(balance)}
+                    "status": "settled", "new_balance": float(balance)}
 
     def list_bets(self, status: str | None = None, limit: int = 100) -> list[dict]:
         sql = "SELECT * FROM bankroll_bets"
