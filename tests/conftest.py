@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import itertools
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -22,12 +23,11 @@ import pytest
 
 os.environ.setdefault("NBA_CACHE_DISABLE", "1")
 
-# The betting-splits poller is ON by default in production — the source is
-# free and keyless, so nothing else gates it. Under test that would mean any
-# module importing ``src.app`` reaches the live Action Network endpoint 45
-# seconds in. Forced off rather than defaulted off, so an inherited
-# BETTING_SPLITS_POLL=1 in a shell cannot put the suite on the network; the
-# tests that care about the poller set the value themselves.
+# The betting-splits poller defaults off in ``src.app`` now, but it is still
+# pinned here: an inherited BETTING_SPLITS_POLL=1 in a developer's shell
+# would otherwise put the suite on the live Action Network endpoint 45
+# seconds into any test that imports the app. Defence in depth — the tests
+# that care about the poller set the value themselves.
 os.environ["BETTING_SPLITS_POLL"] = "0"
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +41,80 @@ from src import db as _db  # noqa: E402
 # PostgreSQL
 # ---------------------------------------------------------------------------
 
+# The schema reset below runs ``DROP SCHEMA public CASCADE``, so it reads a
+# variable of its own that the application never looks at. Pointing
+# DATABASE_URL at a real database and running the tests must stay survivable.
+TEST_DSN_ENV_VAR = "TEST_DATABASE_URL"
+
+# "test" as a whole word. The old substring check also matched
+# ``nba_props_latest``, ``contest_db`` and ``attestation``.
+_TEST_DB_NAME_RE = re.compile(r"(^|_)test($|_)")
+
+# Hosts the reset may drop a schema on. "postgres" is the service-container
+# hostname in .github/workflows/test.yml; an empty host or a path is a local
+# unix socket.
+_LOCAL_HOSTS = frozenset({
+    "", "localhost", "localhost.localdomain", "127.0.0.1", "::1", "[::1]",
+    "postgres",
+})
+
+
+def reset_target_dsn() -> str | None:
+    """The DSN the schema reset is allowed to use, or ``None``.
+
+    Deliberately no fallback to ``DATABASE_URL``: that is the variable the
+    application reads, and the whole point is that a developer or IDE with
+    a production DSN exported cannot drop it by starting a test run.
+    """
+    return os.environ.get(TEST_DSN_ENV_VAR, "").strip() or None
+
+
+def propagate_test_dsn() -> None:
+    """Point the application under test at the test database.
+
+    Production code reads ``DATABASE_URL``; leaving the two variables
+    pointing at different databases is precisely how a test run writes to
+    a real one.
+    """
+    dsn = reset_target_dsn()
+    if dsn:
+        os.environ[_db.DSN_ENV_VAR] = dsn
+
+
+# At import time, not in a fixture: test modules import ``src.app`` during
+# collection, which resolves DATABASE_URL on the spot.
+propagate_test_dsn()
+
+
+def is_test_database_name(name: str) -> bool:
+    return bool(_TEST_DB_NAME_RE.search(name or ""))
+
+
+def assert_local_reset_target(dsn: str) -> None:
+    """Raise unless ``dsn`` points at a database on this machine.
+
+    A managed host is never a test database, whatever it is called, and
+    Neon is where this project's real data lives — so it is named.
+    """
+    host = (psycopg.conninfo.conninfo_to_dict(dsn).get("host") or "").strip()
+    # The message travels into CI logs, so it carries the host and nothing
+    # else from the DSN.
+    if host.endswith(".neon.tech"):
+        raise RuntimeError(
+            f"refusing to reset a Neon database (host {host!r}): the test "
+            f"suite drops and recreates its schema."
+        )
+    first = host.split(",")[0].strip()
+    if first.startswith("/") or first.startswith("@"):
+        return  # unix socket directory
+    if first.lower() not in _LOCAL_HOSTS:
+        raise RuntimeError(
+            f"refusing to reset a database on host {first!r}: the test suite "
+            f"drops and recreates its schema, so {TEST_DSN_ENV_VAR} must "
+            f"point at a local database."
+        )
+
+
 def pytest_sessionstart(session):
     """Start every run from an empty schema.
 
@@ -50,19 +124,24 @@ def pytest_sessionstart(session):
     rows survive into the next run and make later assertions depend on run
     order.
 
-    Guarded on the database name so a stray ``DATABASE_URL`` pointing at a
-    real database cannot be dropped by running the tests.
+    Three guards, because this drops a schema: an opt-in variable the
+    application never reads, a word-boundary match on the database name,
+    and a local-host check. It also stands down under ``--collect-only``,
+    which IDEs run by themselves whenever a file is opened.
     """
-    dsn = os.environ.get(_db.DSN_ENV_VAR, "").strip()
+    if getattr(session.config.option, "collectonly", False):
+        return
+    dsn = reset_target_dsn()
     if not dsn:
         return
+    assert_local_reset_target(dsn)
     with psycopg.connect(dsn, autocommit=True) as conn:
         name = conn.execute("SELECT current_database()").fetchone()[0]
-        if "test" not in name:
+        if not is_test_database_name(name):
             raise RuntimeError(
                 f"refusing to reset database {name!r}: the test suite drops "
-                f"and recreates its schema, so {_db.DSN_ENV_VAR} must point "
-                f"at a database with 'test' in its name."
+                f"and recreates its schema, so {TEST_DSN_ENV_VAR} must point "
+                f"at a database with 'test' as a word in its name."
             )
         conn.execute("DROP SCHEMA public CASCADE")
         conn.execute("CREATE SCHEMA public")
@@ -77,12 +156,13 @@ def pg_dsn() -> str:
     Skipping here would let CI go green having exercised none of the ~110
     tests that touch the database.
     """
-    dsn = os.environ.get(_db.DSN_ENV_VAR, "").strip()
+    dsn = reset_target_dsn() or os.environ.get(_db.DSN_ENV_VAR, "").strip()
     if not dsn:
         raise RuntimeError(
-            f"{_db.DSN_ENV_VAR} is not set. The test suite needs a PostgreSQL "
-            f"database with 'test' in its name, e.g. "
-            f"DATABASE_URL=postgresql:///nba_props_test pytest"
+            f"Neither {TEST_DSN_ENV_VAR} nor {_db.DSN_ENV_VAR} is set. The "
+            f"test suite needs a PostgreSQL database with 'test' as a word "
+            f"in its name, e.g. "
+            f"{TEST_DSN_ENV_VAR}=postgresql:///nba_props_test pytest"
         )
     return dsn
 

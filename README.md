@@ -215,6 +215,23 @@ API key — only on that flag, which must be set explicitly. It shouts at ERROR
 whenever a poll parses but yields no splits, because an empty table otherwise
 looks identical to a night with no NBA.
 
+### Run the tests
+
+The suite starts each run from an empty schema, which means
+`DROP SCHEMA public CASCADE`. It reads `TEST_DATABASE_URL` for that — a
+separate variable the application never looks at — so an exported
+`DATABASE_URL` pointing at real data cannot be dropped by running the
+tests. The target has to have `test` as a word in its name
+(`nba_props_test`, not `nba_props_latest`) and live on a local host; the
+reset also stands down under `--collect-only`, which editors run on their
+own. conftest copies `TEST_DATABASE_URL` into `DATABASE_URL` for the code
+under test.
+
+```bash
+createdb nba_props_test
+TEST_DATABASE_URL=postgresql:///nba_props_test pytest -q
+```
+
 ---
 
 ## API endpoints (selected)
