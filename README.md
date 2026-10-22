@@ -162,6 +162,14 @@ Optional:
 ```bash
 export ODDS_API_KEY="your_the_odds_api_key"   # enables line movement tracking
 export ODDS_POLL_INTERVAL=3600                # poll every 60 min (default)
+
+# Game-line (moneyline/spread/total) history capture. The Odds API bills
+# markets × regions per call, so these govern what the capture spends:
+# h2h,spreads,totals across us,eu is 6 credits a snapshot.
+export GAME_LINE_SNAPSHOTS=open,close         # which daily snapshots run ("" disables)
+export GAME_LINE_OPEN_HOUR=10                 # local hour the "open" snapshot may fire
+export ODDS_REGIONS=us,eu                     # capture regions; "eu" is where Pinnacle is
+export ODDS_QUOTA_FLOOR=50                    # refuse captures below this many credits
 ```
 
 Every `scripts/*.py` CLI takes `--db <dsn>`; omitting it falls back to
@@ -188,7 +196,7 @@ python3 run.py
 # → http://127.0.0.1:5000
 ```
 
-When `ODDS_API_KEY` is set, a background thread polls prop lines every 60 minutes and a close-line sweeper runs every 5 minutes on game days.
+When `ODDS_API_KEY` is set, a background thread polls prop lines every 60 minutes and a close-line sweeper runs every 5 minutes on game days. The sweeper also takes the two daily game-line snapshots (`open`, `close`) into `game_line_history` — twice a game day rather than hourly, because on the free 500-credit tier a 6-credit capture every hour would exhaust the month in under a week.
 
 ---
 

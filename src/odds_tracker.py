@@ -6,6 +6,7 @@ computes line movement features, and surfaces sharp action signals.
 """
 
 import logging
+import os
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -27,6 +28,72 @@ def american_to_implied(price: float) -> float:
     elif price < 0:
         return abs(price) / (abs(price) + 100.0)
     return 0.5
+
+
+# ---------------------------------------------------------------------------
+# Game-line capture config
+#
+# The Odds API bills markets × regions per call, and this account is on
+# the free tier (500 credits/month). ``h2h,spreads,totals`` across
+# ``us,eu`` costs 6 credits a call — measured, not assumed — so capturing
+# game lines on the hourly prop cadence would burn the month in under a
+# week. Instead capture fires twice a game day: an "open" snapshot in the
+# morning and a "close" one as the first tipoff enters the existing
+# closing window. ~2 × 6 × 30 = ~360 credits/month.
+#
+# Everything here is env-tunable so moving to a paid tier (more snapshots,
+# more regions) is a config change rather than a code change.
+# ---------------------------------------------------------------------------
+
+# Regions for the game-line capture call only — the prop poll keeps its
+# narrower "us" so this change cannot raise the cost of the hourly loop.
+# Pinnacle, the sharp book the analysis layer will anchor on, is in "eu"
+# and absent from "us".
+DEFAULT_ODDS_REGIONS = "us,eu"
+
+# Which scheduled snapshots are enabled. Empty disables capture entirely.
+DEFAULT_GAME_LINE_SNAPSHOTS = "open,close"
+
+# Local hour at/after which the "open" snapshot may fire.
+DEFAULT_GAME_LINE_OPEN_HOUR = 10
+
+# Refuse capture calls when the API reports fewer credits than this left.
+# A silently exhausted quota returns nothing and is indistinguishable
+# from "no games today", which is the failure mode we can least afford.
+DEFAULT_QUOTA_FLOOR = 50
+
+# A given label may not fire twice inside this many hours. Deliberately
+# under 24 so the next day's snapshot is never blocked by drift in when
+# the previous one landed, and well over the sweeper's few-minute
+# cadence so one snapshot can't be taken twice.
+SNAPSHOT_COOLDOWN_HOURS = 18
+
+# The cooldown above is read from game_line_history, so a capture that
+# came back empty (API error, board not posted yet) does not set it.
+# This second, shorter cooldown is what stops the few-minute sweeper
+# from re-spending 6 credits on every tick of a bad day. In-process
+# only: a restart is allowed to retry.
+SNAPSHOT_RETRY_MINUTES = 30
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, str(default)))
+    except ValueError:
+        return default
+
+
+def odds_regions() -> str:
+    """Regions parameter for the game-line capture call."""
+    return os.environ.get("ODDS_REGIONS", "").strip() or DEFAULT_ODDS_REGIONS
+
+
+def enabled_game_line_snapshots() -> tuple[str, ...]:
+    """Labels the scheduler is allowed to take, in ``GAME_LINE_SNAPSHOTS``."""
+    raw = os.environ.get("GAME_LINE_SNAPSHOTS")
+    if raw is None:
+        raw = DEFAULT_GAME_LINE_SNAPSHOTS
+    return tuple(s.strip() for s in raw.split(",") if s.strip())
 
 
 # ---------------------------------------------------------------------------
@@ -57,12 +124,28 @@ class OddsTracker:
 
     MARKETS = ",".join(PROP_TYPE_MAP.keys())
 
+    # Game-level markets captured into game_line_history. Requested on
+    # the games call we already make — never a second request — but the
+    # widening from "spreads,totals"/"us" to all three across "us,eu"
+    # does cost quota (6 credits vs 2), which is why capture is opt-in
+    # per call and scheduled rather than run on the hourly loop.
+    GAME_MARKETS = ("h2h", "spreads", "totals")
+
+    # Values allowed in game_line_history.snapshot_label. "open" and
+    # "close" are the two scheduled daily captures the analysis layer
+    # pairs for CLV; "adhoc" tags anything taken by hand.
+    GAME_LINE_LABELS = ("open", "close", "adhoc")
+
     def __init__(self, api_key: str | None = None, db_path: str | None = None):
         # ``api_key`` is only used for the live HTTP fetches; B3 callers
         # (auto_grade_pending → record_outcome) want the DB methods only
         # and shouldn't need to pass a fake key just to satisfy the ctor.
         self.api_key = api_key
         self.db_path = db_path
+        # Per-label time of the last game-line capture *attempt*, which
+        # is not the same as the last one that stored rows — see
+        # SNAPSHOT_RETRY_MINUTES.
+        self._last_capture_attempt: dict[str, datetime] = {}
         self._init_db()
 
     # ---- DB setup ---------------------------------------------------------
@@ -159,6 +242,31 @@ class OddsTracker:
             )
         """)
 
+        # game_line_history is prop_line_history's game-level twin: one
+        # row per (bookmaker, market, outcome) per capture, written as a
+        # side-effect of fetch_upcoming_games. Same conventions — TEXT
+        # snapshot_time, UNIQUE over the snapshot tuple so re-polling
+        # inside the same second is a no-op. ``point`` is the spread or
+        # the total and is NULL on h2h, which has no number attached.
+        # ``snapshot_label`` ("open" | "close" | "adhoc") tags which of
+        # the day's two scheduled captures a row came from, so the
+        # analysis layer can pair open against close directly instead of
+        # inferring the pairing from timestamps.
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS game_line_history (
+                id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                game_id TEXT NOT NULL,
+                bookmaker TEXT NOT NULL,
+                market TEXT NOT NULL,
+                outcome_name TEXT NOT NULL,
+                point DOUBLE PRECISION,
+                price DOUBLE PRECISION,
+                snapshot_label TEXT NOT NULL,
+                snapshot_time TEXT NOT NULL,
+                UNIQUE(game_id, bookmaker, market, outcome_name, snapshot_time)
+            )
+        """)
+
         conn.commit()
         conn.close()
         log.info("[odds] DB tables initialized")
@@ -196,19 +304,34 @@ class OddsTracker:
             log.error("[odds] Request failed: %s", e)
             return None
 
-    def fetch_upcoming_games(self) -> list[dict]:
+    def fetch_upcoming_games(self, capture: str | None = None) -> list[dict]:
         """Fetch upcoming NBA games with basic odds.
 
         Side-effect: persists each (game_id, commence_time) into
         ``game_tipoffs`` so the close-only background poller can find
         imminent games without re-hitting the API.
+
+        When ``capture`` is a snapshot label ("open" | "close" |
+        "adhoc"), the *same* request is widened to every game market
+        across :func:`odds_regions`, and the moneyline / spread / total
+        quotes it returns are persisted into ``game_line_history``
+        instead of being discarded. That widening is what costs quota
+        (6 credits vs 2), so it is opt-in: the hourly prop poll calls
+        this with ``capture=None`` and pays exactly what it always did.
+        The return value is identical either way.
         """
         url = f"{self.BASE_URL}/v4/sports/{self.SPORT}/odds/"
-        data = self._get(url, {
+        params = {
             "regions": "us",
             "markets": "spreads,totals",
             "oddsFormat": "american",
-        })
+        }
+        if capture:
+            # One call, widened — never a second request for data this
+            # response already carries.
+            params["regions"] = odds_regions()
+            params["markets"] = ",".join(self.GAME_MARKETS)
+        data = self._get(url, params)
         if not data:
             return []
         games = []
@@ -224,6 +347,16 @@ class OddsTracker:
             self._upsert_tipoffs(games)
         except Exception as e:  # noqa: BLE001
             log.warning("[odds] tipoff cache update failed: %s", e)
+        # Snapshot the game lines we were handed (best-effort, same
+        # reasoning: a storage problem must not cost the caller its games)
+        if capture:
+            try:
+                stored = self._store_game_lines(data, capture)
+                _LAST_POLL["game_lines_captured"] = stored
+                _LAST_POLL["game_lines_captured_at"] = \
+                    datetime.now(timezone.utc).isoformat()
+            except Exception as e:  # noqa: BLE001
+                log.warning("[odds] game line capture failed: %s", e)
         log.info(f"[odds] Found {len(games)} upcoming games")
         print(f"[odds] Found {len(games)} upcoming games")
         return games
@@ -261,6 +394,208 @@ class OddsTracker:
             conn.commit()
         finally:
             conn.close()
+
+    def _store_game_lines(self, events: list[dict], label: str) -> int:
+        """Snapshot every game-level quote in the ``/odds`` payload.
+
+        One row per outcome, per market, per bookmaker, all stamped with
+        this capture's ``snapshot_time`` and ``label`` — the same shape
+        (and the same ON CONFLICT DO NOTHING) as ``_store_snapshot``
+        uses for player props, so two captures inside one second
+        collapse to one snapshot instead of duplicating.
+
+        The feed is not always complete: events arrive with no
+        bookmakers, markets with no outcomes, outcomes missing a price.
+        Those are skipped rather than raised on — a thin event must not
+        cost us the quotes that did arrive.
+
+        Returns the number of quote rows written.
+        """
+        if not events:
+            return 0
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        rows = []
+        for event in events:
+            game_id = event.get("id")
+            if not game_id:
+                continue
+            for bk in event.get("bookmakers") or []:
+                bk_name = bk.get("key", bk.get("title", "unknown"))
+                for market in bk.get("markets") or []:
+                    market_key = market.get("key", "")
+                    if market_key not in self.GAME_MARKETS:
+                        continue
+                    for outcome in market.get("outcomes") or []:
+                        name = outcome.get("name")
+                        price = outcome.get("price")
+                        if not name or price is None:
+                            continue
+                        point = outcome.get("point")
+                        try:
+                            rows.append((
+                                game_id, bk_name, market_key, name,
+                                None if point is None else float(point),
+                                float(price), label, now,
+                            ))
+                        except (TypeError, ValueError):
+                            log.warning(
+                                "[odds] skipping unparseable %s outcome %r on %s",
+                                market_key, name, bk_name,
+                            )
+        if not rows:
+            return 0
+
+        conn = db.connect(self.db_path)
+        c = conn.cursor()
+        try:
+            for row in rows:
+                # Per-row savepoint for the same reason as
+                # _store_snapshot: one bad row must not poison the
+                # transaction and discard the rest of the snapshot.
+                c.execute("SAVEPOINT game_line_row")
+                try:
+                    c.execute("""
+                        INSERT INTO game_line_history
+                        (game_id, bookmaker, market, outcome_name, point, price,
+                         snapshot_label, snapshot_time)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT DO NOTHING
+                    """, row)
+                except psycopg.Error as e:
+                    c.execute("ROLLBACK TO SAVEPOINT game_line_row")
+                    log.warning(f"[odds] Game line insert error: {e}")
+                else:
+                    c.execute("RELEASE SAVEPOINT game_line_row")
+            conn.commit()
+        finally:
+            conn.close()
+        log.info("[odds] Captured %d game line quotes (%s)", len(rows), label)
+        return len(rows)
+
+    # ---- Scheduled game-line capture --------------------------------------
+
+    def capture_game_lines(self, label: str = "adhoc") -> int | None:
+        """Take one game-line snapshot, tagged ``label``.
+
+        Returns the number of games in the snapshot, or ``None`` when
+        the quota guard refused the call.
+        """
+        floor = _env_int("ODDS_QUOTA_FLOOR", DEFAULT_QUOTA_FLOOR)
+        remaining = _LAST_POLL.get("quota_remaining")
+        # ``remaining`` is None until some call has come back with the
+        # header — that first call is how we learn, so it is allowed.
+        if remaining is not None and remaining < floor:
+            log.error(
+                "[odds] game line capture (%s) refused: %s credits remaining, "
+                "floor is %s. An exhausted quota returns an empty board, which "
+                "is indistinguishable from a day with no games.",
+                label, remaining, floor,
+            )
+            return None
+        log.info(
+            "[odds] game line capture (%s): %s credits remaining (floor %s)",
+            label, remaining if remaining is not None else "unknown", floor,
+        )
+        self._last_capture_attempt[label] = datetime.now(timezone.utc)
+        games = self.fetch_upcoming_games(capture=label)
+        return len(games)
+
+    def maybe_capture_game_lines(self) -> dict:
+        """Take whichever scheduled game-line snapshots are due.
+
+        Driven by the close sweeper's few-minute loop, but the cadence
+        comes from the per-label cooldown and the ``game_tipoffs``
+        cache, not from how often this is called — on the free tier the
+        budget is two captures a game day.
+
+        Returns ``{"captured": [label, …], "skipped_quota": bool}``.
+        """
+        out: dict = {"captured": [], "skipped_quota": False}
+        for label in enabled_game_line_snapshots():
+            if label not in self.GAME_LINE_LABELS:
+                log.warning(
+                    "[odds] unknown game line snapshot %r in GAME_LINE_SNAPSHOTS "
+                    "— expected one of %s", label, ", ".join(self.GAME_LINE_LABELS),
+                )
+                continue
+            if not self._game_line_snapshot_due(label):
+                continue
+            if self.capture_game_lines(label) is None:
+                out["skipped_quota"] = True
+                break
+            out["captured"].append(label)
+        return out
+
+    def _game_line_snapshot_due(self, label: str) -> bool:
+        """Is the ``label`` snapshot due right now?
+
+        "open" fires at/after ``GAME_LINE_OPEN_HOUR`` local on days that
+        have games; "close" fires once the first tipoff enters the same
+        window the close sweeper uses. Both are blocked by the cooldown,
+        which is read from the history table rather than process memory
+        so a restart cannot spend the credits twice.
+        """
+        if self._snapshot_on_cooldown(label):
+            return False
+        now = datetime.now(timezone.utc)
+        attempted = self._last_capture_attempt.get(label)
+        if attempted is not None and \
+                (now - attempted).total_seconds() / 60.0 < SNAPSHOT_RETRY_MINUTES:
+            return False
+        if label == "open":
+            open_hour = _env_int("GAME_LINE_OPEN_HOUR", DEFAULT_GAME_LINE_OPEN_HOUR)
+            if datetime.now().hour < open_hour:
+                return False
+            # A snapshot of an empty board costs the same 6 credits as a
+            # real one, so only spend them on days with games.
+            return bool(self._tipoffs_between(now, now + timedelta(hours=24)))
+        if label == "close":
+            return any(
+                self._inside_closing_window(ct)
+                for ct in self._tipoffs_between(
+                    now - timedelta(hours=1), now + timedelta(hours=24),
+                )
+            )
+        return False
+
+    def _snapshot_on_cooldown(self, label: str) -> bool:
+        """Was a ``label`` snapshot taken inside the cooldown window?"""
+        conn = db.connect(self.db_path)
+        try:
+            row = conn.execute(
+                """
+                SELECT MAX(snapshot_time::timestamp) FROM game_line_history
+                WHERE snapshot_label = %s
+                """,
+                (label,),
+            ).fetchone()
+        finally:
+            conn.close()
+        if not row or row[0] is None:
+            return False
+        last = row[0].replace(tzinfo=timezone.utc)
+        age_hours = (datetime.now(timezone.utc) - last).total_seconds() / 3600.0
+        return age_hours < SNAPSHOT_COOLDOWN_HOURS
+
+    def _tipoffs_between(self, lo: datetime, hi: datetime) -> list[str]:
+        """``commence_time`` of every cached tipoff in ``[lo, hi]``.
+
+        Reads the same ``game_tipoffs`` cache the close sweeper walks —
+        populated by fetch_upcoming_games, costs no API call.
+        """
+        conn = db.connect(self.db_path)
+        try:
+            rows = conn.execute(
+                """
+                SELECT commence_time FROM game_tipoffs
+                WHERE commence_time::timestamp BETWEEN %s::timestamp AND %s::timestamp
+                ORDER BY commence_time ASC
+                """,
+                (lo.strftime("%Y-%m-%d %H:%M:%S"), hi.strftime("%Y-%m-%d %H:%M:%S")),
+            ).fetchall()
+        finally:
+            conn.close()
+        return [r[0] for r in rows]
 
     def fetch_player_props(self, event_id: str) -> list[dict]:
         """Fetch all player prop lines for a single game event."""
@@ -960,6 +1295,11 @@ _LAST_POLL: dict = {
     # full snapshot poll). Useful for verifying the tight cron is alive
     # even on days when no game falls in the window.
     "closes_checked_at": None,
+    # Game-line capture: rows written by the most recent snapshot and
+    # when it ran. Two a game day, so a timestamp older than ~a day on a
+    # game day means capture has stopped — the thing we cannot backfill.
+    "game_lines_captured": None,
+    "game_lines_captured_at": None,
 }
 
 

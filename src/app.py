@@ -122,7 +122,9 @@ def _close_sweep_loop():
     from src.odds_tracker import OddsTracker
     import time as _time
     _time.sleep(30)  # let initial fetch_upcoming_games populate the cache
-    tracker = OddsTracker(api_key=None, db_path=betting_helper.db_name)
+    # The key is needed now: the same loop drives the game-line open/close
+    # snapshots, which do hit the API. The sweep itself is still pure SQL.
+    tracker = OddsTracker(api_key=_odds_key, db_path=betting_helper.db_name)
     while True:
         try:
             result = tracker.capture_closing_lines_for_imminent_games()
@@ -133,6 +135,20 @@ def _close_sweep_loop():
                 )
         except Exception as e:
             app.logger.error(f"Close sweep failed: {e}")
+        # Game-line capture rides this loop rather than the hourly odds
+        # poll: on the free tier a 6-credit capture every hour would
+        # exhaust the month in under a week. maybe_capture_game_lines is
+        # a cheap no-op — a couple of local reads, no API call — until a
+        # snapshot is actually due, which is twice a game day.
+        try:
+            captured = tracker.maybe_capture_game_lines()
+            if captured["captured"]:
+                app.logger.info(
+                    "Game line capture: took %s snapshot(s)",
+                    ", ".join(captured["captured"]),
+                )
+        except Exception as e:
+            app.logger.error(f"Game line capture failed: {e}")
         _time.sleep(_close_sweep_interval)
 
 if _odds_key:
