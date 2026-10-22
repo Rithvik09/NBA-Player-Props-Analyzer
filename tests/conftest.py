@@ -22,6 +22,14 @@ import pytest
 
 os.environ.setdefault("NBA_CACHE_DISABLE", "1")
 
+# The betting-splits poller is ON by default in production — the source is
+# free and keyless, so nothing else gates it. Under test that would mean any
+# module importing ``src.app`` reaches the live Action Network endpoint 45
+# seconds in. Forced off rather than defaulted off, so an inherited
+# BETTING_SPLITS_POLL=1 in a shell cannot put the suite on the network; the
+# tests that care about the poller set the value themselves.
+os.environ["BETTING_SPLITS_POLL"] = "0"
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))

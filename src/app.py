@@ -174,6 +174,40 @@ if _odds_key:
     threading.Thread(target=_close_sweep_loop, daemon=True, name='close-sweeper').start()
     app.logger.info(f'Close sweeper started (every {_close_sweep_interval}s)')
 
+# ── Public betting splits poller ─────────────────────────────────────────────
+# Action Network's public-betting scoreboard: free, keyless, undocumented. It
+# is deliberately NOT gated on ODDS_API_KEY — that key rations a paid quota
+# this source does not touch, so hanging it off the key would mean a
+# deployment with no Odds API account silently collects no splits either.
+#
+# Cadence is courtesy rather than budget: 20 minutes by default, env-tunable.
+# The feed itself says whether there are games, so there is no game-day gate;
+# on a night with no NBA a capture stores nothing and says so loudly (see the
+# canary in src/betting_splits.py).
+#
+# On by default. Set BETTING_SPLITS_POLL=0 to stop it — the test suite does,
+# so no test run reaches the live endpoint.
+_splits_poll_interval = int(os.environ.get('BETTING_SPLITS_POLL_INTERVAL', 1200))
+_splits_poll_enabled = os.environ.get('BETTING_SPLITS_POLL', '1').strip().lower() in ('1', 'true', 'yes')
+
+def _betting_splits_loop():
+    from src.betting_splits import BettingSplitsTracker
+    import time as _time
+    _time.sleep(45)  # let the server finish starting
+    tracker = BettingSplitsTracker(db_path=betting_helper.db_name)
+    while True:
+        try:
+            stored = tracker.capture()
+            app.logger.info(f"Betting splits: {stored} rows stored")
+        except Exception as e:
+            app.logger.error(f"Betting splits capture failed: {e}")
+        _time.sleep(_splits_poll_interval)
+
+if _splits_poll_enabled:
+    threading.Thread(target=_betting_splits_loop, daemon=True,
+                     name='betting-splits').start()
+    app.logger.info(f'Betting splits poller started (every {_splits_poll_interval}s)')
+
 def _startup_auto_grade():
     try:
         result = betting_helper.auto_grade_pending()
