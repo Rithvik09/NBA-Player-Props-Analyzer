@@ -677,7 +677,7 @@ class EnhancedMLPredictor:
             'fg_pct':        float(player_stats.get('fg_pct',         0.45)),
             'recent_fg_pct': float(player_stats.get('recent_fg_pct',  0.45)),
             'ft_pct':        float(player_stats.get('ft_pct',         0.75)),
-            'usage_rate':    float(player_stats.get('usage_rate',     18.0)),
+            'usage_rate':    float(player_stats.get('usage_rate',     FEATURE_DEFAULTS['usage_rate'])),
             'trend_slope':   float(player_stats.get('trend_slope',     0.0)),
             'b2b_flag':      int(player_stats.get('b2b_flag',          0)),
         })
@@ -1313,7 +1313,13 @@ class EnhancedMLPredictor:
 
         # Lineup / role features
         features.setdefault('net_rating_with_starters', features.get('on_court_net_rating', 0.0))
-        features.setdefault('usage_rate_with_star_out', features.get('usage_rate', 18.0) * 1.05)
+        # usage_rate is now possessions per 48. This feature's own formula
+        # is a separate divergence from training (which uses FGA/game * 1.1)
+        # and is deliberately left where it was, so convert back to the
+        # per-game basis rather than silently scaling it up by mins/48.
+        _usage_pg = (features.get('usage_rate', FEATURE_DEFAULTS['usage_rate'])
+                     * max(features.get('mins_season', 24.0), 1.0) / 48.0)
+        features.setdefault('usage_rate_with_star_out', _usage_pg * 1.05)
         features.setdefault('minutes_with_starting_lineup_pct', 0.6)
         features.setdefault('five_man_unit_net_rating', features.get('on_court_net_rating', 0.0))
         features.setdefault('lineups_played_count', 50.0)
@@ -1341,7 +1347,10 @@ class EnhancedMLPredictor:
 
         # Clutch / performance situational
         features.setdefault('clutch_performance_score', features.get('clutch_pts_per_game', 0.0) / max(_seas_avg, 0.1))
-        features.setdefault('fourth_quarter_usage_rate', features.get('usage_rate', 18.0))
+        # A fraction in [0.15, 0.30], ramped by minutes — scripts/train_models.py.
+        # Reading usage_rate here fed a ~30 into a feature fitted on ~0.3.
+        features.setdefault('fourth_quarter_usage_rate', 0.15 + 0.005 * max(
+            0.0, min(30.0, float(features.get('mins_season', 24.0)))))
         features.setdefault('crunch_time_usage', features.get('clutch_min_per_game', 0.0))
         features.setdefault('garbage_time_minutes_pct', FEATURE_DEFAULTS['garbage_time_minutes_pct'])
         features.setdefault('typical_substitution_minute', 20.0)

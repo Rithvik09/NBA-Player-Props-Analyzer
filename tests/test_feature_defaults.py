@@ -55,6 +55,7 @@ TRAIN_SIDE_DERIVED = {
     "corner_3_pct": "recent FG3_PCT * 1.05",
     "garbage_time_minutes_pct": "blowout game share * 0.15",
     "arena_capacity": "real capacity from arena_data.ARENA_DATA",
+    "usage_rate": "(FGA + 0.44 FTA + TOV) / minutes * 48",
 }
 
 # The trainer needs 11+ prior games before it emits a row, so the canned log
@@ -291,3 +292,115 @@ def test_numeric_feature_keys_unchanged():
     assert digest == (
         "8248083f3537d6c865537835bfaff2ebfa69bce8710f8678d773d7b7956a90b8"
     ), "NUMERIC_FEATURE_KEYS changed content or order"
+
+
+# ─────────────────────────────── the same quantity, not just the same default
+# Features where train and serve computed *different things* under one name.
+# The tests above cannot see that: with every source empty each of them
+# collapses onto a floor and agrees there. These run a realistic game log —
+# minutes, FGA, FTA, TOV, OREB, DREB — through both builders and compare the
+# numbers that come out.
+#
+# Training is canonical. Every expectation below is scripts/train_models.py's
+# formula evaluated on _GAME_LOG_COLUMNS by hand, so a change on either side
+# that moves the quantity fails here rather than silently re-agreeing at a
+# new wrong value.
+_MINS = _GAME_LOG_COLUMNS["MIN"]            # 30.0
+
+SCALE_ALIGNED_EXPECTED = {
+    # (FGA + 0.44 FTA + TOV) / max(mins, 1) * 48 — possessions used per 48
+    "usage_rate": (
+        _GAME_LOG_COLUMNS["FGA"]
+        + 0.44 * _GAME_LOG_COLUMNS["FTA"]
+        + _GAME_LOG_COLUMNS["TOV"]
+    ) / max(_MINS, 1) * 48,
+    # 0.15 + 0.005 * clamp(mins, 0, 30) — a *fraction*, deliberately not a
+    # function of usage_rate. Inheriting usage_rate here is a ~60x error.
+    "fourth_quarter_usage_rate": 0.15 + 0.005 * max(0.0, min(30.0, _MINS)),
+}
+
+
+def _serve_efficiency(monkeypatch):
+    """``stats['efficiency']`` from the real ``get_player_stats``.
+
+    This is the serving source of the usage scale: analyze_prop_bet copies
+    these scalars into the stat dict that prepare_features reads. Building
+    them here rather than in the test is the point — a per-game numerator
+    emitted under a per-48 name would otherwise be invisible.
+    """
+    import src.basketball_betting_helper as bbh
+
+    monkeypatch.setattr(bbh.playergamelog, "PlayerGameLog",
+                        lambda **kw: _CannedEndpoint(_canned_game_log()))
+    monkeypatch.setattr(bbh.time, "sleep", lambda *a, **kw: None)
+
+    helper = bbh.BasketballBettingHelper.__new__(bbh.BasketballBettingHelper)
+    stats = helper.get_player_stats(2544)
+    assert stats, "get_player_stats returned nothing for the canned log"
+    return stats["efficiency"]
+
+
+def _serve_feature_dict_with_game_log(monkeypatch, team_context):
+    """``prepare_features`` fed the same game log the trainer saw.
+
+    The efficiency scalars come from the real serving path. The per-game
+    box-score inputs are supplied directly: analyze_prop_bet currently
+    setdefaults them to constants (15.0 / 4.0 / 1.0 / 3.0) rather than
+    reading the log, which is a divergence of its own and not one of the
+    six — passing the true values keeps this test on the six.
+    """
+    from src.models import EnhancedMLPredictor
+
+    eff = _serve_efficiency(monkeypatch)
+    predictor = EnhancedMLPredictor.__new__(EnhancedMLPredictor)
+    player_stats = {
+        "values": [_GAME_LOG_COLUMNS["PTS"]] * (_N_GAMES - 1),
+        "last5_avg": _GAME_LOG_COLUMNS["PTS"],
+        "avg": _GAME_LOG_COLUMNS["PTS"],
+        # injected by analyze_prop_bet from stats['efficiency']
+        "avg_minutes": eff["avg_minutes"],
+        "recent_minutes": eff["recent_minutes"],
+        "fg_pct": eff["fg_pct"],
+        "recent_fg_pct": eff["recent_fg_pct"],
+        "ft_pct": eff["ft_pct"],
+        "usage_rate": eff["usage_rate"],
+        # per-game box score, straight off the same log
+        "fga_per_game": _GAME_LOG_COLUMNS["FGA"],
+        "fta_per_game": _GAME_LOG_COLUMNS["FTA"],
+        "oreb_per_game": _GAME_LOG_COLUMNS["OREB"],
+        "dreb_per_game": _GAME_LOG_COLUMNS["DREB"],
+    }
+    return predictor.prepare_features(
+        player_stats, {}, dict(team_context), dict(team_context))
+
+
+@pytest.mark.parametrize("feature", sorted(SCALE_ALIGNED_EXPECTED))
+def test_train_and_serve_compute_the_same_quantity(monkeypatch, feature):
+    """Same game log in, same number out of both builders."""
+    train = _train_feature_dict(monkeypatch, {})
+    serve = _serve_feature_dict_with_game_log(monkeypatch, {})
+    expected = SCALE_ALIGNED_EXPECTED[feature]
+
+    assert float(train[feature]) == pytest.approx(expected, rel=1e-9), (
+        f"the training formula for {feature} moved: expected {expected!r}, "
+        f"got {train[feature]!r}. Training is canonical — if it is wrong, "
+        f"that is a decision, not a test fix."
+    )
+    assert float(serve[feature]) == pytest.approx(expected, rel=1e-9), (
+        f"{feature}: train emits {float(train[feature])!r}, "
+        f"serve emits {float(serve[feature])!r}"
+    )
+
+
+def test_fourth_quarter_usage_does_not_inherit_usage_rate(monkeypatch):
+    """The trap: aligning usage_rate and leaving this reading from it keeps
+    the ~60x error while making the two look consistent."""
+    serve = _serve_feature_dict_with_game_log(monkeypatch, {})
+    q4 = float(serve["fourth_quarter_usage_rate"])
+    usage = float(serve["usage_rate"])
+
+    assert 0.15 <= q4 <= 0.30, (
+        f"fourth_quarter_usage_rate is {q4!r}; the trainer's range is "
+        f"[0.15, 0.30] and anything near usage_rate ({usage!r}) means it "
+        f"was derived from usage_rate instead of from minutes"
+    )

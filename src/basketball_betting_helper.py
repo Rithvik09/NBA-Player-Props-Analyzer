@@ -988,17 +988,30 @@ class BasketballBettingHelper:
                     stats[stat_name]['direction'] = stats['trends'][trend_key]['direction']
 
             # efficiency scalars — used as ML features
+            _avg_minutes = float(pd.to_numeric(games_df['MIN'], errors='coerce').fillna(0).mean())
+            # FGA + 0.44*FTA + TOV, averaged per game: the possessions this
+            # player ended. Same numerator scripts/train_models.py builds.
+            _poss_per_game = float(
+                (pd.to_numeric(games_df['FGA'], errors='coerce').fillna(0) +
+                 0.44 * pd.to_numeric(games_df['FTA'], errors='coerce').fillna(0) +
+                 pd.to_numeric(games_df['TOV'], errors='coerce').fillna(0)).mean()
+            )
             stats['efficiency'] = {
-                'avg_minutes':    float(pd.to_numeric(games_df['MIN'], errors='coerce').fillna(0).mean()),
+                'avg_minutes':    _avg_minutes,
                 'recent_minutes': float(pd.to_numeric(games_df['MIN'], errors='coerce').fillna(0).head(5).mean()),
                 'fg_pct':         float(pd.to_numeric(games_df['FG_PCT'], errors='coerce').fillna(0).mean()),
                 'recent_fg_pct':  float(pd.to_numeric(games_df['FG_PCT'], errors='coerce').fillna(0).head(5).mean()),
                 'ft_pct':         float(pd.to_numeric(games_df['FT_PCT'], errors='coerce').fillna(0).mean()),
-                'usage_rate':     float(
-                    (pd.to_numeric(games_df['FGA'], errors='coerce').fillna(0) +
-                     0.44 * pd.to_numeric(games_df['FTA'], errors='coerce').fillna(0) +
-                     pd.to_numeric(games_df['TOV'], errors='coerce').fillna(0)).mean()
-                ),
+                # Possessions used per 48 minutes — the training definition
+                # (scripts/train_models.py). The numerator here was already
+                # identical; only the ``/ max(minutes, 1) * 48`` was missing,
+                # so the model was fitted on ~30 and served ~20.
+                'usage_rate':     _poss_per_game / max(_avg_minutes, 1) * 48,
+                # The per-game numerator, kept because two features downstream
+                # were written against it rather than against the per-48
+                # figure. Not a model feature — nothing reads it from the
+                # 416-key schema.
+                'possessions_per_game': _poss_per_game,
             }
 
             return stats
@@ -1268,7 +1281,7 @@ class BasketballBettingHelper:
                 'fg_pct':         efficiency.get('fg_pct',          0.45),
                 'recent_fg_pct':  efficiency.get('recent_fg_pct',   0.45),
                 'ft_pct':         efficiency.get('ft_pct',           0.75),
-                'usage_rate':     efficiency.get('usage_rate',       18.0),
+                'usage_rate':     efficiency.get('usage_rate',       FEATURE_DEFAULTS['usage_rate']),
             })
 
             # trend slope for this specific prop (already computed in get_player_stats)
@@ -2221,11 +2234,15 @@ class BasketballBettingHelper:
         fg3_pct_recent = float(player_stats.get('fg3_pct', 0.0))  # populated for 3PT props
         avg_minutes    = float(eff.get('avg_minutes',    24.0))
         recent_minutes = float(eff.get('recent_minutes', 24.0))
-        usage_rate     = float(eff.get('usage_rate',     18.0))
+        usage_rate     = float(eff.get('usage_rate',     FEATURE_DEFAULTS['usage_rate']))
+        # usage_rate is possessions per 48; the two features below were
+        # written against the per-game numerator and are not part of this
+        # realignment, so they keep reading the per-game figure.
+        poss_per_game  = float(eff.get('possessions_per_game', 18.0))
 
         # computed efficiency metrics (from efficiency block)
         total_pts = float(player_stats.get('avg', 0)) * len(values)
-        pts_per_shot = total_pts / max(usage_rate * len(values), 1.0)
+        pts_per_shot = total_pts / max(poss_per_game * len(values), 1.0)
 
         # trend features
         trend_slope = float(player_stats.get('trend_slope', 0.0))
@@ -2310,7 +2327,7 @@ class BasketballBettingHelper:
             'ft_pct_recent':  ft_pct_recent,
             'fga_per_game':   fga_per_game,
             'fg3a_per_game':  0.0,   # populated when prop_type = three_pointers below
-            'fta_per_game':   float(eff.get('usage_rate', 0.0)) * 0.15,  # rough FTA proxy
+            'fta_per_game':   poss_per_game * 0.15,  # rough FTA proxy
             'oreb_per_game':  0.0,
             'dreb_per_game':  0.0,
             'plus_minus_avg': 0.0,
@@ -2326,7 +2343,9 @@ class BasketballBettingHelper:
             'days_since_last_game': rest_days + 1,
             'games_in_last_7_days': 2 if b2b_flag else 1,
             # Tier 2: advanced player metrics (0 → defaults; model learned to weight these low)
-            'usage_rate': usage_rate / 100.0,  # normalise to 0-1
+            # Possessions per 48, as scripts/train_models.py defines it. The
+            # ``/ 100.0`` that used to be here turned a ~20 into a ~0.20.
+            'usage_rate': usage_rate,
             'true_shooting_pct': float(eff.get('fg_pct', FEATURE_DEFAULTS['true_shooting_pct'])),
             'effective_fg_pct':  float(eff.get('fg_pct', FEATURE_DEFAULTS['effective_fg_pct'])),
             'assist_percentage': 0.0,
@@ -2385,7 +2404,9 @@ class BasketballBettingHelper:
             'playoff_seeding_impact': 0.5, 'tanking_indicator': 0.0,
             'must_win_situation': 0.0, 'games_back_from_playoff': 0.0,
             # Tier 5: rotation
-            'fourth_quarter_usage_rate': 0.25 if avg_minutes > 30 else 0.18,
+            # Minutes ramp, not a 30-minute step, and not usage_rate —
+            # scripts/train_models.py puts this in [0.15, 0.30].
+            'fourth_quarter_usage_rate': 0.15 + 0.005 * max(0.0, min(30.0, avg_minutes)),
             'garbage_time_minutes_pct': FEATURE_DEFAULTS['garbage_time_minutes_pct'],
             'typical_substitution_minute': min(48.0, avg_minutes + 3.0),
             'crunch_time_usage': 0.28 if avg_minutes > 28 else 0.15,
@@ -2418,7 +2439,7 @@ class BasketballBettingHelper:
             'avg_points_per_touch':   float(recent_avg) / max(float(player_stats.get('tracking_touches_pg', 50.0)), 1.0),
             # Tier 6: lineup (0)
             'net_rating_with_starters': 0.0,
-            'usage_rate_with_star_out': usage_rate / 100.0 * 1.1,
+            'usage_rate_with_star_out': poss_per_game / 100.0 * 1.1,
             'minutes_with_starting_lineup_pct': 0.65 if avg_minutes > 25 else 0.35,
             'five_man_unit_net_rating': float(_pre.get('team_lineup_stats', {}).get(int(team_id) if team_id else 0, {}).get('top_lineup_net_rating', 0.0)),
             'on_court_net_rating': 0.0, 'off_court_net_rating': 0.0,

@@ -632,6 +632,14 @@ FEATURE_DEFAULTS: dict[str, float] = {
     "vs_opp_ts_pct": 0.55,
     "vs_opp_avg_min": 0.0,
 
+    # Possessions a player ends per 48 minutes (FGA + 0.44 FTA + TOV,
+    # normalised by minutes). Serving used to emit the per-game numerator
+    # under this name, and one builder then divided it by 100 again, so the
+    # same feature arrived as ~20, ~0.20 and ~18 depending on the path. The
+    # value is a league-average player: team FGA 86 + 0.44*FTA ~10 + TOV 14
+    # is ~110 possessions per 48, shared across five players on the floor.
+    "usage_rate": 22.0,
+
     # Arena.
     "arena_capacity": 18000.0,
 }
