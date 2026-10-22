@@ -41,3 +41,7 @@ models/incremental.broken_*/
 *.db-wal
 models.backup.*/
 .DS_Store
+.env
+backups/
+*.sql
+*.sql.gz
