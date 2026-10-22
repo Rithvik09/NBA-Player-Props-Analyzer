@@ -35,3 +35,12 @@ def test_player_tables_load_on_a_dict_row_connection(db_conn, db_url):
     # Both index forms the loader promises in its docstring.
     assert data["advanced"][203999]["usage_pct"] == 31.5
     assert data["advanced"][(203999, "2025-26")]["usage_pct"] == 31.5
+
+
+def test_latest_fallback_is_ordered_by_season_not_insertion(db_conn, db_url):
+    from scripts.train_models import _load_precomputed_player_data
+    db_conn.execute('CREATE TABLE player_advanced_stats (player_id BIGINT, season TEXT, efg_pct DOUBLE PRECISION)')
+    db_conn.execute("INSERT INTO player_advanced_stats VALUES (2544, '2025-26', .6), (2544, '2022-23', .4)")
+    data = _load_precomputed_player_data(db_url)
+    assert data['advanced'][2544]['efg_pct'] == .6
+    assert data['advanced'][(2544, '2022-23')]['efg_pct'] == .4

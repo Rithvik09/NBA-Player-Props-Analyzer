@@ -14,6 +14,7 @@ Return shape
 from __future__ import annotations
 
 import logging
+import time
 import re
 import unicodedata
 from typing import Iterable
@@ -58,6 +59,34 @@ def status_severity(raw: str) -> float:
 # Source: ESPN
 # ---------------------------------------------------------------------------
 
+class InjuryDataUnavailable(RuntimeError):
+    pass
+
+
+def _fetch_espn_json() -> dict[str, list[dict]]:
+    from .current_rosters import BASE, get_json, season_now
+    data = get_json(BASE + '/injuries')
+    if data.get('season', {}).get('displayName') != season_now():
+        raise ValueError('Injury source is serving a different season')
+    if not isinstance(data.get('injuries'), list):
+        raise ValueError('Missing injury report')
+    out = {}
+    for team in data['injuries']:
+        entries = []
+        for row in team.get('injuries', []):
+            detail = row.get('details') or {}
+            athlete = row.get('athlete') or {}
+            status = row.get('status') or 'Unknown'
+            entries.append({'player': athlete.get('displayName', ''), 'status': status,
+                            'injury': detail.get('type') or row.get('shortComment', ''),
+                            'comment': row.get('shortComment', ''),
+                            'return': detail.get('returnDate', ''),
+                            'reported_at': row.get('date'), 'fetched_at': time.time(),
+                            'source': 'ESPN JSON', 'severity': status_severity(status)})
+        out[team['displayName']] = entries
+    return out
+
+
 def _fetch_espn() -> dict[str, list[dict]]:
     """Scrape ESPN's NBA injuries page, grouped by team.
 
@@ -65,6 +94,10 @@ def _fetch_espn() -> dict[str, list[dict]]:
     followed by a table. If the layout changes this silently returns {} and
     the caller falls back.
     """
+    try:
+        return _fetch_espn_json()
+    except (requests.RequestException, ValueError, KeyError) as exc:
+        log.warning('[injuries] ESPN JSON unavailable: %s', type(exc).__name__)
     url = "https://www.espn.com/nba/injuries"
     try:
         resp = requests.get(url, headers={"User-Agent": _UA}, timeout=15)
@@ -85,8 +118,7 @@ def _fetch_espn() -> dict[str, list[dict]]:
         # Flat fallback
         rows = soup.find_all("tr", class_="Table__TR")
         entries = _parse_espn_rows(rows)
-        if entries:
-            out["UNKNOWN"] = entries
+        # Without team identity this report cannot safely feed team features.
         return out
 
     for section in sections:
@@ -108,9 +140,14 @@ def _parse_espn_rows(rows: Iterable) -> list[dict]:
         player = cells[0].get_text(strip=True)
         if not player or player.lower() == "name":
             continue
-        status = cells[1].get_text(strip=True)
-        injury = cells[2].get_text(strip=True) if len(cells) > 2 else ""
-        ret = cells[3].get_text(strip=True) if len(cells) > 3 else ""
+        if len(cells) >= 5:  # NAME, POS, EST. RETURN, STATUS, COMMENT
+            status = cells[3].get_text(strip=True)
+            injury = cells[4].get_text(strip=True)
+            ret = cells[2].get_text(strip=True)
+        else:  # legacy four-column layout
+            status = cells[1].get_text(strip=True)
+            injury = cells[2].get_text(strip=True)
+            ret = cells[3].get_text(strip=True)
         entries.append({
             "player": player,
             "status": status,
@@ -163,12 +200,16 @@ def fetch_live_injuries() -> dict[str, list[dict]]:
     if not data or sum(len(v) for v in data.values()) == 0:
         log.info("[injuries] ESPN empty — falling back to Rotowire")
         data = _fetch_rotowire()
-    return data or {}
+    if not data:
+        raise InjuryDataUnavailable("All live injury sources unavailable")
+    return data
 
 
 def find_player_injury(player_name: str) -> dict | None:
     """Look up a single player by name (diacritic-insensitive substring match)."""
     target = _normalise_name(player_name)
+    if not target:
+        return None
     for team_entries in fetch_live_injuries().values():
         for entry in team_entries:
             norm = _normalise_name(entry.get("player", ""))
@@ -177,12 +218,23 @@ def find_player_injury(player_name: str) -> dict | None:
     return None
 
 
+def _canonical_team(raw):
+    from nba_api.stats.static import teams as nba_teams
+    target = raw.strip().lower()
+    aliases = {'la clippers': 'los angeles clippers', 'la lakers': 'los angeles lakers'}
+    target = aliases.get(target, target)
+    for info in nba_teams.get_teams():
+        if target in (info['abbreviation'].lower(), info['full_name'].lower(), info['nickname'].lower()):
+            return info['full_name'].lower()
+    return target
+
+
 def summarise_team(team_abbr_or_name: str) -> dict:
     """Aggregate: count by severity bucket, max severity."""
-    target = team_abbr_or_name.strip().lower()
+    target = _canonical_team(team_abbr_or_name)
     hits: list[dict] = []
     for team, entries in fetch_live_injuries().items():
-        if target in team.lower():
+        if target in _canonical_team(team):
             hits.extend(entries)
     if not hits:
         return {"count": 0, "max_severity": 0.0, "out_count": 0,
@@ -255,4 +307,13 @@ def matchup_injury_context(team_id: int | None,
     """Combined team + opponent injury features for a matchup."""
     a = team_severity_features(team_id, prefix="team_")
     b = team_severity_features(opp_team_id, prefix="opp_")
-    return {**a, **b}
+    context = {**a, **b}
+    if team_id is None and opp_team_id is None:
+        return {**context, 'available': False}
+    try:
+        report = fetch_live_injuries()
+        context['available'] = True
+        context['fetched_at'] = max((r.get('fetched_at', 0) for rows in report.values() for r in rows), default=0)
+    except InjuryDataUnavailable:
+        context['available'] = False
+    return context

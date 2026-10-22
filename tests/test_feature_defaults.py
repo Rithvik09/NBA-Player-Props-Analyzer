@@ -105,7 +105,7 @@ def _canned_game_log():
     ])
 
 
-def _train_feature_dict(monkeypatch, team_context):
+def _train_feature_dict(monkeypatch, team_context, precomputed=None, prop_type="points", history_count=10):
     """Run the real training builder and return the raw dict it hands to
     ``build_feature_vector`` for the first row it produces."""
     import scripts.train_models as train_models
@@ -125,13 +125,14 @@ def _train_feature_dict(monkeypatch, team_context):
         train_models, "CommonPlayerInfo", lambda **kw: _CannedEndpoint(pd.DataFrame()))
     monkeypatch.setattr(
         train_models, "_load_precomputed_player_data",
-        lambda db_path: {table: {} for table in _PRECOMPUTE_TABLES})
+        lambda db_path: {table: (precomputed or {}).get(table, {}) for table in _PRECOMPUTE_TABLES})
 
-    captured: list[dict] = []
+    captured: list[tuple[int, dict]] = []
 
     def _capture(raw_features):
-        captured.append(dict(raw_features))
-        return build_feature_vector(raw_features)
+        bundle = build_feature_vector(raw_features)
+        captured.append((id(bundle.X), dict(raw_features)))
+        return bundle
 
     monkeypatch.setattr(train_models, "build_feature_vector", _capture)
 
@@ -143,11 +144,12 @@ def _train_feature_dict(monkeypatch, team_context):
         def get_team_context(self, team_id):
             return dict(team_context)
 
-    train_models.build_training_examples(
+    examples = train_models.build_training_examples(
         "2024-25", 1, _Predictor(), _Precomputed(), db_path="unused")
 
     assert captured, "the training builder produced no rows"
-    return captured[0]
+    example = next(e for e in examples if e.prop_type == prop_type and e.game_date == pd.to_datetime(_canned_game_log().iloc[history_count]["GAME_DATE"]))
+    return next(raw for vector_id, raw in captured if vector_id == id(example.X))
 
 
 def _serve_feature_dict(team_context):
@@ -328,7 +330,20 @@ SCALE_ALIGNED_EXPECTED = {
 }
 
 
-def _serve_efficiency(monkeypatch):
+SCALE_ALIGNED_EXPECTED.update({
+    "usage_rate_with_star_out": 15.0 * 1.1,
+    "minutes_with_starting_lineup_pct": min(0.85, 0.20 + 30.0 / 36 * 0.65),
+    "top_lineup_minutes_pct": min(0.85, 0.20 + 30.0 / 36 * 0.65),
+    "crunch_time_usage": 0.13 + 0.0055 * 30,
+    "avg_shot_clock_time": 12.0,
+    "late_clock_shot_frequency": 0.15,
+    "early_clock_shot_frequency": 0.25,
+    "fouls_drawn_per_game": 4.0 * 0.44,
+    "and_one_frequency": 4.0 / 45.0,
+})
+
+
+def _serve_efficiency(monkeypatch, history_count=10):
     """``stats['efficiency']`` from the real ``get_player_stats``.
 
     This is the serving source of the usage scale: analyze_prop_bet copies
@@ -338,33 +353,39 @@ def _serve_efficiency(monkeypatch):
     """
     import src.basketball_betting_helper as bbh
 
-    monkeypatch.setattr(bbh.playergamelog, "PlayerGameLog",
-                        lambda **kw: _CannedEndpoint(_canned_game_log()))
+    calls = []
+    def _endpoint(**kwargs):
+        calls.append(kwargs)
+        return _CannedEndpoint(_canned_game_log().iloc[:history_count].copy()
+                               if len(calls) == 1 else pd.DataFrame())
+    monkeypatch.setattr(bbh.playergamelog, "PlayerGameLog", _endpoint)
     monkeypatch.setattr(bbh.time, "sleep", lambda *a, **kw: None)
 
     helper = bbh.BasketballBettingHelper.__new__(bbh.BasketballBettingHelper)
     stats = helper.get_player_stats(2544)
     assert stats, "get_player_stats returned nothing for the canned log"
-    return stats["efficiency"]
+    return {**stats["efficiency"], "_log_summary": stats["feature_inputs"], "_stats": stats}
 
 
-def _serve_feature_dict_with_game_log(monkeypatch, team_context):
+def _serve_feature_dict_with_game_log(monkeypatch, team_context, sources=None, prop_type="points", history_count=10):
     """``prepare_features`` fed the same game log the trainer saw.
 
-    Everything the six features are built from comes out of the real
-    serving source, so a placeholder reintroduced anywhere between the
-    game log and prepare_features fails here. ``fga_per_game`` is the one
-    exception: analyze_prop_bet still setdefaults it to 15.0, it is not an
-    input to any of the six, and supplying it keeps this test on the six.
+    Use the same prior-game slice and next-game context as training.
+    Actual source presence is distinct from downstream default-filled keys.
     """
     from src.models import EnhancedMLPredictor
 
-    eff = _serve_efficiency(monkeypatch)
+    eff = _serve_efficiency(monkeypatch, history_count)
     predictor = EnhancedMLPredictor.__new__(EnhancedMLPredictor)
     player_stats = {
-        "values": [_GAME_LOG_COLUMNS["PTS"]] * (_N_GAMES - 1),
-        "last5_avg": _GAME_LOG_COLUMNS["PTS"],
-        "avg": _GAME_LOG_COLUMNS["PTS"],
+        "values": eff["_stats"][prop_type]["values"],
+        "last5_avg": eff["_stats"][prop_type]["last5_avg"],
+        "avg": eff["_stats"][prop_type]["avg"],
+        "_log_summary": eff["_log_summary"],
+        "_prediction_date": pd.to_datetime(_canned_game_log().iloc[history_count]["GAME_DATE"]),
+        "_feature_sources": sources or {},
+        "_team_id": 1610612738, "_opponent_team_id": 1610612747,
+        "is_home": float("@" not in _canned_game_log().iloc[history_count]["MATCHUP"]),
         # injected by analyze_prop_bet from stats['efficiency']
         "avg_minutes": eff["avg_minutes"],
         "recent_minutes": eff["recent_minutes"],
@@ -375,10 +396,10 @@ def _serve_feature_dict_with_game_log(monkeypatch, team_context):
         "fta_per_game": eff["fta_per_game"],
         "oreb_per_game": eff["oreb_per_game"],
         "dreb_per_game": eff["dreb_per_game"],
-        # not an input to any of the six; analyze_prop_bet still fills it
-        # from a constant
-        "fga_per_game": _GAME_LOG_COLUMNS["FGA"],
+        "fga_per_game": eff["fga_per_game"],
     }
+    for source in (sources or {}).values():
+        player_stats.update(source)
     return predictor.prepare_features(
         player_stats, {}, dict(team_context), dict(team_context))
 

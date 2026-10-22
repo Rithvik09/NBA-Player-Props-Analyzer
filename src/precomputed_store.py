@@ -314,7 +314,7 @@ class PrecomputedStore:
                        oreb_pct, dreb_pct, reb_pct, pie,
                        off_rating, def_rating, pace, net_rating,
                        age, height_inches, weight, years_experience
-                FROM player_advanced_stats
+                FROM player_advanced_stats {"ORDER BY season ASC" if _has_season else ""}
                 """
             )
             for row in cur.fetchall():
@@ -361,11 +361,11 @@ class PrecomputedStore:
         player_clutch: dict[int, dict] = {}
         try:
             cur.execute(
-                """
+                _ordered_player_query(conn, 'player_clutch_stats', """
                 SELECT player_id, clutch_pts_pg, clutch_fg_pct, clutch_fg3_pct,
                        clutch_fta_pg, clutch_plus_minus, clutch_min_pg, clutch_games
                 FROM player_clutch_stats
-                """
+                """)
             )
             for row in cur.fetchall():
                 (pid, pts, fg, fg3, fta, pm, mn, gp) = row
@@ -384,11 +384,11 @@ class PrecomputedStore:
         player_hustle: dict[int, dict] = {}
         try:
             cur.execute(
-                """
+                _ordered_player_query(conn, 'player_hustle_stats', """
                 SELECT player_id, contested_shots_pg, deflections_pg,
                        charges_drawn_pg, screen_assists_pg
                 FROM player_hustle_stats
-                """
+                """)
             )
             for row in cur.fetchall():
                 (pid, cs, defl, chg, scr) = row
@@ -404,13 +404,13 @@ class PrecomputedStore:
         player_shot_profile: dict[int, dict] = {}
         try:
             cur.execute(
-                """
+                _ordered_player_query(conn, 'player_shot_profile', """
                 SELECT player_id, open_shot_fg_pct, open_shot_freq,
                        tight_shot_fg_pct, tight_shot_freq,
                        catch_shoot_fg_pct, catch_shoot_freq,
                        pullup_fg_pct, pullup_freq
                 FROM player_shot_profile
-                """
+                """)
             )
             for row in cur.fetchall():
                 (pid, o_pct, o_freq, t_pct, t_freq, c_pct, c_freq, p_pct, p_freq) = row
@@ -430,7 +430,7 @@ class PrecomputedStore:
         player_play_types: dict[int, dict] = {}
         try:
             cur.execute(
-                """
+                _ordered_player_query(conn, 'player_play_types', """
                 SELECT player_id, iso_poss_pct, iso_ppp,
                        pnr_bh_poss_pct, pnr_bh_ppp,
                        pnr_roll_poss_pct, pnr_roll_ppp,
@@ -438,7 +438,7 @@ class PrecomputedStore:
                        transition_poss_pct, transition_ppp,
                        postup_poss_pct, cut_poss_pct
                 FROM player_play_types
-                """
+                """)
             )
             for row in cur.fetchall():
                 (pid, iso_pct, iso_ppp, pnr_pct, pnr_ppp, roll_pct, roll_ppp,
@@ -463,10 +463,10 @@ class PrecomputedStore:
         player_on_off: dict[int, dict] = {}
         try:
             cur.execute(
-                """
+                _ordered_player_query(conn, 'player_on_off', """
                 SELECT player_id, on_court_net_rating, off_court_net_rating, on_off_differential
                 FROM player_on_off
-                """
+                """)
             )
             for row in cur.fetchall():
                 (pid, on_r, off_r, diff) = row
@@ -481,14 +481,14 @@ class PrecomputedStore:
         player_shot_zones: dict[int, dict] = {}
         try:
             cur.execute(
-                """
+                _ordered_player_query(conn, 'player_shot_zones', """
                 SELECT player_id, rim_fga_pct, rim_fg_pct,
                        paint_fga_pct, paint_fg_pct,
                        midrange_fga_pct, midrange_fg_pct,
                        corner3_fga_pct, corner3_fg_pct,
                        above_break3_fga_pct, above_break3_fg_pct
                 FROM player_shot_zones
-                """
+                """)
             )
             for row in cur.fetchall():
                 (pid, r_fa, r_fg, pa_fa, pa_fg, m_fa, m_fg,
@@ -511,10 +511,10 @@ class PrecomputedStore:
         player_quarter_splits: dict[int, dict] = {}
         try:
             cur.execute(
-                """
+                _ordered_player_query(conn, 'player_quarter_splits', """
                 SELECT player_id, q1_avg, q2_avg, q3_avg, q4_avg, q4_min_pg
                 FROM player_quarter_splits
-                """
+                """)
             )
             for row in cur.fetchall():
                 (pid, q1, q2, q3, q4, q4_min) = row
@@ -574,14 +574,14 @@ class PrecomputedStore:
         player_tracking: dict[int, dict] = {}
         try:
             cur.execute(
-                """
+                _ordered_player_query(conn, 'player_tracking_stats', """
                 SELECT player_id, avg_speed, avg_speed_off, avg_speed_def,
                        dist_miles, dist_miles_off, dist_miles_def,
                        touches_pg, time_of_poss_pg, avg_drib_per_touch,
                        paint_touches_pg, elbow_touches_pg,
                        passes_made_pg, potential_ast_pg, secondary_ast_pg
                 FROM player_tracking_stats
-                """
+                """)
             )
             for row in cur.fetchall():
                 (pid, spd, spd_off, spd_def, dist, dist_off, dist_def,
@@ -637,11 +637,11 @@ class PrecomputedStore:
         player_scoring_breakdown: dict[int, dict] = {}
         try:
             cur.execute(
-                """
+                _ordered_player_query(conn, 'player_scoring_breakdown', """
                 SELECT player_id, pct_pts_3pt, pct_pts_paint, pct_pts_ft,
                        pct_pts_midrange, pct_uast_fgm, pct_ast_fgm
                 FROM player_scoring_breakdown
-                """
+                """)
             )
             for row in cur.fetchall():
                 (pid, p3, ppaint, pft, pmid, puast, past) = row
@@ -703,10 +703,10 @@ class PrecomputedStore:
         player_yoy_stats: dict[int, dict] = {}
         try:
             cur.execute(
-                """
+                _ordered_player_query(conn, 'player_yoy_stats', """
                 SELECT player_id, yoy_pts_change, yoy_ts_change, yoy_usage_change, seasons_in_league
                 FROM player_yoy_stats
-                """
+                """)
             )
             for row in cur.fetchall():
                 (pid, pts_ch, ts_ch, usg_ch, seasons) = row
@@ -824,3 +824,10 @@ class PrecomputedStore:
         return newest > 0 and (now - newest) < max_age_seconds
 
 
+
+
+def _ordered_player_query(conn, table, query):
+    """Latest season wins the backward-compatible player-id lookup."""
+    if 'season' in db.table_columns(conn, table):
+        return query.rstrip() + ' ORDER BY season ASC'
+    return query

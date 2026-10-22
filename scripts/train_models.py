@@ -66,6 +66,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 import time
@@ -219,6 +220,14 @@ def _estimate_opp_lineup_changes(dvp_rolling: dict, opp_id: int) -> float:
     return min(3.0, delta / 2.0)
 
 
+def _player_season_row(table, player_id, season):
+    """Never substitute a later season's snapshot for historical training."""
+    if (player_id, season) in table:
+        return table[(player_id, season)]
+    legacy = table.get(player_id, {})
+    return legacy if legacy.get('season') in (None, '', season) else {}
+
+
 def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
     """Load all player-level and team-level precomputed data from the DB into memory.
 
@@ -247,11 +256,10 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
         back to the bare player_id key only.
         """
         try:
-            c.execute(f"SELECT * FROM {table}")
             out: dict = {}
             cols = db.table_columns(conn, table)
             has_season = "season" in cols
-            c.execute(f"SELECT * FROM {table}")
+            c.execute(f"SELECT * FROM {table}" + (" ORDER BY season ASC" if has_season else ""))
             for row in c.fetchall():
                 d = dict(row)
                 pid = int(d["player_id"])
@@ -263,14 +271,16 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
                 # newest last).
                 out[pid] = d
             return out
-        except Exception:
+        except Exception as exc:
+            logging.getLogger(__name__).error("precomputed table %s failed (%s)", table, type(exc).__name__)
             return {}
 
     def _load_team_table(table: str) -> dict[int, dict]:
         try:
             c.execute(f"SELECT * FROM {table}")
             return {int(row["team_id"]): dict(row) for row in c.fetchall()}
-        except Exception:
+        except Exception as exc:
+            logging.getLogger(__name__).error("precomputed table %s failed (%s)", table, type(exc).__name__)
             return {}
 
     def _load_vs_opponent() -> dict[tuple, dict]:
@@ -281,7 +291,8 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
                 key = (int(row["player_id"]), int(row["opponent_team_id"]))
                 result[key] = dict(row)
             return result
-        except Exception:
+        except Exception as exc:
+            logging.getLogger(__name__).error("_load_vs_opponent failed (%s)", type(exc).__name__)
             return {}
 
     def _load_dvp_rolling() -> dict[tuple, dict]:
@@ -292,7 +303,8 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
                 key = (int(row["team_id"]), int(row["window"]))
                 result[key] = dict(row)
             return result
-        except Exception:
+        except Exception as exc:
+            logging.getLogger(__name__).error("_load_dvp_rolling failed (%s)", type(exc).__name__)
             return {}
 
     def _load_referee_stats() -> dict[str, dict]:
@@ -301,8 +313,15 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
             # Key by lower-cased name so the per-game lookup (which also
             # lower-cases) finds them regardless of source-table casing.
             return {str(row["ref_name"]).lower(): dict(row) for row in c.fetchall()}
-        except Exception:
+        except Exception as exc:
+            logging.getLogger(__name__).error("_load_referee_stats failed (%s)", type(exc).__name__)
             return {}
+
+    def _load_referee_history() -> dict:
+        if not db.table_columns(conn, 'referee_game_features'):
+            return {}
+        c.execute('SELECT game_id,ref_name,games,foul_rate,home_win_pct,pace FROM referee_game_features')
+        return {(str(r['game_id']), str(r['ref_name']).lower()): dict(r) for r in c.fetchall()}
 
     def _load_game_officials() -> dict[str, list[str]]:
         """game_id (str) -> list of ref names assigned to that game.
@@ -320,7 +339,8 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
                     continue
                 out.setdefault(str(gid), []).append(str(rname).lower())
             return out
-        except Exception:
+        except Exception as exc:
+            logging.getLogger(__name__).error("_load_game_officials failed (%s)", type(exc).__name__)
             return {}
 
     def _load_game_broadcasts() -> dict[str, dict]:
@@ -341,7 +361,8 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
                     "away_tv": row["away_tv"],
                 }
             return out
-        except Exception:
+        except Exception as exc:
+            logging.getLogger(__name__).error("_load_game_broadcasts failed (%s)", type(exc).__name__)
             return {}
 
     def _load_game_team_stats() -> dict:
@@ -379,7 +400,8 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
                     "opp_pts": float(row["opp_pts"]) if row["opp_pts"] is not None else None,
                 })
             return out
-        except Exception:
+        except Exception as exc:
+            logging.getLogger(__name__).error("_load_game_team_stats failed (%s)", type(exc).__name__)
             return {}
 
     data: dict[str, Any] = {
@@ -404,12 +426,13 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
         "opp_synergy":     _load_team_table("team_synergy_defense"),
         "home_away":       _load_team_table("team_home_away_splits"),
         "lineup_stats":    _load_team_table("team_lineup_stats"),
-        "injury_status":   _load_team_table("team_injury_status"),
+        "injury_status":   {},  # Current reports have no historical as-of date; prevent leakage.
         # Special structures
         "vs_opponent":   _load_vs_opponent(),
         "dvp_rolling":   _load_dvp_rolling(),
         "referee":       _load_referee_stats(),
         "game_officials": _load_game_officials(),
+        "referee_history": _load_referee_history(),
         "game_broadcasts": _load_game_broadcasts(),
         "game_team_stats": _load_game_team_stats(),
     }
@@ -449,32 +472,8 @@ COMBO_TARGETS = {
 # growth, etc.). _season_year = the YEAR THE SEASON STARTED (so the
 # 2023-24 season is keyed at 2023). Default fallback is the recent
 # (~2024-25) range for any season not enumerated.
-_LEAGUE_AVGS_BY_SEASON = {
-    2018: {"fga": 89.2, "fg_pct": 0.461, "fg3a": 32.0, "tov": 14.1,
-           "stl": 7.6, "pts_fb": 13.5, "opp_pts_fb": 13.5,
-           "pts_off_tov": 17.6, "opp_pts_off_tov": 17.6},
-    2019: {"fga": 88.8, "fg_pct": 0.460, "fg3a": 34.1, "tov": 14.5,
-           "stl": 7.7, "pts_fb": 13.0, "opp_pts_fb": 13.0,
-           "pts_off_tov": 17.2, "opp_pts_off_tov": 17.2},
-    2020: {"fga": 88.1, "fg_pct": 0.466, "fg3a": 34.6, "tov": 14.0,
-           "stl": 7.8, "pts_fb": 13.6, "opp_pts_fb": 13.6,
-           "pts_off_tov": 16.7, "opp_pts_off_tov": 16.7},
-    2021: {"fga": 88.1, "fg_pct": 0.466, "fg3a": 34.6, "tov": 13.8,
-           "stl": 7.6, "pts_fb": 13.7, "opp_pts_fb": 13.7,
-           "pts_off_tov": 16.7, "opp_pts_off_tov": 16.7},
-    2022: {"fga": 88.3, "fg_pct": 0.466, "fg3a": 35.2, "tov": 14.1,
-           "stl": 7.6, "pts_fb": 13.9, "opp_pts_fb": 13.9,
-           "pts_off_tov": 16.6, "opp_pts_off_tov": 16.6},
-    2023: {"fga": 89.5, "fg_pct": 0.474, "fg3a": 35.1, "tov": 14.0,
-           "stl": 7.5, "pts_fb": 14.5, "opp_pts_fb": 14.5,
-           "pts_off_tov": 16.4, "opp_pts_off_tov": 16.4},
-    2024: {"fga": 88.4, "fg_pct": 0.467, "fg3a": 37.5, "tov": 13.9,
-           "stl": 7.6, "pts_fb": 14.3, "opp_pts_fb": 14.3,
-           "pts_off_tov": 15.9, "opp_pts_off_tov": 15.9},
-    2025: {"fga": 89.2, "fg_pct": 0.465, "fg3a": 38.2, "tov": 13.7,
-           "stl": 7.5, "pts_fb": 14.4, "opp_pts_fb": 14.4,
-           "pts_off_tov": 15.8, "opp_pts_off_tov": 15.8},
-}
+from src.feature_context import LEAGUE_AVGS_BY_SEASON as _LEAGUE_AVGS_BY_SEASON
+
 _LEAGUE_AVGS_DEFAULT = _LEAGUE_AVGS_BY_SEASON[2024]
 
 
@@ -484,29 +483,8 @@ _LEAGUE_AVGS_DEFAULT = _LEAGUE_AVGS_BY_SEASON[2024]
 # feature isn't trying to capture every pair, just the matchups that
 # meaningfully change usage (national-TV pressure, lineup tightening,
 # competitive intensity). False negatives hurt less than constant zero.
-_RIVALRY_PAIRS = frozenset({
-    ("BOS","LAL"),("LAL","BOS"),
-    ("BOS","PHI"),("PHI","BOS"),
-    ("LAL","BOS"),("LAL","LAC"),("LAC","LAL"),
-    ("GSW","CLE"),("CLE","GSW"),
-    ("GSW","LAL"),("LAL","GSW"),
-    ("MIA","BOS"),("BOS","MIA"),
-    ("BOS","NYK"),("NYK","BOS"),
-    ("NYK","BKN"),("BKN","NYK"),
-    ("NYK","CHI"),("CHI","NYK"),
-    ("CHI","DET"),("DET","CHI"),
-    ("CHI","NYK"),("CHI","CLE"),("CLE","CHI"),
-    ("UTA","HOU"),("HOU","UTA"),
-    ("OKC","DEN"),("DEN","OKC"),
-    ("DAL","SAS"),("SAS","DAL"),
-    ("DAL","HOU"),("HOU","DAL"),
-    ("SAS","HOU"),("HOU","SAS"),
-    ("BOS","WAS"),("WAS","BOS"),  # legacy
-    ("PHI","NYK"),("NYK","PHI"),
-    ("PHI","BKN"),("BKN","PHI"),
-    ("MIL","TOR"),("TOR","MIL"),
-    ("MIL","CHI"),("CHI","MIL"),
-})
+from src.feature_context import RIVALRY_PAIRS as _RIVALRY_PAIRS
+
 
 
 def _rolling_team_stat(
@@ -547,7 +525,7 @@ def _parse_matchup(matchup: str):
     if len(parts) < 3:
         return None, None, None
     team = parts[0]
-    if "vs" in parts:
+    if "vs" in parts or "vs." in parts:
         opp = parts[-1]
         return team, opp, True
     if "@" in parts:
@@ -724,17 +702,17 @@ def build_training_examples(
             print(f"[train] players processed: {i}/{len(players_list)}")
 
         # --- Load per-player precomputed data (no extra API calls) ---
-        _adv  = _precomp["advanced"].get(player_id, {})
-        _clt  = _precomp["clutch"].get(player_id, {})
-        _hsl  = _precomp["hustle"].get(player_id, {})
-        _sp   = _precomp["shot_prof"].get(player_id, {})
-        _pt   = _precomp["play_types"].get(player_id, {})
-        _oo   = _precomp["on_off"].get(player_id, {})
-        _sz   = _precomp["shot_zones"].get(player_id, {})
-        _qs   = _precomp["q_splits"].get(player_id, {})
-        _trk  = _precomp["tracking"].get(player_id, {})
-        _scr  = _precomp["scoring"].get(player_id, {})
-        _yoy  = _precomp["yoy"].get(player_id, {})
+        _adv  = _player_season_row(_precomp["advanced"], player_id, season)
+        _clt  = _player_season_row(_precomp["clutch"], player_id, season)
+        _hsl  = _player_season_row(_precomp["hustle"], player_id, season)
+        _sp   = _player_season_row(_precomp["shot_prof"], player_id, season)
+        _pt   = _player_season_row(_precomp["play_types"], player_id, season)
+        _oo   = _player_season_row(_precomp["on_off"], player_id, season)
+        _sz   = _player_season_row(_precomp["shot_zones"], player_id, season)
+        _qs   = _player_season_row(_precomp["q_splits"], player_id, season)
+        _trk  = _player_season_row(_precomp["tracking"], player_id, season)
+        _scr  = _player_season_row(_precomp["scoring"], player_id, season)
+        _yoy  = _player_season_row(_precomp["yoy"], player_id, season)
         # Player vs opponent lookup (keyed by (player_id, opp_team_id) — resolved per game below)
         _vs_opp_map = _precomp["vs_opponent"]
         
@@ -986,31 +964,10 @@ def build_training_examples(
             except Exception:
                 _tz_change, _coast_to_coast, _travel_dist = 0.0, 0.0, 0.0
 
-            # Per-game referee features. Look up the officials assigned
-            # to this game_id and avg their per-ref stats from
-            # _precomp["referee"]. Falls back to league mean when:
-            #   - game_id not in game_officials (older season we haven't
-            #     backfilled with the new ref pipeline)
-            #   - none of the assigned refs have aggregated stats (e.g.
-            #     all worked < 3 games in the observed window so they
-            #     were filtered out of referee_stats)
-            _refs_for_game = _precomp.get("game_officials", {}).get(_gid_str, [])
-            _ref_stats = _precomp.get("referee", {})
-            _matched_ref_stats = [
-                _ref_stats[name] for name in _refs_for_game if name in _ref_stats
-            ]
-            if _matched_ref_stats:
-                _ref_foul_rate = float(np.mean([v["foul_rate"] for v in _matched_ref_stats]))
-                _ref_home_bias = float(np.mean([v["home_win_pct"] for v in _matched_ref_stats]))
-                _ref_pace_tendency = float(np.mean([v["pace"] for v in _matched_ref_stats]))
-            else:
-                _all_refs = list(_ref_stats.values())
-                if _all_refs:
-                    _ref_foul_rate = float(np.mean([v["foul_rate"] for v in _all_refs]))
-                    _ref_home_bias = float(np.mean([v["home_win_pct"] for v in _all_refs]))
-                    _ref_pace_tendency = float(np.mean([v["pace"] for v in _all_refs]))
-                else:
-                    _ref_foul_rate, _ref_home_bias, _ref_pace_tendency = 0.0, 0.5, 100.0
+            # Only earlier calendar days may inform a historical prediction.
+            # Full-history referee averages would leak the outcome being trained.
+            from src.referee_history import historical_features
+            _ref_foul_rate, _ref_home_bias, _ref_pace_tendency = historical_features(_precomp, _gid_str)
 
             # Season-phase calendar features
             # NBA regular season runs roughly Oct 22 – Apr 14
