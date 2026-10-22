@@ -89,6 +89,19 @@ if _odds_key:
 # ── Odds polling background loop ─────────────────────────────────────────────
 _odds_poll_interval = int(os.environ.get('ODDS_POLL_INTERVAL', 3600))  # default 60 min
 
+# Off by default, because a single cycle costs more than a whole free-tier month.
+#
+# snapshot_all_games() calls fetch_upcoming_games (2 credits) and then
+# fetch_player_props once PER EVENT. The Odds API bills markets x regions,
+# and PROP_TYPE_MAP requests 12 markets, so each event costs 12 credits.
+# A 43-event board is 2 + 43*12 = 518 credits against a 500/month free
+# allowance: the first cycle exhausts the quota and dies mid-slate. This is
+# why the 11 market features in ml_features.py have always trained as zeros.
+#
+# Game-line capture (open/close, ~6 credits twice a day) is independent of
+# this flag and stays on. Set ODDS_PROP_POLL=1 to re-enable on a paid plan.
+_odds_prop_poll_enabled = os.environ.get('ODDS_PROP_POLL', '0').strip().lower() in ('1', 'true', 'yes')
+
 def _odds_poll_loop():
     """Poll odds API on a loop while the server is running."""
     if not _odds_key:
@@ -104,9 +117,15 @@ def _odds_poll_loop():
             app.logger.error(f"Odds poll failed: {e}")
         _time.sleep(_odds_poll_interval)
 
-if _odds_key:
+if _odds_key and _odds_prop_poll_enabled:
     threading.Thread(target=_odds_poll_loop, daemon=True, name='odds-poller').start()
     app.logger.info(f'Odds poller started (every {_odds_poll_interval}s)')
+elif _odds_key:
+    app.logger.warning(
+        'Prop odds poller DISABLED (ODDS_PROP_POLL unset). One cycle costs '
+        '~518 API credits against a 500/month free tier. Game-line capture '
+        'is unaffected. Set ODDS_PROP_POLL=1 on a paid plan to re-enable.'
+    )
 
 # ── Close-only sweeper ───────────────────────────────────────────────────────
 # The full odds poll runs on _odds_poll_interval (default 60 min) which is too
