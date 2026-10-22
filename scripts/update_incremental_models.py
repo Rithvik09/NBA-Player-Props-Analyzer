@@ -14,7 +14,6 @@ import os
 import sys
 import time
 from datetime import datetime
-import sqlite3
 
 import numpy as np
 import pandas as pd
@@ -24,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from nba_api.stats.endpoints import leaguedashplayerstats, playergamelog, CommonPlayerInfo  # noqa: E402
 from nba_api.stats.static import teams  # noqa: E402
 
+from src import db  # noqa: E402
 from src.models import EnhancedMLPredictor  # noqa: E402
 from src.precomputed_store import PrecomputedStore  # noqa: E402
 from src.incremental_models import IncrementalModelManager  # noqa: E402
@@ -92,7 +92,8 @@ def _sample_lines(center: float, prop_type: str) -> list[float]:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default="basketball_data.db")
+    ap.add_argument("--db", default=None,
+                    help="PostgreSQL DSN. Defaults to the DATABASE_URL environment variable.")
     ap.add_argument("--season", required=True)
     ap.add_argument("--max-players", type=int, default=350)
     ap.add_argument("--models-dir", default="models")
@@ -113,13 +114,13 @@ def main():
     players_df = players_df.sort_values("MIN", ascending=False).head(args.max_players)
     players = list(players_df["PLAYER_ID"].astype(int).tolist())
 
-    conn = sqlite3.connect(args.db)
+    conn = db.connect(args.db)
     cur = conn.cursor()
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS incremental_training_state (
             season TEXT NOT NULL,
-            player_id INTEGER NOT NULL,
+            player_id BIGINT NOT NULL,
             last_game_date TEXT,
             updated_at INTEGER NOT NULL,
             PRIMARY KEY (season, player_id)
@@ -132,7 +133,7 @@ def main():
         if args.backfill:
             return None
         cur.execute(
-            "SELECT last_game_date FROM incremental_training_state WHERE season = ? AND player_id = ?",
+            "SELECT last_game_date FROM incremental_training_state WHERE season = %s AND player_id = %s",
             (args.season, int(player_id)),
         )
         r = cur.fetchone()
@@ -140,7 +141,14 @@ def main():
 
     def set_last(player_id: int, last_date: str):
         cur.execute(
-            "INSERT OR REPLACE INTO incremental_training_state (season, player_id, last_game_date, updated_at) VALUES (?, ?, ?, ?)",
+            """
+            INSERT INTO incremental_training_state
+                (season, player_id, last_game_date, updated_at)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (season, player_id) DO UPDATE SET
+                last_game_date = excluded.last_game_date,
+                updated_at = excluded.updated_at
+            """,
             (args.season, int(player_id), str(last_date), int(time.time())),
         )
 

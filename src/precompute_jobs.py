@@ -3,17 +3,17 @@ Reusable precompute jobs used by both:
 - CLI: scripts/update_precomputed.py
 - App: background refresh when stale
 
-Writes to SQLite:
+Writes to PostgreSQL:
 - dvp_by_position
 - team_special_defenders
 """
 
 from __future__ import annotations
 
-import sqlite3
 import time
 from typing import Any
 
+import psycopg
 import requests
 from bs4 import BeautifulSoup
 
@@ -36,6 +36,8 @@ from nba_api.stats.endpoints import (
 )
 from nba_api.stats.static import teams
 
+from src import db
+
 FANTASYPROS_DVP_URL = "https://www.fantasypros.com/daily-fantasy/nba/fanduel-defense-vs-position.php"
 
 
@@ -48,22 +50,22 @@ def compute_current_season() -> str:
     return f"{y}-{str(y+1)[2:]}"
 
 
-def ensure_tables(conn: sqlite3.Connection) -> None:
+def ensure_tables(conn: psycopg.Connection) -> None:
     cur = conn.cursor()
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS dvp_by_position (
-            team_id INTEGER NOT NULL,
+            team_id BIGINT NOT NULL,
             position TEXT NOT NULL,
             gp INTEGER,
-            pts REAL,
-            reb REAL,
-            ast REAL,
-            fg3m REAL,
-            stl REAL,
-            blk REAL,
-            tov REAL,
-            fd_pts REAL,
+            pts DOUBLE PRECISION,
+            reb DOUBLE PRECISION,
+            ast DOUBLE PRECISION,
+            fg3m DOUBLE PRECISION,
+            stl DOUBLE PRECISION,
+            blk DOUBLE PRECISION,
+            tov DOUBLE PRECISION,
+            fd_pts DOUBLE PRECISION,
             source TEXT NOT NULL,
             updated_at INTEGER NOT NULL,
             PRIMARY KEY (team_id, position, source)
@@ -73,17 +75,17 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS team_special_defenders (
-            team_id INTEGER NOT NULL,
+            team_id BIGINT NOT NULL,
             pos_group TEXT NOT NULL,
             rank INTEGER NOT NULL,
-            player_id INTEGER,
+            player_id BIGINT,
             player_name TEXT,
-            def_rating REAL,
-            def_ws REAL,
-            pct_stl REAL,
-            pct_blk REAL,
-            min_per_game REAL,
-            score01 REAL,
+            def_rating DOUBLE PRECISION,
+            def_ws DOUBLE PRECISION,
+            pct_stl DOUBLE PRECISION,
+            pct_blk DOUBLE PRECISION,
+            min_per_game DOUBLE PRECISION,
+            score01 DOUBLE PRECISION,
             updated_at INTEGER NOT NULL,
             PRIMARY KEY (team_id, pos_group, rank)
         )
@@ -94,9 +96,9 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS referee_stats (
             ref_name TEXT PRIMARY KEY,
             games INTEGER,
-            foul_rate REAL,
-            home_win_pct REAL,
-            pace REAL,
+            foul_rate DOUBLE PRECISION,
+            home_win_pct DOUBLE PRECISION,
+            pace DOUBLE PRECISION,
             updated_at INTEGER NOT NULL
         )
         """
@@ -111,7 +113,7 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS game_officials (
             game_id TEXT NOT NULL,
             ref_name TEXT NOT NULL,
-            ref_id INTEGER,
+            ref_id BIGINT,
             updated_at INTEGER NOT NULL,
             PRIMARY KEY (game_id, ref_name)
         )
@@ -127,13 +129,13 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS game_team_stats (
             game_id TEXT NOT NULL,
-            team_id INTEGER NOT NULL,
+            team_id BIGINT NOT NULL,
             game_date TEXT,
-            pace REAL,
-            off_rating REAL,
-            def_rating REAL,
-            pts REAL,
-            opp_pts REAL,
+            pace DOUBLE PRECISION,
+            off_rating DOUBLE PRECISION,
+            def_rating DOUBLE PRECISION,
+            pts DOUBLE PRECISION,
+            opp_pts DOUBLE PRECISION,
             updated_at INTEGER NOT NULL,
             PRIMARY KEY (game_id, team_id)
         )
@@ -163,9 +165,9 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS team_foul_rates (
-            team_id INTEGER PRIMARY KEY,
-            foul_rate_season REAL,
-            foul_rate_last5 REAL,
+            team_id BIGINT PRIMARY KEY,
+            foul_rate_season DOUBLE PRECISION,
+            foul_rate_last5 DOUBLE PRECISION,
             updated_at INTEGER NOT NULL
         )
         """
@@ -173,49 +175,49 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS dvp_rolling (
-            team_id INTEGER NOT NULL,
-            window INTEGER NOT NULL,
-            pts REAL,
-            reb REAL,
-            ast REAL,
-            fg3m REAL,
-            stl REAL,
-            blk REAL,
-            tov REAL,
+            team_id BIGINT NOT NULL,
+            "window" INTEGER NOT NULL,
+            pts DOUBLE PRECISION,
+            reb DOUBLE PRECISION,
+            ast DOUBLE PRECISION,
+            fg3m DOUBLE PRECISION,
+            stl DOUBLE PRECISION,
+            blk DOUBLE PRECISION,
+            tov DOUBLE PRECISION,
             gp INTEGER,
             updated_at INTEGER NOT NULL,
-            PRIMARY KEY (team_id, window)
+            PRIMARY KEY (team_id, "window")
         )
         """
     )
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS team_stats (
-            team_id INTEGER PRIMARY KEY,
-            pts_fb REAL,
-            pts_off_tov REAL,
-            opp_fga REAL,
-            opp_fg_pct REAL,
-            opp_fg3a REAL,
-            opp_fg3_pct REAL,
-            opp_tov REAL,
-            opp_stl REAL,
-            opp_blk REAL,
-            opp_pts_paint REAL,
-            opp_pts_fb REAL,
-            opp_pts_off_tov REAL,
-            opp_def_rating_last5 REAL,
-            opp_blk_last5 REAL,
-            opp_stl_last5 REAL,
-            lg_pts_fb REAL,
-            lg_pts_off_tov REAL,
-            lg_fga REAL,
-            lg_fg_pct REAL,
-            lg_fg3a REAL,
-            lg_tov REAL,
-            lg_stl REAL,
-            foul_rate_season REAL,
-            foul_rate_last5 REAL,
+            team_id BIGINT PRIMARY KEY,
+            pts_fb DOUBLE PRECISION,
+            pts_off_tov DOUBLE PRECISION,
+            opp_fga DOUBLE PRECISION,
+            opp_fg_pct DOUBLE PRECISION,
+            opp_fg3a DOUBLE PRECISION,
+            opp_fg3_pct DOUBLE PRECISION,
+            opp_tov DOUBLE PRECISION,
+            opp_stl DOUBLE PRECISION,
+            opp_blk DOUBLE PRECISION,
+            opp_pts_paint DOUBLE PRECISION,
+            opp_pts_fb DOUBLE PRECISION,
+            opp_pts_off_tov DOUBLE PRECISION,
+            opp_def_rating_last5 DOUBLE PRECISION,
+            opp_blk_last5 DOUBLE PRECISION,
+            opp_stl_last5 DOUBLE PRECISION,
+            lg_pts_fb DOUBLE PRECISION,
+            lg_pts_off_tov DOUBLE PRECISION,
+            lg_fga DOUBLE PRECISION,
+            lg_fg_pct DOUBLE PRECISION,
+            lg_fg3a DOUBLE PRECISION,
+            lg_tov DOUBLE PRECISION,
+            lg_stl DOUBLE PRECISION,
+            foul_rate_season DOUBLE PRECISION,
+            foul_rate_last5 DOUBLE PRECISION,
             updated_at INTEGER NOT NULL
         )
         """
@@ -223,11 +225,11 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS player_advanced_stats (
-            player_id INTEGER PRIMARY KEY,
-            usg_pct REAL, ts_pct REAL, efg_pct REAL, ast_pct REAL,
-            oreb_pct REAL, dreb_pct REAL, reb_pct REAL, pie REAL,
-            off_rating REAL, def_rating REAL, pace REAL, net_rating REAL,
-            age REAL, height_inches REAL, weight REAL, years_experience REAL,
+            player_id BIGINT PRIMARY KEY,
+            usg_pct DOUBLE PRECISION, ts_pct DOUBLE PRECISION, efg_pct DOUBLE PRECISION, ast_pct DOUBLE PRECISION,
+            oreb_pct DOUBLE PRECISION, dreb_pct DOUBLE PRECISION, reb_pct DOUBLE PRECISION, pie DOUBLE PRECISION,
+            off_rating DOUBLE PRECISION, def_rating DOUBLE PRECISION, pace DOUBLE PRECISION, net_rating DOUBLE PRECISION,
+            age DOUBLE PRECISION, height_inches DOUBLE PRECISION, weight DOUBLE PRECISION, years_experience DOUBLE PRECISION,
             updated_at INTEGER NOT NULL
         )
         """
@@ -235,9 +237,9 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS player_clutch_stats (
-            player_id INTEGER PRIMARY KEY,
-            clutch_pts_pg REAL, clutch_fg_pct REAL, clutch_fg3_pct REAL,
-            clutch_fta_pg REAL, clutch_plus_minus REAL, clutch_min_pg REAL,
+            player_id BIGINT PRIMARY KEY,
+            clutch_pts_pg DOUBLE PRECISION, clutch_fg_pct DOUBLE PRECISION, clutch_fg3_pct DOUBLE PRECISION,
+            clutch_fta_pg DOUBLE PRECISION, clutch_plus_minus DOUBLE PRECISION, clutch_min_pg DOUBLE PRECISION,
             clutch_games INTEGER,
             updated_at INTEGER NOT NULL
         )
@@ -246,9 +248,9 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS player_hustle_stats (
-            player_id INTEGER PRIMARY KEY,
-            contested_shots_pg REAL, deflections_pg REAL,
-            charges_drawn_pg REAL, screen_assists_pg REAL,
+            player_id BIGINT PRIMARY KEY,
+            contested_shots_pg DOUBLE PRECISION, deflections_pg DOUBLE PRECISION,
+            charges_drawn_pg DOUBLE PRECISION, screen_assists_pg DOUBLE PRECISION,
             updated_at INTEGER NOT NULL
         )
         """
@@ -256,11 +258,11 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS player_shot_profile (
-            player_id INTEGER PRIMARY KEY,
-            open_shot_fg_pct REAL, open_shot_freq REAL,
-            tight_shot_fg_pct REAL, tight_shot_freq REAL,
-            catch_shoot_fg_pct REAL, catch_shoot_freq REAL,
-            pullup_fg_pct REAL, pullup_freq REAL,
+            player_id BIGINT PRIMARY KEY,
+            open_shot_fg_pct DOUBLE PRECISION, open_shot_freq DOUBLE PRECISION,
+            tight_shot_fg_pct DOUBLE PRECISION, tight_shot_freq DOUBLE PRECISION,
+            catch_shoot_fg_pct DOUBLE PRECISION, catch_shoot_freq DOUBLE PRECISION,
+            pullup_fg_pct DOUBLE PRECISION, pullup_freq DOUBLE PRECISION,
             updated_at INTEGER NOT NULL
         )
         """
@@ -268,13 +270,13 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS player_play_types (
-            player_id INTEGER PRIMARY KEY,
-            iso_poss_pct REAL, iso_ppp REAL,
-            pnr_bh_poss_pct REAL, pnr_bh_ppp REAL,
-            pnr_roll_poss_pct REAL, pnr_roll_ppp REAL,
-            spotup_poss_pct REAL, spotup_ppp REAL,
-            transition_poss_pct REAL, transition_ppp REAL,
-            postup_poss_pct REAL, cut_poss_pct REAL,
+            player_id BIGINT PRIMARY KEY,
+            iso_poss_pct DOUBLE PRECISION, iso_ppp DOUBLE PRECISION,
+            pnr_bh_poss_pct DOUBLE PRECISION, pnr_bh_ppp DOUBLE PRECISION,
+            pnr_roll_poss_pct DOUBLE PRECISION, pnr_roll_ppp DOUBLE PRECISION,
+            spotup_poss_pct DOUBLE PRECISION, spotup_ppp DOUBLE PRECISION,
+            transition_poss_pct DOUBLE PRECISION, transition_ppp DOUBLE PRECISION,
+            postup_poss_pct DOUBLE PRECISION, cut_poss_pct DOUBLE PRECISION,
             updated_at INTEGER NOT NULL
         )
         """
@@ -282,10 +284,10 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS player_on_off (
-            player_id INTEGER PRIMARY KEY,
-            on_court_net_rating REAL,
-            off_court_net_rating REAL,
-            on_off_differential REAL,
+            player_id BIGINT PRIMARY KEY,
+            on_court_net_rating DOUBLE PRECISION,
+            off_court_net_rating DOUBLE PRECISION,
+            on_off_differential DOUBLE PRECISION,
             updated_at INTEGER NOT NULL
         )
         """
@@ -293,12 +295,12 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS player_shot_zones (
-            player_id INTEGER PRIMARY KEY,
-            rim_fga_pct REAL, rim_fg_pct REAL,
-            paint_fga_pct REAL, paint_fg_pct REAL,
-            midrange_fga_pct REAL, midrange_fg_pct REAL,
-            corner3_fga_pct REAL, corner3_fg_pct REAL,
-            above_break3_fga_pct REAL, above_break3_fg_pct REAL,
+            player_id BIGINT PRIMARY KEY,
+            rim_fga_pct DOUBLE PRECISION, rim_fg_pct DOUBLE PRECISION,
+            paint_fga_pct DOUBLE PRECISION, paint_fg_pct DOUBLE PRECISION,
+            midrange_fga_pct DOUBLE PRECISION, midrange_fg_pct DOUBLE PRECISION,
+            corner3_fga_pct DOUBLE PRECISION, corner3_fg_pct DOUBLE PRECISION,
+            above_break3_fga_pct DOUBLE PRECISION, above_break3_fg_pct DOUBLE PRECISION,
             updated_at INTEGER NOT NULL
         )
         """
@@ -306,9 +308,9 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS player_quarter_splits (
-            player_id INTEGER PRIMARY KEY,
-            q1_avg REAL, q2_avg REAL, q3_avg REAL, q4_avg REAL,
-            q4_min_pg REAL,
+            player_id BIGINT PRIMARY KEY,
+            q1_avg DOUBLE PRECISION, q2_avg DOUBLE PRECISION, q3_avg DOUBLE PRECISION, q4_avg DOUBLE PRECISION,
+            q4_min_pg DOUBLE PRECISION,
             updated_at INTEGER NOT NULL
         )
         """
@@ -316,12 +318,12 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS team_opp_shot_zones (
-            team_id INTEGER PRIMARY KEY,
-            rim_fg_pct_allowed REAL,
-            paint_fg_pct_allowed REAL,
-            midrange_fg_pct_allowed REAL,
-            corner3_fg_pct_allowed REAL,
-            above_break3_fg_pct_allowed REAL,
+            team_id BIGINT PRIMARY KEY,
+            rim_fg_pct_allowed DOUBLE PRECISION,
+            paint_fg_pct_allowed DOUBLE PRECISION,
+            midrange_fg_pct_allowed DOUBLE PRECISION,
+            corner3_fg_pct_allowed DOUBLE PRECISION,
+            above_break3_fg_pct_allowed DOUBLE PRECISION,
             updated_at INTEGER NOT NULL
         )
         """
@@ -329,12 +331,12 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS team_synergy_defense (
-            team_id INTEGER PRIMARY KEY,
-            pnr_ppp_allowed REAL,
-            iso_ppp_allowed REAL,
-            spotup_ppp_allowed REAL,
-            transition_ppp_allowed REAL,
-            postup_ppp_allowed REAL,
+            team_id BIGINT PRIMARY KEY,
+            pnr_ppp_allowed DOUBLE PRECISION,
+            iso_ppp_allowed DOUBLE PRECISION,
+            spotup_ppp_allowed DOUBLE PRECISION,
+            transition_ppp_allowed DOUBLE PRECISION,
+            postup_ppp_allowed DOUBLE PRECISION,
             updated_at INTEGER NOT NULL
         )
         """
@@ -342,12 +344,12 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS player_tracking_stats (
-            player_id INTEGER PRIMARY KEY,
-            avg_speed REAL, avg_speed_off REAL, avg_speed_def REAL,
-            dist_miles REAL, dist_miles_off REAL, dist_miles_def REAL,
-            touches_pg REAL, time_of_poss_pg REAL, avg_drib_per_touch REAL,
-            paint_touches_pg REAL, elbow_touches_pg REAL,
-            passes_made_pg REAL, potential_ast_pg REAL, secondary_ast_pg REAL,
+            player_id BIGINT PRIMARY KEY,
+            avg_speed DOUBLE PRECISION, avg_speed_off DOUBLE PRECISION, avg_speed_def DOUBLE PRECISION,
+            dist_miles DOUBLE PRECISION, dist_miles_off DOUBLE PRECISION, dist_miles_def DOUBLE PRECISION,
+            touches_pg DOUBLE PRECISION, time_of_poss_pg DOUBLE PRECISION, avg_drib_per_touch DOUBLE PRECISION,
+            paint_touches_pg DOUBLE PRECISION, elbow_touches_pg DOUBLE PRECISION,
+            passes_made_pg DOUBLE PRECISION, potential_ast_pg DOUBLE PRECISION, secondary_ast_pg DOUBLE PRECISION,
             updated_at INTEGER
         )
         """
@@ -355,13 +357,13 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS team_standings (
-            team_id INTEGER PRIMARY KEY,
-            win_pct REAL, wins INTEGER, losses INTEGER,
-            conf_rank INTEGER, games_back REAL,
-            home_win_pct REAL, road_win_pct REAL,
+            team_id BIGINT PRIMARY KEY,
+            win_pct DOUBLE PRECISION, wins INTEGER, losses INTEGER,
+            conf_rank INTEGER, games_back DOUBLE PRECISION,
+            home_win_pct DOUBLE PRECISION, road_win_pct DOUBLE PRECISION,
             current_streak INTEGER,
             l10_wins INTEGER,
-            pts_pg REAL, opp_pts_pg REAL,
+            pts_pg DOUBLE PRECISION, opp_pts_pg DOUBLE PRECISION,
             updated_at INTEGER
         )
         """
@@ -369,9 +371,9 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS player_scoring_breakdown (
-            player_id INTEGER PRIMARY KEY,
-            pct_pts_3pt REAL, pct_pts_paint REAL, pct_pts_ft REAL,
-            pct_pts_midrange REAL, pct_uast_fgm REAL, pct_ast_fgm REAL,
+            player_id BIGINT PRIMARY KEY,
+            pct_pts_3pt DOUBLE PRECISION, pct_pts_paint DOUBLE PRECISION, pct_pts_ft DOUBLE PRECISION,
+            pct_pts_midrange DOUBLE PRECISION, pct_uast_fgm DOUBLE PRECISION, pct_ast_fgm DOUBLE PRECISION,
             updated_at INTEGER
         )
         """
@@ -379,13 +381,13 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS player_vs_opponent (
-            player_id INTEGER,
-            opponent_team_id INTEGER,
+            player_id BIGINT,
+            opponent_team_id BIGINT,
             gp INTEGER,
-            avg_stat_pts REAL,
-            fg_pct REAL,
-            ts_pct REAL,
-            avg_min REAL,
+            avg_stat_pts DOUBLE PRECISION,
+            fg_pct DOUBLE PRECISION,
+            ts_pct DOUBLE PRECISION,
+            avg_min DOUBLE PRECISION,
             PRIMARY KEY (player_id, opponent_team_id)
         )
         """
@@ -393,12 +395,12 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS team_rest_splits (
-            team_id INTEGER PRIMARY KEY,
-            b2b_def_rating REAL,
-            b2b_pace REAL,
-            b2b_pts_allowed REAL,
-            rested_def_rating REAL,
-            rested_pace REAL,
+            team_id BIGINT PRIMARY KEY,
+            b2b_def_rating DOUBLE PRECISION,
+            b2b_pace DOUBLE PRECISION,
+            b2b_pts_allowed DOUBLE PRECISION,
+            rested_def_rating DOUBLE PRECISION,
+            rested_pace DOUBLE PRECISION,
             updated_at INTEGER
         )
         """
@@ -406,10 +408,10 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS player_yoy_stats (
-            player_id INTEGER PRIMARY KEY,
-            yoy_pts_change REAL,
-            yoy_ts_change REAL,
-            yoy_usage_change REAL,
+            player_id BIGINT PRIMARY KEY,
+            yoy_pts_change DOUBLE PRECISION,
+            yoy_ts_change DOUBLE PRECISION,
+            yoy_usage_change DOUBLE PRECISION,
             seasons_in_league INTEGER,
             updated_at INTEGER
         )
@@ -418,10 +420,10 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS team_home_away_splits (
-            team_id INTEGER PRIMARY KEY,
-            home_def_rating REAL,
-            away_def_rating REAL,
-            home_away_def_split REAL,
+            team_id BIGINT PRIMARY KEY,
+            home_def_rating DOUBLE PRECISION,
+            away_def_rating DOUBLE PRECISION,
+            home_away_def_split DOUBLE PRECISION,
             updated_at INTEGER NOT NULL
         )
         """
@@ -429,11 +431,11 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS team_lineup_stats (
-            team_id INTEGER PRIMARY KEY,
-            top_lineup_net_rating REAL,
-            bench_net_rating REAL,
-            bench_strength REAL,
-            lineup_continuity REAL,
+            team_id BIGINT PRIMARY KEY,
+            top_lineup_net_rating DOUBLE PRECISION,
+            bench_net_rating DOUBLE PRECISION,
+            bench_strength DOUBLE PRECISION,
+            lineup_continuity DOUBLE PRECISION,
             lineups_played_count INTEGER,
             updated_at INTEGER NOT NULL
         )
@@ -442,10 +444,10 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS team_injury_status (
-            team_id INTEGER PRIMARY KEY,
+            team_id BIGINT PRIMARY KEY,
             key_players_out INTEGER,
             total_players_out INTEGER,
-            total_impact REAL,
+            total_impact DOUBLE PRECISION,
             updated_at INTEGER NOT NULL
         )
         """
@@ -460,12 +462,19 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         cur_season = compute_current_season()
         for tbl in PER_PLAYER_TABLES_TO_MIGRATE:
             try:
+                # Commits on success — see the note in the helper.
                 _migrate_player_table_to_per_season(conn, tbl, cur_season)
             except Exception as e:
                 # Migration is best-effort — if one table can't be
                 # migrated (e.g. permission, in-use), log and continue.
                 # The table just keeps the per-player schema and won't
                 # benefit from per-season variance until manually fixed.
+                #
+                # The rollback is what makes "continue" possible: a failed
+                # statement aborts the whole PostgreSQL transaction, so
+                # without it every later table would fail too. Already
+                # committed tables are unaffected.
+                conn.rollback()
                 print(f"[migrate] {tbl} skipped: {e}")
     except Exception as e:
         print(f"[migrate] could not determine current season: {e}")
@@ -635,14 +644,24 @@ def compute_special_defenders(season: str) -> list[dict[str, Any]]:
     return rows
 
 
-def upsert_dvp(conn: sqlite3.Connection, dvp: dict[tuple[int, str], dict[str, Any]], updated_at: int) -> None:
+def upsert_dvp(conn: psycopg.Connection, dvp: dict[tuple[int, str], dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for (team_id, pos), s in dvp.items():
         cur.execute(
             """
-            INSERT OR REPLACE INTO dvp_by_position
-              (team_id, position, gp, pts, reb, ast, fg3m, stl, blk, tov, fd_pts, source, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO dvp_by_position (team_id, position, gp, pts, reb, ast, fg3m, stl, blk, tov, fd_pts, source, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (team_id, position, source) DO UPDATE SET
+                gp = excluded.gp,
+                pts = excluded.pts,
+                reb = excluded.reb,
+                ast = excluded.ast,
+                fg3m = excluded.fg3m,
+                stl = excluded.stl,
+                blk = excluded.blk,
+                tov = excluded.tov,
+                fd_pts = excluded.fd_pts,
+                updated_at = excluded.updated_at
             """,
             (
                 int(team_id), str(pos),
@@ -662,14 +681,23 @@ def upsert_dvp(conn: sqlite3.Connection, dvp: dict[tuple[int, str], dict[str, An
     conn.commit()
 
 
-def upsert_defenders(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_defenders(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO team_special_defenders
-              (team_id, pos_group, rank, player_id, player_name, def_rating, def_ws, pct_stl, pct_blk, min_per_game, score01, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO team_special_defenders (team_id, pos_group, rank, player_id, player_name, def_rating, def_ws, pct_stl, pct_blk, min_per_game, score01, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (team_id, pos_group, rank) DO UPDATE SET
+                player_id = excluded.player_id,
+                player_name = excluded.player_name,
+                def_rating = excluded.def_rating,
+                def_ws = excluded.def_ws,
+                pct_stl = excluded.pct_stl,
+                pct_blk = excluded.pct_blk,
+                min_per_game = excluded.min_per_game,
+                score01 = excluded.score01,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r["team_id"]),
@@ -1028,7 +1056,7 @@ def compute_game_refs_for_season(
 
 
 def _migrate_player_table_to_per_season(
-    conn: sqlite3.Connection,
+    conn: psycopg.Connection,
     table_name: str,
     current_season: str,
 ) -> None:
@@ -1041,19 +1069,18 @@ def _migrate_player_table_to_per_season(
     variance → zero XGBoost importance.
 
     This helper adds a ``season`` column and switches the primary key
-    to ``(player_id, season)``. SQLite doesn't support changing a
-    primary key in place, so we rebuild via rename → create → copy →
-    drop. Idempotent: if ``season`` already exists, no-op.
+    to ``(player_id, season)`` by rebuilding via create → copy → drop →
+    rename. Idempotent: if ``season`` already exists, no-op.
 
     Existing rows get tagged with ``current_season`` since that's where
     the data came from. The caller can then re-run the per-season
     compute jobs for older seasons to fill in historical rows.
     """
     cur = conn.cursor()
-    info = cur.execute(f"PRAGMA table_info({table_name})").fetchall()
+    info = db.column_info(conn, table_name)
     if not info:
         return  # table doesn't exist yet — nothing to migrate
-    cols = [row[1] for row in info]
+    cols = [name for name, _typ, _nn, _dflt in info]
     if 'season' in cols:
         return  # already migrated
 
@@ -1061,8 +1088,8 @@ def _migrate_player_table_to_per_season(
     # exactly (preserves types, NOT NULL flags, defaults).
     col_defs = []
     col_names = []
-    for cid, name, typ, notnull, dflt, pk in info:
-        clause = f"{name} {typ}"
+    for name, typ, notnull, dflt in info:
+        clause = f'"{name}" {typ}'
         if notnull:
             clause += " NOT NULL"
         if dflt is not None:
@@ -1074,17 +1101,17 @@ def _migrate_player_table_to_per_season(
     non_pk_defs = [c for c, n in zip(col_defs, col_names) if n != 'player_id']
     new_schema = f"""
         CREATE TABLE {table_name}_new (
-            player_id INTEGER NOT NULL,
+            player_id BIGINT NOT NULL,
             season TEXT NOT NULL,
             {", ".join(non_pk_defs)},
             PRIMARY KEY (player_id, season)
         )
     """
-    transfer_cols = ", ".join(c for c in col_names if c != 'player_id')
+    transfer_cols = ", ".join(f'"{c}"' for c in col_names if c != 'player_id')
     cur.execute(new_schema)
     cur.execute(
         f"INSERT INTO {table_name}_new (player_id, season, {transfer_cols}) "
-        f"SELECT player_id, ?, {transfer_cols} FROM {table_name}",
+        f"SELECT player_id, %s, {transfer_cols} FROM {table_name}",
         (current_season,),
     )
     cur.execute(f"DROP TABLE {table_name}")
@@ -1092,6 +1119,9 @@ def _migrate_player_table_to_per_season(
     cur.execute(
         f"CREATE INDEX IF NOT EXISTS idx_{table_name}_pid ON {table_name}(player_id)"
     )
+    # Commit per table so one table's failure doesn't undo the ones already
+    # migrated. The caller relies on this: it recovers from a failure with
+    # conn.rollback(), which must not reach back past this point.
     conn.commit()
     print(f"[migrate] {table_name}: tagged existing rows with season={current_season}")
 
@@ -1183,7 +1213,7 @@ def compute_game_broadcasts_for_dates(
 
 
 def upsert_game_team_stats(
-    conn: sqlite3.Connection,
+    conn: psycopg.Connection,
     rows: list[dict[str, Any]],
 ) -> None:
     """Persist per-(game, team) pace / off_rating / def_rating / pts.
@@ -1195,10 +1225,17 @@ def upsert_game_team_stats(
         try:
             cur.execute(
                 """
-                INSERT OR REPLACE INTO game_team_stats
-                  (game_id, team_id, game_date, pace, off_rating, def_rating,
+                INSERT INTO game_team_stats (game_id, team_id, game_date, pace, off_rating, def_rating,
                    pts, opp_pts, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (game_id, team_id) DO UPDATE SET
+                    game_date = excluded.game_date,
+                    pace = excluded.pace,
+                    off_rating = excluded.off_rating,
+                    def_rating = excluded.def_rating,
+                    pts = excluded.pts,
+                    opp_pts = excluded.opp_pts,
+                    updated_at = excluded.updated_at
                 """,
                 (str(r["game_id"]), int(r["team_id"]), r.get("game_date"),
                  _ndf(r.get("pace")), _ndf(r.get("off_rating")),
@@ -1225,7 +1262,7 @@ def _ndf(v):
 
 
 def upsert_game_broadcasts(
-    conn: sqlite3.Connection,
+    conn: psycopg.Connection,
     rows: list[dict[str, Any]],
 ) -> None:
     if not rows:
@@ -1235,9 +1272,14 @@ def upsert_game_broadcasts(
         try:
             cur.execute(
                 """
-                INSERT OR REPLACE INTO game_broadcasts
-                  (game_id, game_date, natl_tv, home_tv, away_tv, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO game_broadcasts (game_id, game_date, natl_tv, home_tv, away_tv, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (game_id) DO UPDATE SET
+                    game_date = excluded.game_date,
+                    natl_tv = excluded.natl_tv,
+                    home_tv = excluded.home_tv,
+                    away_tv = excluded.away_tv,
+                    updated_at = excluded.updated_at
                 """,
                 (str(r["game_id"]), r.get("game_date"),
                  r.get("natl_tv"), r.get("home_tv"), r.get("away_tv"),
@@ -1249,7 +1291,7 @@ def upsert_game_broadcasts(
 
 
 def upsert_game_officials(
-    conn: sqlite3.Connection,
+    conn: psycopg.Connection,
     rows: list[dict[str, Any]],
 ) -> None:
     """Idempotent upsert of (game_id, ref_name, ref_id) rows."""
@@ -1260,9 +1302,11 @@ def upsert_game_officials(
         try:
             cur.execute(
                 """
-                INSERT OR REPLACE INTO game_officials
-                  (game_id, ref_name, ref_id, updated_at)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO game_officials (game_id, ref_name, ref_id, updated_at)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (game_id, ref_name) DO UPDATE SET
+                    ref_id = excluded.ref_id,
+                    updated_at = excluded.updated_at
                 """,
                 (str(r["game_id"]), str(r["ref_name"]),
                  r.get("ref_id"), int(r.get("updated_at") or 0)),
@@ -1464,12 +1508,12 @@ def compute_team_foul_rates(season: str) -> list[dict[str, Any]]:
     ]
 
 
-def upsert_team_stats(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_team_stats(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO team_stats (
+            INSERT INTO team_stats (
                 team_id, pts_fb, pts_off_tov,
                 opp_fga, opp_fg_pct, opp_fg3a, opp_fg3_pct, opp_tov, opp_stl, opp_blk,
                 opp_pts_paint, opp_pts_fb, opp_pts_off_tov,
@@ -1477,8 +1521,34 @@ def upsert_team_stats(conn: sqlite3.Connection, rows: list[dict[str, Any]], upda
                 lg_pts_fb, lg_pts_off_tov, lg_fga, lg_fg_pct, lg_fg3a, lg_tov, lg_stl,
                 foul_rate_season, foul_rate_last5, updated_at
             ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
+            ON CONFLICT (team_id) DO UPDATE SET
+                pts_fb = excluded.pts_fb,
+                pts_off_tov = excluded.pts_off_tov,
+                opp_fga = excluded.opp_fga,
+                opp_fg_pct = excluded.opp_fg_pct,
+                opp_fg3a = excluded.opp_fg3a,
+                opp_fg3_pct = excluded.opp_fg3_pct,
+                opp_tov = excluded.opp_tov,
+                opp_stl = excluded.opp_stl,
+                opp_blk = excluded.opp_blk,
+                opp_pts_paint = excluded.opp_pts_paint,
+                opp_pts_fb = excluded.opp_pts_fb,
+                opp_pts_off_tov = excluded.opp_pts_off_tov,
+                opp_def_rating_last5 = excluded.opp_def_rating_last5,
+                opp_blk_last5 = excluded.opp_blk_last5,
+                opp_stl_last5 = excluded.opp_stl_last5,
+                lg_pts_fb = excluded.lg_pts_fb,
+                lg_pts_off_tov = excluded.lg_pts_off_tov,
+                lg_fga = excluded.lg_fga,
+                lg_fg_pct = excluded.lg_fg_pct,
+                lg_fg3a = excluded.lg_fg3a,
+                lg_tov = excluded.lg_tov,
+                lg_stl = excluded.lg_stl,
+                foul_rate_season = excluded.foul_rate_season,
+                foul_rate_last5 = excluded.foul_rate_last5,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r['team_id']),
@@ -1568,14 +1638,19 @@ def compute_rolling_dvp(season: str) -> list[dict[str, Any]]:
     return results
 
 
-def upsert_ref_stats(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_ref_stats(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO referee_stats
-              (ref_name, games, foul_rate, home_win_pct, pace, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO referee_stats (ref_name, games, foul_rate, home_win_pct, pace, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (ref_name) DO UPDATE SET
+                games = excluded.games,
+                foul_rate = excluded.foul_rate,
+                home_win_pct = excluded.home_win_pct,
+                pace = excluded.pace,
+                updated_at = excluded.updated_at
             """,
             (
                 str(r["ref_name"]),
@@ -1589,14 +1664,17 @@ def upsert_ref_stats(conn: sqlite3.Connection, rows: list[dict[str, Any]], updat
     conn.commit()
 
 
-def upsert_team_foul_rates(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_team_foul_rates(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO team_foul_rates
-              (team_id, foul_rate_season, foul_rate_last5, updated_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO team_foul_rates (team_id, foul_rate_season, foul_rate_last5, updated_at)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (team_id) DO UPDATE SET
+                foul_rate_season = excluded.foul_rate_season,
+                foul_rate_last5 = excluded.foul_rate_last5,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r["team_id"]),
@@ -1608,14 +1686,23 @@ def upsert_team_foul_rates(conn: sqlite3.Connection, rows: list[dict[str, Any]],
     conn.commit()
 
 
-def upsert_rolling_dvp(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_rolling_dvp(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO dvp_rolling
-              (team_id, window, pts, reb, ast, fg3m, stl, blk, tov, gp, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO dvp_rolling (team_id, "window", pts, reb, ast, fg3m, stl, blk, tov, gp, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (team_id, "window") DO UPDATE SET
+                pts = excluded.pts,
+                reb = excluded.reb,
+                ast = excluded.ast,
+                fg3m = excluded.fg3m,
+                stl = excluded.stl,
+                blk = excluded.blk,
+                tov = excluded.tov,
+                gp = excluded.gp,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r["team_id"]),
@@ -2295,7 +2382,7 @@ def compute_synergy_team_defense(season: str) -> list[dict[str, Any]]:
 # ---- Upsert functions for new tables ----
 
 def upsert_advanced_player_stats(
-    conn: sqlite3.Connection,
+    conn: psycopg.Connection,
     rows: list[dict[str, Any]],
     updated_at: int,
     season: str | None = None,
@@ -2313,12 +2400,29 @@ def upsert_advanced_player_stats(
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO player_advanced_stats
-              (player_id, season, usg_pct, ts_pct, efg_pct, ast_pct,
+            INSERT INTO player_advanced_stats (player_id, season, usg_pct, ts_pct, efg_pct, ast_pct,
                oreb_pct, dreb_pct, reb_pct, pie,
                off_rating, def_rating, pace, net_rating,
                age, height_inches, weight, years_experience, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (player_id, season) DO UPDATE SET
+                usg_pct = excluded.usg_pct,
+                ts_pct = excluded.ts_pct,
+                efg_pct = excluded.efg_pct,
+                ast_pct = excluded.ast_pct,
+                oreb_pct = excluded.oreb_pct,
+                dreb_pct = excluded.dreb_pct,
+                reb_pct = excluded.reb_pct,
+                pie = excluded.pie,
+                off_rating = excluded.off_rating,
+                def_rating = excluded.def_rating,
+                pace = excluded.pace,
+                net_rating = excluded.net_rating,
+                age = excluded.age,
+                height_inches = excluded.height_inches,
+                weight = excluded.weight,
+                years_experience = excluded.years_experience,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r['player_id']), eff_season,
@@ -2336,15 +2440,23 @@ def upsert_advanced_player_stats(
     conn.commit()
 
 
-def upsert_clutch_stats(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_clutch_stats(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO player_clutch_stats
-              (player_id, clutch_pts_pg, clutch_fg_pct, clutch_fg3_pct,
+            INSERT INTO player_clutch_stats (player_id, clutch_pts_pg, clutch_fg_pct, clutch_fg3_pct,
                clutch_fta_pg, clutch_plus_minus, clutch_min_pg, clutch_games, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (player_id, season) DO UPDATE SET
+                clutch_pts_pg = excluded.clutch_pts_pg,
+                clutch_fg_pct = excluded.clutch_fg_pct,
+                clutch_fg3_pct = excluded.clutch_fg3_pct,
+                clutch_fta_pg = excluded.clutch_fta_pg,
+                clutch_plus_minus = excluded.clutch_plus_minus,
+                clutch_min_pg = excluded.clutch_min_pg,
+                clutch_games = excluded.clutch_games,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r['player_id']),
@@ -2357,15 +2469,20 @@ def upsert_clutch_stats(conn: sqlite3.Connection, rows: list[dict[str, Any]], up
     conn.commit()
 
 
-def upsert_hustle_stats(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_hustle_stats(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO player_hustle_stats
-              (player_id, contested_shots_pg, deflections_pg,
+            INSERT INTO player_hustle_stats (player_id, contested_shots_pg, deflections_pg,
                charges_drawn_pg, screen_assists_pg, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (player_id, season) DO UPDATE SET
+                contested_shots_pg = excluded.contested_shots_pg,
+                deflections_pg = excluded.deflections_pg,
+                charges_drawn_pg = excluded.charges_drawn_pg,
+                screen_assists_pg = excluded.screen_assists_pg,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r['player_id']),
@@ -2377,17 +2494,26 @@ def upsert_hustle_stats(conn: sqlite3.Connection, rows: list[dict[str, Any]], up
     conn.commit()
 
 
-def upsert_shot_profile(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_shot_profile(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO player_shot_profile
-              (player_id, open_shot_fg_pct, open_shot_freq,
+            INSERT INTO player_shot_profile (player_id, open_shot_fg_pct, open_shot_freq,
                tight_shot_fg_pct, tight_shot_freq,
                catch_shoot_fg_pct, catch_shoot_freq,
                pullup_fg_pct, pullup_freq, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (player_id, season) DO UPDATE SET
+                open_shot_fg_pct = excluded.open_shot_fg_pct,
+                open_shot_freq = excluded.open_shot_freq,
+                tight_shot_fg_pct = excluded.tight_shot_fg_pct,
+                tight_shot_freq = excluded.tight_shot_freq,
+                catch_shoot_fg_pct = excluded.catch_shoot_fg_pct,
+                catch_shoot_freq = excluded.catch_shoot_freq,
+                pullup_fg_pct = excluded.pullup_fg_pct,
+                pullup_freq = excluded.pullup_freq,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r['player_id']),
@@ -2401,19 +2527,32 @@ def upsert_shot_profile(conn: sqlite3.Connection, rows: list[dict[str, Any]], up
     conn.commit()
 
 
-def upsert_play_types(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_play_types(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO player_play_types
-              (player_id, iso_poss_pct, iso_ppp,
+            INSERT INTO player_play_types (player_id, iso_poss_pct, iso_ppp,
                pnr_bh_poss_pct, pnr_bh_ppp,
                pnr_roll_poss_pct, pnr_roll_ppp,
                spotup_poss_pct, spotup_ppp,
                transition_poss_pct, transition_ppp,
                postup_poss_pct, cut_poss_pct, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (player_id, season) DO UPDATE SET
+                iso_poss_pct = excluded.iso_poss_pct,
+                iso_ppp = excluded.iso_ppp,
+                pnr_bh_poss_pct = excluded.pnr_bh_poss_pct,
+                pnr_bh_ppp = excluded.pnr_bh_ppp,
+                pnr_roll_poss_pct = excluded.pnr_roll_poss_pct,
+                pnr_roll_ppp = excluded.pnr_roll_ppp,
+                spotup_poss_pct = excluded.spotup_poss_pct,
+                spotup_ppp = excluded.spotup_ppp,
+                transition_poss_pct = excluded.transition_poss_pct,
+                transition_ppp = excluded.transition_ppp,
+                postup_poss_pct = excluded.postup_poss_pct,
+                cut_poss_pct = excluded.cut_poss_pct,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r['player_id']),
@@ -2429,15 +2568,19 @@ def upsert_play_types(conn: sqlite3.Connection, rows: list[dict[str, Any]], upda
     conn.commit()
 
 
-def upsert_on_off(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_on_off(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO player_on_off
-              (player_id, on_court_net_rating, off_court_net_rating,
+            INSERT INTO player_on_off (player_id, on_court_net_rating, off_court_net_rating,
                on_off_differential, updated_at)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (player_id, season) DO UPDATE SET
+                on_court_net_rating = excluded.on_court_net_rating,
+                off_court_net_rating = excluded.off_court_net_rating,
+                on_off_differential = excluded.on_off_differential,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r['player_id']),
@@ -2450,18 +2593,29 @@ def upsert_on_off(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_
     conn.commit()
 
 
-def upsert_shot_zones(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_shot_zones(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO player_shot_zones
-              (player_id, rim_fga_pct, rim_fg_pct,
+            INSERT INTO player_shot_zones (player_id, rim_fga_pct, rim_fg_pct,
                paint_fga_pct, paint_fg_pct,
                midrange_fga_pct, midrange_fg_pct,
                corner3_fga_pct, corner3_fg_pct,
                above_break3_fga_pct, above_break3_fg_pct, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (player_id, season) DO UPDATE SET
+                rim_fga_pct = excluded.rim_fga_pct,
+                rim_fg_pct = excluded.rim_fg_pct,
+                paint_fga_pct = excluded.paint_fga_pct,
+                paint_fg_pct = excluded.paint_fg_pct,
+                midrange_fga_pct = excluded.midrange_fga_pct,
+                midrange_fg_pct = excluded.midrange_fg_pct,
+                corner3_fga_pct = excluded.corner3_fga_pct,
+                corner3_fg_pct = excluded.corner3_fg_pct,
+                above_break3_fga_pct = excluded.above_break3_fga_pct,
+                above_break3_fg_pct = excluded.above_break3_fg_pct,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r['player_id']),
@@ -2476,14 +2630,20 @@ def upsert_shot_zones(conn: sqlite3.Connection, rows: list[dict[str, Any]], upda
     conn.commit()
 
 
-def upsert_quarter_splits(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_quarter_splits(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO player_quarter_splits
-              (player_id, q1_avg, q2_avg, q3_avg, q4_avg, q4_min_pg, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO player_quarter_splits (player_id, q1_avg, q2_avg, q3_avg, q4_avg, q4_min_pg, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (player_id, season) DO UPDATE SET
+                q1_avg = excluded.q1_avg,
+                q2_avg = excluded.q2_avg,
+                q3_avg = excluded.q3_avg,
+                q4_avg = excluded.q4_avg,
+                q4_min_pg = excluded.q4_min_pg,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r['player_id']),
@@ -2496,16 +2656,22 @@ def upsert_quarter_splits(conn: sqlite3.Connection, rows: list[dict[str, Any]], 
     conn.commit()
 
 
-def upsert_opp_shot_zones(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_opp_shot_zones(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO team_opp_shot_zones
-              (team_id, rim_fg_pct_allowed, paint_fg_pct_allowed,
+            INSERT INTO team_opp_shot_zones (team_id, rim_fg_pct_allowed, paint_fg_pct_allowed,
                midrange_fg_pct_allowed, corner3_fg_pct_allowed,
                above_break3_fg_pct_allowed, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (team_id) DO UPDATE SET
+                rim_fg_pct_allowed = excluded.rim_fg_pct_allowed,
+                paint_fg_pct_allowed = excluded.paint_fg_pct_allowed,
+                midrange_fg_pct_allowed = excluded.midrange_fg_pct_allowed,
+                corner3_fg_pct_allowed = excluded.corner3_fg_pct_allowed,
+                above_break3_fg_pct_allowed = excluded.above_break3_fg_pct_allowed,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r['team_id']),
@@ -2520,16 +2686,22 @@ def upsert_opp_shot_zones(conn: sqlite3.Connection, rows: list[dict[str, Any]], 
     conn.commit()
 
 
-def upsert_synergy_defense(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_synergy_defense(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO team_synergy_defense
-              (team_id, pnr_ppp_allowed, iso_ppp_allowed,
+            INSERT INTO team_synergy_defense (team_id, pnr_ppp_allowed, iso_ppp_allowed,
                spotup_ppp_allowed, transition_ppp_allowed,
                postup_ppp_allowed, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (team_id) DO UPDATE SET
+                pnr_ppp_allowed = excluded.pnr_ppp_allowed,
+                iso_ppp_allowed = excluded.iso_ppp_allowed,
+                spotup_ppp_allowed = excluded.spotup_ppp_allowed,
+                transition_ppp_allowed = excluded.transition_ppp_allowed,
+                postup_ppp_allowed = excluded.postup_ppp_allowed,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r['team_id']),
@@ -2648,18 +2820,33 @@ def compute_player_tracking(season: str = '2024-25') -> list[dict[str, Any]]:
     return results
 
 
-def upsert_player_tracking(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_player_tracking(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO player_tracking_stats
-              (player_id, avg_speed, avg_speed_off, avg_speed_def,
+            INSERT INTO player_tracking_stats (player_id, avg_speed, avg_speed_off, avg_speed_def,
                dist_miles, dist_miles_off, dist_miles_def,
                touches_pg, time_of_poss_pg, avg_drib_per_touch,
                paint_touches_pg, elbow_touches_pg,
                passes_made_pg, potential_ast_pg, secondary_ast_pg, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (player_id, season) DO UPDATE SET
+                avg_speed = excluded.avg_speed,
+                avg_speed_off = excluded.avg_speed_off,
+                avg_speed_def = excluded.avg_speed_def,
+                dist_miles = excluded.dist_miles,
+                dist_miles_off = excluded.dist_miles_off,
+                dist_miles_def = excluded.dist_miles_def,
+                touches_pg = excluded.touches_pg,
+                time_of_poss_pg = excluded.time_of_poss_pg,
+                avg_drib_per_touch = excluded.avg_drib_per_touch,
+                paint_touches_pg = excluded.paint_touches_pg,
+                elbow_touches_pg = excluded.elbow_touches_pg,
+                passes_made_pg = excluded.passes_made_pg,
+                potential_ast_pg = excluded.potential_ast_pg,
+                secondary_ast_pg = excluded.secondary_ast_pg,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r['player_id']),
@@ -2762,16 +2949,28 @@ def compute_team_standings(season: str = '2024-25') -> list[dict[str, Any]]:
     return results
 
 
-def upsert_team_standings(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_team_standings(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO team_standings
-              (team_id, win_pct, wins, losses, conf_rank, games_back,
+            INSERT INTO team_standings (team_id, win_pct, wins, losses, conf_rank, games_back,
                home_win_pct, road_win_pct, current_streak, l10_wins,
                pts_pg, opp_pts_pg, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (team_id) DO UPDATE SET
+                win_pct = excluded.win_pct,
+                wins = excluded.wins,
+                losses = excluded.losses,
+                conf_rank = excluded.conf_rank,
+                games_back = excluded.games_back,
+                home_win_pct = excluded.home_win_pct,
+                road_win_pct = excluded.road_win_pct,
+                current_streak = excluded.current_streak,
+                l10_wins = excluded.l10_wins,
+                pts_pg = excluded.pts_pg,
+                opp_pts_pg = excluded.opp_pts_pg,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r['team_id']),
@@ -2826,15 +3025,22 @@ def compute_player_scoring_breakdown(season: str = '2024-25') -> list[dict[str, 
     return results
 
 
-def upsert_player_scoring_breakdown(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_player_scoring_breakdown(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO player_scoring_breakdown
-              (player_id, pct_pts_3pt, pct_pts_paint, pct_pts_ft,
+            INSERT INTO player_scoring_breakdown (player_id, pct_pts_3pt, pct_pts_paint, pct_pts_ft,
                pct_pts_midrange, pct_uast_fgm, pct_ast_fgm, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (player_id, season) DO UPDATE SET
+                pct_pts_3pt = excluded.pct_pts_3pt,
+                pct_pts_paint = excluded.pct_pts_paint,
+                pct_pts_ft = excluded.pct_pts_ft,
+                pct_pts_midrange = excluded.pct_pts_midrange,
+                pct_uast_fgm = excluded.pct_uast_fgm,
+                pct_ast_fgm = excluded.pct_ast_fgm,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r['player_id']),
@@ -2893,14 +3099,19 @@ def compute_player_vs_opponent(season: str = '2024-25', max_players: int = 400) 
     return results
 
 
-def upsert_player_vs_opponent(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> None:
+def upsert_player_vs_opponent(conn: psycopg.Connection, rows: list[dict[str, Any]]) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO player_vs_opponent
-              (player_id, opponent_team_id, gp, avg_stat_pts, fg_pct, ts_pct, avg_min)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO player_vs_opponent (player_id, opponent_team_id, gp, avg_stat_pts, fg_pct, ts_pct, avg_min)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (player_id, opponent_team_id) DO UPDATE SET
+                gp = excluded.gp,
+                avg_stat_pts = excluded.avg_stat_pts,
+                fg_pct = excluded.fg_pct,
+                ts_pct = excluded.ts_pct,
+                avg_min = excluded.avg_min
             """,
             (
                 int(r['player_id']),
@@ -3034,15 +3245,21 @@ def compute_team_rest_splits(season: str = '2024-25') -> list[dict[str, Any]]:
     return results
 
 
-def upsert_team_rest_splits(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_team_rest_splits(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO team_rest_splits
-              (team_id, b2b_def_rating, b2b_pace, b2b_pts_allowed,
+            INSERT INTO team_rest_splits (team_id, b2b_def_rating, b2b_pace, b2b_pts_allowed,
                rested_def_rating, rested_pace, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (team_id) DO UPDATE SET
+                b2b_def_rating = excluded.b2b_def_rating,
+                b2b_pace = excluded.b2b_pace,
+                b2b_pts_allowed = excluded.b2b_pts_allowed,
+                rested_def_rating = excluded.rested_def_rating,
+                rested_pace = excluded.rested_pace,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r['team_id']),
@@ -3131,15 +3348,20 @@ def compute_player_yoy(season: str = '2024-25', max_players: int = 400) -> list[
     return results
 
 
-def upsert_player_yoy(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_player_yoy(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
-            INSERT OR REPLACE INTO player_yoy_stats
-              (player_id, yoy_pts_change, yoy_ts_change, yoy_usage_change,
+            INSERT INTO player_yoy_stats (player_id, yoy_pts_change, yoy_ts_change, yoy_usage_change,
                seasons_in_league, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (player_id, season) DO UPDATE SET
+                yoy_pts_change = excluded.yoy_pts_change,
+                yoy_ts_change = excluded.yoy_ts_change,
+                yoy_usage_change = excluded.yoy_usage_change,
+                seasons_in_league = excluded.seasons_in_league,
+                updated_at = excluded.updated_at
             """,
             (
                 int(r['player_id']),
@@ -3193,13 +3415,13 @@ def compute_team_home_away_splits(season: str = '2024-25') -> list[dict[str, Any
     return rows
 
 
-def upsert_team_home_away_splits(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_team_home_away_splits(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
             INSERT INTO team_home_away_splits (team_id, home_def_rating, away_def_rating, home_away_def_split, updated_at)
-            VALUES (:team_id, :home_def_rating, :away_def_rating, :home_away_def_split, :updated_at)
+            VALUES (%(team_id)s, %(home_def_rating)s, %(away_def_rating)s, %(home_away_def_split)s, %(updated_at)s)
             ON CONFLICT(team_id) DO UPDATE SET
                 home_def_rating=excluded.home_def_rating,
                 away_def_rating=excluded.away_def_rating,
@@ -3264,7 +3486,7 @@ def compute_lineup_stats(season: str = '2024-25') -> list[dict[str, Any]]:
     return rows
 
 
-def upsert_lineup_stats(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_lineup_stats(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
@@ -3272,7 +3494,7 @@ def upsert_lineup_stats(conn: sqlite3.Connection, rows: list[dict[str, Any]], up
             INSERT INTO team_lineup_stats
                 (team_id, top_lineup_net_rating, bench_net_rating, bench_strength, lineup_continuity, lineups_played_count, updated_at)
             VALUES
-                (:team_id, :top_lineup_net_rating, :bench_net_rating, :bench_strength, :lineup_continuity, :lineups_played_count, :updated_at)
+                (%(team_id)s, %(top_lineup_net_rating)s, %(bench_net_rating)s, %(bench_strength)s, %(lineup_continuity)s, %(lineups_played_count)s, %(updated_at)s)
             ON CONFLICT(team_id) DO UPDATE SET
                 top_lineup_net_rating=excluded.top_lineup_net_rating,
                 bench_net_rating=excluded.bench_net_rating,
@@ -3316,13 +3538,13 @@ def compute_injury_status() -> list[dict[str, Any]]:
     return rows
 
 
-def upsert_injury_status(conn: sqlite3.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
+def upsert_injury_status(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int) -> None:
     cur = conn.cursor()
     for r in rows:
         cur.execute(
             """
             INSERT INTO team_injury_status (team_id, key_players_out, total_players_out, total_impact, updated_at)
-            VALUES (:team_id, :key_players_out, :total_players_out, :total_impact, :updated_at)
+            VALUES (%(team_id)s, %(key_players_out)s, %(total_players_out)s, %(total_impact)s, %(updated_at)s)
             ON CONFLICT(team_id) DO UPDATE SET
                 key_players_out=excluded.key_players_out,
                 total_players_out=excluded.total_players_out,
@@ -3342,7 +3564,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
     season = season or compute_current_season()
     updated_at = int(time.time())
 
-    conn = sqlite3.connect(db_path)
+    conn = db.connect(db_path)
     ensure_tables(conn)
 
     dvp = scrape_dvp_by_position()

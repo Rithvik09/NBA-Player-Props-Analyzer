@@ -13,7 +13,7 @@ Bets without a ``prediction_log_id`` (manually placed) are left alone.
 
 Usage
 -----
-    python -m scripts.grade_and_settle [--db basketball_data.db] [--dry-run]
+    python -m scripts.grade_and_settle [--db postgresql://...] [--dry-run]
 
 Exit code is non-zero only on hard failure (DB unreachable). Per-bet errors
 are counted and printed but do not abort the run.
@@ -22,12 +22,12 @@ from __future__ import annotations
 
 import argparse
 import os
-import sqlite3
 import sys
 
 # Allow running as a module or a script
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from src import db  # noqa: E402
 from src.basketball_betting_helper import BasketballBettingHelper  # noqa: E402
 from src.bankroll import BankrollTracker  # noqa: E402
 
@@ -53,10 +53,11 @@ def settle_open_bets(db_path: str, *, dry_run: bool = False) -> dict:
     Returns counts of {settled, skipped, errors}. Skipped means the linked
     prediction is still pending (actual_result is NULL).
     """
-    if not os.path.exists(db_path):
-        raise FileNotFoundError(db_path)
+    # The SQLite file check became a connection-string check: there is no
+    # file to stat, and resolve_dsn raises when none is configured.
+    db.resolve_dsn(db_path)
 
-    conn = sqlite3.connect(db_path)
+    conn = db.connect(db_path)
     try:
         rows = conn.execute(
             """
@@ -98,7 +99,8 @@ def settle_open_bets(db_path: str, *, dry_run: bool = False) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default="basketball_data.db")
+    ap.add_argument("--db", default=None,
+                    help="PostgreSQL DSN. Defaults to the DATABASE_URL environment variable.")
     ap.add_argument("--dry-run", action="store_true",
                     help="print what would be settled but don't write to bankroll")
     ap.add_argument("--skip-grading", action="store_true",

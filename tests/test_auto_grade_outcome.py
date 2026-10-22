@@ -17,7 +17,6 @@ training data — so this test guards the whole flow end-to-end.
 from __future__ import annotations
 
 import os
-import sqlite3
 import sys
 from datetime import datetime, timedelta
 from unittest.mock import patch
@@ -36,7 +35,7 @@ from src.odds_tracker import OddsTracker  # noqa: E402
 # --------------------------------------------------------------------------- #
 
 def _seed_pending_prediction(
-    db_path: str,
+    conn,
     *,
     player_id: int,
     player_name: str,
@@ -45,21 +44,17 @@ def _seed_pending_prediction(
     timestamp: str,
 ) -> int:
     """Insert a single ungraded row into prediction_logs and return its id."""
-    conn = sqlite3.connect(db_path)
-    try:
-        cur = conn.execute(
-            """
-            INSERT INTO prediction_logs
-            (timestamp, player_id, player_name, prop_type, line,
-             is_home, recommendation)
-            VALUES (?, ?, ?, ?, ?, 1, 'OVER')
-            """,
-            (timestamp, player_id, player_name, prop_type, line),
-        )
-        conn.commit()
-        return int(cur.lastrowid)
-    finally:
-        conn.close()
+    row = conn.execute(
+        """
+        INSERT INTO prediction_logs
+        (timestamp, player_id, player_name, prop_type, line,
+         is_home, recommendation)
+        VALUES (%s, %s, %s, %s, %s, 1, 'OVER')
+        RETURNING id
+        """,
+        (timestamp, player_id, player_name, prop_type, line),
+    ).fetchone()
+    return int(row[0])
 
 
 def _make_fake_gamelog(*, game_date: str, game_id: str, pts: int) -> pd.DataFrame:
@@ -97,21 +92,18 @@ class _FakePlayerGameLog:
 # --------------------------------------------------------------------------- #
 
 @pytest.fixture
-def helper(tmp_path):
-    db = str(tmp_path / "auto_grade.db")
-    h = BasketballBettingHelper(db_name=db)
-    return h
+def helper(db_conn, db_url):
+    return BasketballBettingHelper(db_name=db_url)
 
 
-def test_auto_grade_records_outcome_with_closing_line(helper, monkeypatch):
+def test_auto_grade_records_outcome_with_closing_line(db_conn, helper, monkeypatch):
     """Grading a pending prediction should write a prop_outcomes row that
     joins with the closing_line previously stamped on prop_line_summary."""
-    db = helper.db_name
     yesterday = (datetime.now() - timedelta(days=1)).date().isoformat()
     timestamp = f"{yesterday}T20:00:00"
 
     log_id = _seed_pending_prediction(
-        db,
+        db_conn,
         player_id=2544,
         player_name="LeBron James",
         prop_type="points",
@@ -123,9 +115,8 @@ def test_auto_grade_records_outcome_with_closing_line(helper, monkeypatch):
     # something to join against. We need the same game_id the fake gamelog
     # will return.
     game_id = "0022300456"
-    tracker = OddsTracker(api_key=None, db_path=db)
-    conn = sqlite3.connect(db)
-    conn.execute(
+    tracker = OddsTracker(api_key=None, db_path=helper.db_name)
+    db_conn.execute(
         """
         INSERT INTO prop_line_summary
         (game_id, player_name, prop_type, opening_line, current_line,
@@ -133,15 +124,13 @@ def test_auto_grade_records_outcome_with_closing_line(helper, monkeypatch):
          price_movement, num_snapshots, first_seen, last_updated,
          consensus_line, line_std, sharp_action_score,
          closing_line, closing_line_at)
-        VALUES (?, ?, ?, 24.0, 25.0, 1.0, -110, -110, 0, 1, ?, ?, 25.0, 0, 0,
-                25.5, ?)
+        VALUES (%s, %s, %s, 24.0, 25.0, 1.0, -110, -110, 0, 1, %s, %s, 25.0, 0, 0,
+                25.5, %s)
         """,
         (game_id, "LeBron James", "points",
          f"{yesterday} 18:00:00", f"{yesterday} 19:55:00",
          f"{yesterday} 19:55:00"),
     )
-    conn.commit()
-    conn.close()
 
     # Patch the nba_api endpoint used inside auto_grade_pending. Player
     # actually scored 31 → over the 24.5 line.
@@ -158,12 +147,10 @@ def test_auto_grade_records_outcome_with_closing_line(helper, monkeypatch):
     assert out["errors"] == 0, out
 
     # 1) prediction_logs row was graded AND game_id was stamped.
-    conn = sqlite3.connect(db)
-    row = conn.execute(
-        "SELECT actual_result, actual_outcome, game_id FROM prediction_logs WHERE id = ?",
+    row = db_conn.execute(
+        "SELECT actual_result, actual_outcome, game_id FROM prediction_logs WHERE id = %s",
         (log_id,),
     ).fetchone()
-    conn.close()
     assert row[0] == pytest.approx(31.0)
     assert row[1] == "OVER"
     assert row[2] == game_id
@@ -184,17 +171,16 @@ def test_auto_grade_records_outcome_with_closing_line(helper, monkeypatch):
     assert r["line_to_close_drift"] == pytest.approx(1.0)
 
 
-def test_auto_grade_records_outcome_without_closing_line(helper, monkeypatch):
+def test_auto_grade_records_outcome_without_closing_line(db_conn, helper, monkeypatch):
     """If no prop_line_summary row exists, grading still produces a
     prop_outcomes row — just with closing_line NULL. clv_training_rows
     filters those out, but the actual_result is preserved for later
     backfill if a closing line ever shows up."""
-    db = helper.db_name
     yesterday = (datetime.now() - timedelta(days=1)).date().isoformat()
     timestamp = f"{yesterday}T20:00:00"
 
     log_id = _seed_pending_prediction(
-        db,
+        db_conn,
         player_id=201939,
         player_name="Stephen Curry",
         prop_type="three_pointers",
@@ -217,18 +203,16 @@ def test_auto_grade_records_outcome_without_closing_line(helper, monkeypatch):
     out = helper.auto_grade_pending()
     assert out["graded"] == 1
 
-    conn = sqlite3.connect(db)
-    out_row = conn.execute(
+    out_row = db_conn.execute(
         """
         SELECT closing_line, actual_result FROM prop_outcomes
-        WHERE game_id = ? AND player_name = ? AND prop_type = ?
+        WHERE game_id = %s AND player_name = %s AND prop_type = %s
         """,
         (game_id, "Stephen Curry", "three_pointers"),
     ).fetchone()
-    pred_row = conn.execute(
-        "SELECT game_id FROM prediction_logs WHERE id = ?", (log_id,),
+    pred_row = db_conn.execute(
+        "SELECT game_id FROM prediction_logs WHERE id = %s", (log_id,),
     ).fetchone()
-    conn.close()
 
     assert out_row is not None
     assert out_row[0] is None              # closing_line NULL — never captured
@@ -236,15 +220,14 @@ def test_auto_grade_records_outcome_without_closing_line(helper, monkeypatch):
     assert pred_row[0] == game_id          # game_id still stamped on the prediction
 
 
-def test_auto_grade_skips_when_gamelog_has_no_match(helper, monkeypatch):
+def test_auto_grade_skips_when_gamelog_has_no_match(db_conn, helper, monkeypatch):
     """If the player's gamelog has no row matching the prediction date,
     we skip — no grading, no outcome, no error."""
-    db = helper.db_name
     yesterday = (datetime.now() - timedelta(days=1)).date().isoformat()
     timestamp = f"{yesterday}T20:00:00"
 
     _seed_pending_prediction(
-        db,
+        db_conn,
         player_id=999,
         player_name="No Match",
         prop_type="points",
@@ -268,5 +251,5 @@ def test_auto_grade_skips_when_gamelog_has_no_match(helper, monkeypatch):
     assert out["errors"] == 0
 
     # No prop_outcomes row should have been created
-    tracker = OddsTracker(api_key=None, db_path=db)
+    tracker = OddsTracker(api_key=None, db_path=helper.db_name)
     assert tracker.clv_training_rows() == []

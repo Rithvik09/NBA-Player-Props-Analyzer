@@ -14,7 +14,7 @@ mapping to ``{"r": float, "n": int}``.
 Usage
 -----
     python -m scripts.fit_parlay_correlations \
-        --db basketball_data.db --min-samples 30
+        --db postgresql://... --min-samples 30
 
 Only pairs with ``n >= --min-samples`` are written. The parlay engine
 loads this file at import and overrides ``CORRELATION_PRIORS`` for any
@@ -28,12 +28,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sqlite3
 import sys
 from collections import defaultdict
 from datetime import datetime, timezone
 
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src import db  # noqa: E402
 
 
 def _date_key(ts: str) -> str:
@@ -51,10 +54,11 @@ def _canonical(a: str, b: str) -> tuple[str, str]:
 
 
 def fit(db_path: str, min_samples: int = 30) -> dict:
-    if not os.path.exists(db_path):
-        raise FileNotFoundError(db_path)
+    # The SQLite file check became a connection-string check: there is no
+    # file to stat, and resolve_dsn raises when none is configured.
+    db.resolve_dsn(db_path)
 
-    conn = sqlite3.connect(db_path)
+    conn = db.connect(db_path)
     rows = conn.execute("""
         SELECT timestamp, player_id, prop_type, predicted_value, actual_result
         FROM prediction_logs
@@ -108,7 +112,8 @@ def fit(db_path: str, min_samples: int = 30) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default="basketball_data.db")
+    ap.add_argument("--db", default=None,
+                    help="PostgreSQL DSN. Defaults to the DATABASE_URL environment variable.")
     ap.add_argument("--min-samples", type=int, default=30)
     ap.add_argument("--out", default="models/empirical_correlations.json")
     args = ap.parse_args()

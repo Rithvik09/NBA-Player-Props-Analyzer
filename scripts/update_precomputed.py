@@ -14,7 +14,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default="basketball_data.db")
+    ap.add_argument("--db", default=None,
+                    help="PostgreSQL DSN. Defaults to the DATABASE_URL environment variable.")
     ap.add_argument("--season", default=None, help="NBA season like 2025-26 (defaults to computed current season)")
     args = ap.parse_args()
     from src.precompute_jobs import update_precomputed

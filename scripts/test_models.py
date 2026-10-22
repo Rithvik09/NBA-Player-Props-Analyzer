@@ -164,7 +164,7 @@ def evaluate_classifier_model(model, X_test: pd.DataFrame, y_test: np.ndarray) -
     }
 
 
-def test_all_models(models_dir: str = "models", db_path: str = "basketball_data.db", 
+def test_all_models(models_dir: str = "models", db_path: str | None = None, 
                     seasons: List[str] = None, max_players: int = 200) -> Dict[str, Any]:
     """Test all models on test data"""
     
@@ -341,7 +341,8 @@ if __name__ == "__main__":
     
     ap = argparse.ArgumentParser()
     ap.add_argument("--models-dir", default="models")
-    ap.add_argument("--db", default="basketball_data.db")
+    ap.add_argument("--db", default=None,
+                    help="PostgreSQL DSN. Defaults to the DATABASE_URL environment variable.")
     ap.add_argument("--seasons", default=None, help="Comma-separated seasons like 2023-24,2024-25")
     ap.add_argument("--max-players", type=int, default=200)
     args = ap.parse_args()

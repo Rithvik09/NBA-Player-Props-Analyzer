@@ -19,14 +19,14 @@ from src.bankroll import (  # noqa: E402
 
 
 # ---------------------------------------------------------------- drawdown
-def test_peak_balance_seeded_on_first_set(tmp_path):
-    bt = BankrollTracker(str(tmp_path / "b.db"))
+def test_peak_balance_seeded_on_first_set(db_url):
+    bt = BankrollTracker(db_url)
     bt.set_balance(1000.0)
     assert bt.get_peak_balance() == 1000.0
 
 
-def test_peak_only_moves_up(tmp_path):
-    bt = BankrollTracker(str(tmp_path / "b.db"))
+def test_peak_only_moves_up(db_url):
+    bt = BankrollTracker(db_url)
     bt.set_balance(1000.0)
     bt.set_balance(800.0)  # downward
     assert bt.get_peak_balance() == 1000.0  # unchanged
@@ -34,14 +34,14 @@ def test_peak_only_moves_up(tmp_path):
     assert bt.get_peak_balance() == 1500.0
 
 
-def test_drawdown_zero_at_peak(tmp_path):
-    bt = BankrollTracker(str(tmp_path / "b.db"))
+def test_drawdown_zero_at_peak(db_url):
+    bt = BankrollTracker(db_url)
     bt.set_balance(1000.0)
     assert bt.get_drawdown()["drawdown"] == 0.0
 
 
-def test_drawdown_after_losses(tmp_path):
-    bt = BankrollTracker(str(tmp_path / "b.db"))
+def test_drawdown_after_losses(db_url):
+    bt = BankrollTracker(db_url)
     bt.set_balance(1000.0)
     bt.set_balance(750.0)
     dd = bt.get_drawdown()
@@ -50,9 +50,9 @@ def test_drawdown_after_losses(tmp_path):
     assert abs(dd["drawdown"] - 0.25) < 1e-9
 
 
-def test_drawdown_circuit_breaker_blocks_new_bet(tmp_path):
+def test_drawdown_circuit_breaker_blocks_new_bet(db_url):
     rl = RiskLimits(max_drawdown=0.20)
-    bt = BankrollTracker(str(tmp_path / "b.db"), risk_limits=rl)
+    bt = BankrollTracker(db_url, risk_limits=rl)
     bt.set_balance(1000.0)
     bt.set_balance(750.0)  # 25% drawdown — over the 20% cap
     with pytest.raises(RiskLimitError, match="drawdown"):
@@ -60,9 +60,9 @@ def test_drawdown_circuit_breaker_blocks_new_bet(tmp_path):
                       line=20.5, american_odds=-110, our_prob=0.6, stake=10)
 
 
-def test_drawdown_breaker_lifts_when_balance_recovers(tmp_path):
+def test_drawdown_breaker_lifts_when_balance_recovers(db_url):
     rl = RiskLimits(max_drawdown=0.20)
-    bt = BankrollTracker(str(tmp_path / "b.db"), risk_limits=rl)
+    bt = BankrollTracker(db_url, risk_limits=rl)
     bt.set_balance(1000.0)
     bt.set_balance(750.0)  # blocked
     with pytest.raises(RiskLimitError):
@@ -75,9 +75,9 @@ def test_drawdown_breaker_lifts_when_balance_recovers(tmp_path):
 
 
 # -------------------------------------------------------- daily exposure
-def test_daily_exposure_cap_blocks_overshoot(tmp_path):
+def test_daily_exposure_cap_blocks_overshoot(db_url):
     rl = RiskLimits(max_daily_exposure_pct=0.10)  # 10% of bankroll/day
-    bt = BankrollTracker(str(tmp_path / "b.db"), risk_limits=rl)
+    bt = BankrollTracker(db_url, risk_limits=rl)
     bt.set_balance(1000.0)
     # First bet at $80 — fine (8%)
     bt.record_bet(player_name="A", prop_type="points", side="over",
@@ -88,9 +88,9 @@ def test_daily_exposure_cap_blocks_overshoot(tmp_path):
                       line=22.5, american_odds=-110, our_prob=0.55, stake=30)
 
 
-def test_daily_exposure_cap_allows_at_limit(tmp_path):
+def test_daily_exposure_cap_allows_at_limit(db_url):
     rl = RiskLimits(max_daily_exposure_pct=0.10)
-    bt = BankrollTracker(str(tmp_path / "b.db"), risk_limits=rl)
+    bt = BankrollTracker(db_url, risk_limits=rl)
     bt.set_balance(1000.0)
     # Exactly at the limit ($100) — allowed
     bid = bt.record_bet(player_name="A", prop_type="points", side="over",
@@ -99,9 +99,9 @@ def test_daily_exposure_cap_allows_at_limit(tmp_path):
 
 
 # ----------------------------------------------------- player concentration
-def test_player_concentration_cap_blocks(tmp_path):
+def test_player_concentration_cap_blocks(db_url):
     rl = RiskLimits(max_player_concentration_pct=0.05)  # 5% per player
-    bt = BankrollTracker(str(tmp_path / "b.db"), risk_limits=rl)
+    bt = BankrollTracker(db_url, risk_limits=rl)
     bt.set_balance(1000.0)
     bt.record_bet(player_name="Tatum", prop_type="points", side="over",
                   line=27.5, american_odds=-110, our_prob=0.6, stake=40)
@@ -111,9 +111,9 @@ def test_player_concentration_cap_blocks(tmp_path):
                       line=8.5, american_odds=-110, our_prob=0.55, stake=30)
 
 
-def test_player_concentration_only_counts_open(tmp_path):
+def test_player_concentration_only_counts_open(db_url):
     rl = RiskLimits(max_player_concentration_pct=0.05)
-    bt = BankrollTracker(str(tmp_path / "b.db"), risk_limits=rl)
+    bt = BankrollTracker(db_url, risk_limits=rl)
     bt.set_balance(1000.0)
     bid = bt.record_bet(player_name="Tatum", prop_type="points", side="over",
                         line=27.5, american_odds=-110, our_prob=0.6, stake=40)
@@ -124,8 +124,8 @@ def test_player_concentration_only_counts_open(tmp_path):
     assert bid2 > 0
 
 
-def test_concentration_disabled_when_no_limit(tmp_path):
-    bt = BankrollTracker(str(tmp_path / "b.db"))  # no limits
+def test_concentration_disabled_when_no_limit(db_url):
+    bt = BankrollTracker(db_url)  # no limits
     bt.set_balance(1000.0)
     # Stack massive Tatum exposure — must allow when no cap
     for _ in range(5):

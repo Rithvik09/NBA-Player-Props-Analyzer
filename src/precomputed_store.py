@@ -1,11 +1,12 @@
-import sqlite3
 import time
 from typing import Any
+
+from src import db
 
 
 class PrecomputedStore:
     """
-    Lightweight reader for daily-precomputed datasets stored in SQLite.
+    Lightweight reader for daily-precomputed datasets stored in PostgreSQL.
 
     Data sources:
     - DVP by position (scraped daily): `dvp_by_position`
@@ -19,7 +20,12 @@ class PrecomputedStore:
         self._cache_ttl_seconds = 60 * 10  # 10 minutes
 
     def _get_db(self):
-        return sqlite3.connect(self.db_name)
+        # autocommit: ``refresh`` probes ~25 optional tables, each in its own
+        # try/except, and carries on when one is missing. Inside a single
+        # PostgreSQL transaction the first "relation does not exist" would
+        # abort it and silently empty every later section, so each statement
+        # has to stand alone.
+        return db.connect(self.db_name, autocommit=True)
 
     def refresh(self, force: bool = False) -> dict[str, Any]:
         now = int(time.time())
@@ -218,7 +224,7 @@ class PrecomputedStore:
             # --- rolling DVP ---
             try:
                 cur.execute(
-                    "SELECT team_id, window, pts, reb, ast, fg3m, stl, blk, tov, gp FROM dvp_rolling"
+                    'SELECT team_id, "window", pts, reb, ast, fg3m, stl, blk, tov, gp FROM dvp_rolling'
                 )
                 for (team_id, window, pts, reb, ast, fg3m, stl, blk, tov, gp) in cur.fetchall():
                     dvp_rolling[(int(team_id), int(window))] = {
@@ -299,9 +305,7 @@ class PrecomputedStore:
             # instead of a single snapshot. We probe for the season
             # column and SELECT it conditionally so the loader works on
             # both the new and the legacy schema.
-            _adv_cols = {row[1] for row in cur.execute(
-                "PRAGMA table_info(player_advanced_stats)"
-            ).fetchall()}
+            _adv_cols = db.table_columns(conn, "player_advanced_stats")
             _has_season = 'season' in _adv_cols
             cur.execute(
                 f"""

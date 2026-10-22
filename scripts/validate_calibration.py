@@ -31,7 +31,6 @@ import argparse
 import json
 import math
 import os
-import sqlite3
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,6 +42,8 @@ import numpy as np
 _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
+
+from src import db  # noqa: E402
 
 
 def _brier(p: np.ndarray, y: np.ndarray) -> float:
@@ -80,10 +81,12 @@ def _ece(p: np.ndarray, y: np.ndarray, bins: int = 10) -> tuple[float, list[dict
 
 def _load_graded(db_path: str) -> dict[str, list[tuple[float, float, float]]]:
     """Return ``{prop_type: [(predicted_prob, line, actual_value), ...]}``."""
-    if not os.path.exists(db_path):
-        print(f"[err] db not found: {db_path}", file=sys.stderr)
+    try:
+        db.resolve_dsn(db_path)
+    except (RuntimeError, ValueError) as e:
+        print(f"[err] db unavailable: {e}", file=sys.stderr)
         return {}
-    conn = sqlite3.connect(db_path)
+    conn = db.connect(db_path)
     try:
         rows = conn.execute("""
             SELECT prop_type, over_probability, line, actual_result
@@ -161,7 +164,8 @@ def _plot_reliability(prop: str, buckets: list[dict], out_dir: Path) -> Path | N
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--db", default="basketball_data.db")
+    parser.add_argument("--db", default=None,
+                    help="PostgreSQL DSN. Defaults to the DATABASE_URL environment variable.")
     parser.add_argument("--min-samples", type=int, default=30,
                         help="hide props with fewer than this many graded rows")
     parser.add_argument("--bins", type=int, default=10, help="ECE bin count")

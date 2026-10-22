@@ -17,13 +17,13 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-import sqlite3
 import sys
 import time
 from datetime import date, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from src import db  # noqa: E402
 from src.precompute_jobs import (  # noqa: E402
     compute_game_broadcasts_for_dates,
     upsert_game_broadcasts,
@@ -56,18 +56,21 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s")
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default="basketball_data.db")
+    ap.add_argument("--db", default=None,
+                    help="PostgreSQL DSN. Defaults to the DATABASE_URL environment variable.")
     ap.add_argument("--seasons", required=True,
                     help="Comma-separated season strings, e.g. 2023-24,2024-25")
     ap.add_argument("--sleep", type=float, default=0.7,
                     help="Sleep between scoreboard calls")
     args = ap.parse_args()
 
-    if not os.path.exists(args.db):
-        log.error("DB not found: %s", args.db)
+    try:
+        db.resolve_dsn(args.db)
+    except (RuntimeError, ValueError) as e:
+        log.error("DB unavailable: %s", e)
         return 1
 
-    conn = sqlite3.connect(args.db)
+    conn = db.connect(args.db)
     ensure_tables(conn)
 
     seasons = [s.strip() for s in args.seasons.split(",") if s.strip()]

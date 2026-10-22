@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-import sqlite3
 import sys
 
 import numpy as np
@@ -24,9 +23,8 @@ from src.uncertainty import (  # noqa: E402
 
 
 # -------------------------------------------------------------------- CLV
-def test_record_closing_line_computes_clv(tmp_path):
-    db = str(tmp_path / "bankroll.db")
-    bt = BankrollTracker(db)
+def test_record_closing_line_computes_clv(db_conn, db_url):
+    bt = BankrollTracker(db_url)
     bt.set_balance(1000.0)
     bet_id = bt.record_bet(
         player_name="Tatum", prop_type="points", side="over", line=27.5,
@@ -37,20 +35,17 @@ def test_record_closing_line_computes_clv(tmp_path):
     assert 0.025 < out["clv"] < 0.045
 
     # Persisted on the row
-    conn = sqlite3.connect(db)
-    row = conn.execute(
-        "SELECT closing_line, closing_odds, clv FROM bankroll_bets WHERE id = ?",
+    row = db_conn.execute(
+        "SELECT closing_line, closing_odds, clv FROM bankroll_bets WHERE id = %s",
         (bet_id,),
     ).fetchone()
-    conn.close()
     assert row[0] == 27.5
     assert row[1] == -130.0
     assert row[2] is not None
 
 
-def test_clv_summary_aggregates(tmp_path):
-    db = str(tmp_path / "bankroll.db")
-    bt = BankrollTracker(db)
+def test_clv_summary_aggregates(db_url):
+    bt = BankrollTracker(db_url)
     bt.set_balance(1000.0)
     for odds_close in (-130, -150):
         bid = bt.record_bet(
@@ -63,13 +58,11 @@ def test_clv_summary_aggregates(tmp_path):
     assert s["mean_clv"] > 0
 
 
-def test_v4_schema_idempotent(tmp_path):
-    db = str(tmp_path / "bankroll.db")
-    BankrollTracker(db)
-    BankrollTracker(db)  # second init must not error
-    conn = sqlite3.connect(db)
-    cols = {r[1] for r in conn.execute("PRAGMA table_info(bankroll_bets)").fetchall()}
-    conn.close()
+def test_v4_schema_idempotent(db_conn, db_url):
+    from src import db as _db
+    BankrollTracker(db_url)
+    BankrollTracker(db_url)  # second init must not error
+    cols = _db.table_columns(db_conn, "bankroll_bets")
     for c in ("closing_line", "closing_odds", "clv"):
         assert c in cols
 

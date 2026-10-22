@@ -37,7 +37,7 @@ def main() -> int:
     seasons = collector._get_seasons(num_seasons=NUM_SEASONS)
     print(f"[wf] {len(player_ids)} players, seasons={seasons}")
 
-    pre = PrecomputedStore("basketball_data.db")
+    pre = PrecomputedStore(None)
     pdata = pre.refresh(force=False)
     dvp_map = pdata.get("dvp") or {}
     dvp_avgs = pdata.get("dvp_pos_avgs") or {}

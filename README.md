@@ -19,7 +19,7 @@ A data-driven NBA player prop betting assistant. It ingests stats from the NBA A
 | Layer | Technology |
 |---|---|
 | Web API | Flask (`src/app.py`) |
-| Database | SQLite (`basketball_data.db`) |
+| Database | PostgreSQL via psycopg 3 (`DATABASE_URL`, single entry point in `src/db.py`) |
 | ML inference | `EnhancedMLPredictor` (`src/models.py`) |
 | Feature schema | `NUMERIC_FEATURE_KEYS` in `src/ml_features.py` (408 features) |
 | Precomputed cache | `PrecomputedStore` + `precompute_jobs.py` |
@@ -92,7 +92,7 @@ Feature groups include: rolling performance, schedule/fatigue, team/opp pace and
 | **The Odds API** (optional) | Player prop lines, line movement, consensus spread, sharp-action score |
 | **Static arena data** (`src/arena_data.py`) | Altitude, capacity, travel distance, timezone change |
 
-### Precomputed tables (SQLite)
+### Precomputed tables (PostgreSQL)
 
 Run `python3 scripts/update_precomputed.py` to refresh. Jobs live in `src/precompute_jobs.py`.
 
@@ -147,25 +147,38 @@ silently falls back to the statistical baseline. Watch startup for
 `models loaded from disk`; a run of `failed to load per-prop model for <prop>`
 lines means the ML pipeline is not actually running.
 
-### Configure (optional)
+### Configure
+
+`DATABASE_URL` is required — every module reaches the database through
+`src.db.connect()`, which reads it. The crawl still runs locally
+(stats.nba.com and ESPN hang on datacenter IPs), so only storage is remote.
+
+```bash
+export DATABASE_URL="postgresql://user:password@host/nba_props"
+```
+
+Optional:
 
 ```bash
 export ODDS_API_KEY="your_the_odds_api_key"   # enables line movement tracking
 export ODDS_POLL_INTERVAL=3600                # poll every 60 min (default)
 ```
 
+Every `scripts/*.py` CLI takes `--db <dsn>`; omitting it falls back to
+`DATABASE_URL`. Passing a `.db` file path fails fast with a clear error
+rather than being handed to libpq as a database name.
+
 ### Run precompute + train
 
 ```bash
-# 1) Refresh all precomputed datasets
-python3 scripts/update_precomputed.py --db basketball_data.db
+# 1) Refresh all precomputed datasets (--db defaults to $DATABASE_URL)
+python3 scripts/update_precomputed.py
 
 # 2) Train per-prop models (4 seasons, 300 players)
 caffeinate -i python3 -u scripts/train_models.py \
   --seasons 2022-23,2023-24,2024-25,2025-26 \
   --max-players 300 \
-  --models-dir models \
-  --db basketball_data.db
+  --models-dir models
 ```
 
 ### Start the server
@@ -232,7 +245,7 @@ export AUTO_JOBS_BATCH_SEASONS=2021-22,2022-23,2023-24,2024-25,2025-26
 
 ```
 ├── run.py                      # Flask entry point
-├── basketball_data.db          # SQLite (stats, precompute, odds history)
+├── src/db.py                   # the only place that opens a DB connection
 ├── models/                     # Trained per-prop joblib artifacts
 ├── scripts/
 │   ├── train_models.py         # Full training pipeline

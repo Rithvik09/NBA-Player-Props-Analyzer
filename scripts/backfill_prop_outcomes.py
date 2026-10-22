@@ -27,7 +27,7 @@ Caveats
 
 Usage
 -----
-    python -m scripts.backfill_prop_outcomes [--db basketball_data.db]
+    python -m scripts.backfill_prop_outcomes [--db postgresql://...]
                                              [--limit N] [--dry-run]
 """
 from __future__ import annotations
@@ -35,7 +35,6 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-import sqlite3
 import sys
 import time
 from datetime import datetime
@@ -44,6 +43,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from src import db  # noqa: E402
 from src.odds_tracker import OddsTracker  # noqa: E402
 
 log = logging.getLogger("backfill_prop_outcomes")
@@ -62,7 +62,7 @@ def _season_for_date(d: datetime) -> str:
 
 def _find_legacy_rows(db_path: str, limit: int | None = None) -> list[dict]:
     """Read graded predictions missing game_id."""
-    conn = sqlite3.connect(db_path)
+    conn = db.connect(db_path)
     try:
         sql = """
             SELECT id, player_id, player_name, prop_type, line, timestamp,
@@ -146,8 +146,9 @@ def backfill(db_path: str, *, limit: int | None = None,
     Returns counts: ``{candidates, stamped, outcomes_written, skipped, errors}``.
     Per-row failures are counted but don't abort the run.
     """
-    if not os.path.exists(db_path):
-        raise FileNotFoundError(db_path)
+    # The SQLite file check became a connection-string check: there is no
+    # file to stat, and resolve_dsn raises when none is configured.
+    db.resolve_dsn(db_path)
 
     legacy = _find_legacy_rows(db_path, limit=limit)
     log.info("found %d legacy rows missing game_id", len(legacy))
@@ -185,9 +186,9 @@ def backfill(db_path: str, *, limit: int | None = None,
                 outcomes_written += 1
                 continue
 
-            with sqlite3.connect(db_path) as conn:
+            with db.connect(db_path) as conn:
                 conn.execute(
-                    "UPDATE prediction_logs SET game_id = ? WHERE id = ?",
+                    "UPDATE prediction_logs SET game_id = %s WHERE id = %s",
                     (game_id, row["id"]),
                 )
                 conn.commit()
@@ -224,7 +225,7 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s")
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default="basketball_data.db",
+    ap.add_argument("--db", default=None,
                     help="path to the SQLite DB used by the helper")
     ap.add_argument("--limit", type=int, default=None,
                     help="only process the first N legacy rows (for smoke testing)")

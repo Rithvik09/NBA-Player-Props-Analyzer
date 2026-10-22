@@ -241,10 +241,13 @@ def healthz():
     # 1. Bankroll DB schema
     try:
         bt = _BT(betting_helper.db_name)
-        import sqlite3 as _s
-        conn = _s.connect(bt.db_path)
-        v = int(conn.execute("PRAGMA user_version").fetchone()[0])
-        conn.close()
+        from .bankroll import _current_user_version
+        from . import db as _db
+        conn = _db.connect(bt.db_path)
+        try:
+            v = _current_user_version(conn)
+        finally:
+            conn.close()
         checks["bankroll_db"] = {
             "ok": v == _TARGET_VERSION,
             "version": v,
@@ -634,8 +637,8 @@ def train_models():
                 from datetime import datetime as _dt
                 cur.execute('''
                     UPDATE retrain_meta
-                    SET last_retrain_at = ?, samples_at_last_retrain = ?,
-                        last_auc = ?, last_rmse = ?
+                    SET last_retrain_at = %s, samples_at_last_retrain = %s,
+                        last_auc = %s, last_rmse = %s
                     WHERE id = 1
                 ''', (_dt.now().isoformat(), len(training_data),
                       metrics.get('auc'), metrics.get('rmse')))
@@ -907,7 +910,7 @@ def healthz_clv():
     """CLV pipeline visibility.
 
     Returns counts that let an operator answer "is the CLV pipeline
-    alive?" without poking at SQLite directly:
+    alive?" without poking at the database directly:
 
       - prop_outcomes_total        — every settled outcome row
       - prop_outcomes_with_close   — subset that's CLV-ready (joined w/ closing line)
@@ -921,9 +924,10 @@ def healthz_clv():
     cold for a few hours is fine; the brier-decay endpoint owns the
     real "should we page someone" decision.
     """
-    import sqlite3 as _sqlite
+    import psycopg
+    from . import db as _db
     from .odds_tracker import OddsTracker, last_poll_status
-    db = betting_helper.db_name
+    dsn = betting_helper.db_name
     out = {
         "prop_outcomes_total": 0,
         "prop_outcomes_with_close": 0,
@@ -934,7 +938,10 @@ def healthz_clv():
         "imminent_games": 0,
     }
     try:
-        conn = _sqlite.connect(db)
+        # autocommit: the game_tipoffs probe below is allowed to fail on a
+        # freshly-init'd DB, and a failed statement would otherwise abort
+        # the transaction and take the counts above down with it.
+        conn = _db.connect(dsn, autocommit=True)
         try:
             row = conn.execute(
                 """
@@ -964,7 +971,7 @@ def healthz_clv():
                     if OddsTracker._inside_closing_window(ct or "")
                 )
                 out["imminent_games"] = imm
-            except _sqlite.OperationalError:
+            except psycopg.errors.UndefinedTable:
                 pass
         finally:
             conn.close()

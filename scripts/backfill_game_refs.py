@@ -42,15 +42,17 @@ so seasons accumulate.
 """
 from __future__ import annotations
 
+import psycopg
+
 import argparse
 import logging
 import os
-import sqlite3
 import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from src import db  # noqa: E402
 from src.precompute_jobs import (  # noqa: E402
     compute_game_refs_for_season,
     upsert_game_officials,
@@ -62,7 +64,7 @@ from src.precompute_jobs import (  # noqa: E402
 log = logging.getLogger("backfill_game_refs")
 
 
-def _aggregate_ref_stats_from_table(conn: sqlite3.Connection) -> list[dict]:
+def _aggregate_ref_stats_from_table(conn: psycopg.Connection) -> list[dict]:
     """Re-aggregate per-ref stats from EVERY (game_id, ref) row currently
     in game_officials. We re-pull box-score totals on the fly here would
     be redundant; instead, the in-memory aggregates produced by the
@@ -116,7 +118,8 @@ def main() -> int:
         format="%(asctime)s %(levelname)s %(message)s",
     )
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default="basketball_data.db")
+    ap.add_argument("--db", default=None,
+                    help="PostgreSQL DSN. Defaults to the DATABASE_URL environment variable.")
     ap.add_argument("--seasons", required=True,
                     help="Comma-separated season strings, e.g. 2023-24,2024-25")
     ap.add_argument("--max-games", type=int, default=None,
@@ -125,15 +128,17 @@ def main() -> int:
                     help="Sleep between NBA-API calls (politeness)")
     args = ap.parse_args()
 
-    if not os.path.exists(args.db):
-        log.error("DB not found: %s", args.db)
+    try:
+        db.resolve_dsn(args.db)
+    except (RuntimeError, ValueError) as e:
+        log.error("DB unavailable: %s", e)
         return 1
 
     seasons = [s.strip() for s in args.seasons.split(",") if s.strip()]
     log.info("backfill_game_refs: seasons=%s max_games=%s sleep=%.2f",
              seasons, args.max_games, args.sleep)
 
-    conn = sqlite3.connect(args.db)
+    conn = db.connect(args.db)
     # Read existing aggregates so we accumulate across seasons.
     existing_rows = _aggregate_ref_stats_from_table(conn)
     existing_by_name: dict[str, dict] = {r["ref_name"]: r for r in existing_rows}

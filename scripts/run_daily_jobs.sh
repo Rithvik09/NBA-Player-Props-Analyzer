@@ -8,7 +8,7 @@ set -euo pipefail
 #  3) optional weekly batch training (full retrain + evaluation)
 #
 # Config via env vars:
-#  DB_PATH (default: basketball_data.db)
+#  DATABASE_URL (required: PostgreSQL DSN, e.g. postgresql://user@host/db)
 #  MODELS_DIR (default: models)
 #  INCREMENTAL_SEASON (default: auto-detected current season)
 #  INCREMENTAL_MAX_PLAYERS (default: 200)
@@ -26,7 +26,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-DB_PATH="${DB_PATH:-basketball_data.db}"
+DATABASE_URL="${DATABASE_URL:-}"
+if [[ -z "$DATABASE_URL" ]]; then
+  echo "[daily-jobs] ERROR: DATABASE_URL is not set" >&2
+  exit 1
+fi
+export DATABASE_URL
 MODELS_DIR="${MODELS_DIR:-models}"
 INCREMENTAL_SEASON="${INCREMENTAL_SEASON:-}"
 INCREMENTAL_MAX_PLAYERS="${INCREMENTAL_MAX_PLAYERS:-200}"
@@ -51,7 +56,7 @@ acquire_lock() {
 acquire_lock
 
 echo "[daily-jobs] starting at $(date)"
-echo "[daily-jobs] DB_PATH=$DB_PATH MODELS_DIR=$MODELS_DIR"
+echo "[daily-jobs] MODELS_DIR=$MODELS_DIR (DATABASE_URL set)"
 echo "[daily-jobs] INCREMENTAL_SEASON=$INCREMENTAL_SEASON INCREMENTAL_MAX_PLAYERS=$INCREMENTAL_MAX_PLAYERS"
 echo "[daily-jobs] BATCH_WEEKLY=$BATCH_WEEKLY BATCH_WEEKDAY=$BATCH_WEEKDAY BATCH_SEASONS=$BATCH_SEASONS BATCH_MAX_PLAYERS=$BATCH_MAX_PLAYERS"
 
@@ -63,9 +68,9 @@ echo "[daily-jobs] BATCH_WEEKLY=$BATCH_WEEKLY BATCH_WEEKDAY=$BATCH_WEEKDAY BATCH
 # running it after would defer that signal a full day. Per-row errors
 # don't abort the script — || true keeps the rest of the pipeline
 # moving even if one prediction's gamelog lookup fails.
-PYTHONUNBUFFERED=1 python3 -u -m scripts.grade_and_settle --db "$DB_PATH" || true
+PYTHONUNBUFFERED=1 python3 -u -m scripts.grade_and_settle --db "$DATABASE_URL" || true
 
-PYTHONUNBUFFERED=1 python3 -u scripts/update_precomputed.py --db "$DB_PATH"
+PYTHONUNBUFFERED=1 python3 -u scripts/update_precomputed.py --db "$DATABASE_URL"
 
 if [[ -z "$INCREMENTAL_SEASON" ]]; then
   INCREMENTAL_SEASON="$(python3 - <<'PY'
@@ -85,7 +90,7 @@ if [[ "$BATCH_WEEKLY" == "1" || "$BATCH_WEEKLY" == "true" || "$BATCH_WEEKLY" == 
       --seasons "$BATCH_SEASONS" \
       --max-players "$BATCH_MAX_PLAYERS" \
       --models-dir "$MODELS_DIR" \
-      --db "$DB_PATH"
+      --db "$DATABASE_URL"
     echo "[daily-jobs] skipping incremental update on batch day (batch retrain supersedes it)."
   else
     echo "[daily-jobs] weekly batch skipped (today dow=$today_dow, configured=$BATCH_WEEKDAY)"
@@ -93,7 +98,7 @@ if [[ "$BATCH_WEEKLY" == "1" || "$BATCH_WEEKLY" == "true" || "$BATCH_WEEKLY" == 
       --season "$INCREMENTAL_SEASON" \
       --max-players "$INCREMENTAL_MAX_PLAYERS" \
       --models-dir "$MODELS_DIR" \
-      --db "$DB_PATH"
+      --db "$DATABASE_URL"
   fi
 else
   echo "[daily-jobs] weekly batch disabled"
@@ -101,7 +106,7 @@ else
     --season "$INCREMENTAL_SEASON" \
     --max-players "$INCREMENTAL_MAX_PLAYERS" \
     --models-dir "$MODELS_DIR" \
-    --db "$DB_PATH"
+    --db "$DATABASE_URL"
 fi
 
 echo "[daily-jobs] done at $(date)"

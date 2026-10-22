@@ -20,8 +20,8 @@
 
   <key>EnvironmentVariables</key>
   <dict>
-    <key>DB_PATH</key>
-    <string>/ABSOLUTE/PATH/TO/NBA-Player-Props-Analyzer/basketball_data.db</string>
+    <key>DATABASE_URL</key>
+    <string>postgresql://USER:PASSWORD@HOST/nba_props</string>
 
     <key>MODELS_DIR</key>
     <string>/ABSOLUTE/PATH/TO/NBA-Player-Props-Analyzer/models</string>

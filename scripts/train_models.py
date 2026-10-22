@@ -104,6 +104,7 @@ from nba_api.stats.endpoints import leaguedashplayerstats, playergamelog  # noqa
 from nba_api.stats.endpoints import CommonPlayerInfo  # noqa: E402
 from nba_api.stats.static import teams  # noqa: E402
 
+from src import db  # noqa: E402
 from src.models import EnhancedMLPredictor  # noqa: E402
 from src.ml_features import NUMERIC_FEATURE_KEYS, CLASSIFIER_EXTRA_KEYS, build_feature_vector, build_classifier_vector  # noqa: E402
 from src.precomputed_store import PrecomputedStore  # noqa: E402
@@ -221,9 +222,11 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
       - referee:       {ref_name: row_dict}
       - dvp_rolling:   {(team_id, window): row_dict}
     """
-    import sqlite3
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    # autocommit: every loader below swallows its own errors and returns
+    # an empty dict when a precompute table is missing. Inside one
+    # transaction the first failure would abort it and silently empty all
+    # the later loaders too.
+    conn = db.connect(db_path, row_factory=db.dict_row, autocommit=True)
     c = conn.cursor()
 
     def _load_player_table(table: str) -> dict:
@@ -240,9 +243,7 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
         try:
             c.execute(f"SELECT * FROM {table}")
             out: dict = {}
-            cols = {row[1] for row in c.execute(
-                f"PRAGMA table_info({table})"
-            ).fetchall()}
+            cols = db.table_columns(conn, table)
             has_season = "season" in cols
             c.execute(f"SELECT * FROM {table}")
             for row in c.fetchall():
@@ -680,7 +681,7 @@ def build_training_examples(
     max_players: int,
     predictor: EnhancedMLPredictor,
     precomputed: PrecomputedStore,
-    db_path: str = "basketball_data.db",
+    db_path: str | None = None,
 ) -> list[Example]:
     # Load all player precomputed data once (shot zones, tracking, clutch, etc.)
     _precomp = _load_precomputed_player_data(db_path)
@@ -2481,7 +2482,8 @@ def main():
     ap.add_argument("--seasons", default=None, help="Comma-separated seasons like 2023-24,2024-25,2025-26")
     ap.add_argument("--max-players", type=int, default=200)
     ap.add_argument("--models-dir", default="models")
-    ap.add_argument("--db", default="basketball_data.db")
+    ap.add_argument("--db", default=None,
+                    help="PostgreSQL DSN. Defaults to the DATABASE_URL environment variable.")
     # Sample-weight knobs — set to None/0 to disable a dimension.
     ap.add_argument("--recency-half-life", type=float, default=365.0,
                     help="Half-life (days) for exponential recency decay. 0 to disable.")

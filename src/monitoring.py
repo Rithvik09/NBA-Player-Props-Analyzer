@@ -23,10 +23,11 @@ Three flavours of monitoring:
 from __future__ import annotations
 
 import math
-import sqlite3
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Sequence
+
+from src import db
 
 
 # ============================================================== KS drift
@@ -123,13 +124,13 @@ def rolling_brier(
         WHERE actual_result IS NOT NULL
           AND confidence IS NOT NULL
           AND line IS NOT NULL
-          AND timestamp >= ?
+          AND timestamp >= %s
     """
     params: list = [cutoff]
     if prop_filter:
-        sql += " AND prop_type = ?"
+        sql += " AND prop_type = %s"
         params.append(prop_filter)
-    conn = sqlite3.connect(db_path)
+    conn = db.connect(db_path)
     try:
         rows = conn.execute(sql, params).fetchall()
     finally:
@@ -255,15 +256,15 @@ def find_anomalies(
     right" picks for human review before they get bet on.
     """
     cutoff = (datetime.now(timezone.utc) - timedelta(days=window_days)).isoformat()
-    conn = sqlite3.connect(db_path)
+    conn = db.connect(db_path)
     try:
         rows = conn.execute(
             """SELECT id, timestamp, player_id, prop_type, line, predicted_value, confidence
                FROM prediction_logs
                WHERE predicted_value IS NOT NULL AND line IS NOT NULL
-                 AND timestamp >= ?
+                 AND timestamp >= %s
                ORDER BY timestamp DESC
-               LIMIT ?""",
+               LIMIT %s""",
             (cutoff, int(limit) * 4),  # over-fetch since we filter
         ).fetchall()
     finally:

@@ -12,7 +12,7 @@ artifact for rollback.
 Usage
 -----
     python -m scripts.auto_recalibrate \
-        --db basketball_data.db --models-dir models --window-days 30
+        --db postgresql://... --models-dir models --window-days 30
 
 Cron-friendly. Exit 0 always — failures are logged, not raised, so a
 schedule failure never blocks more critical jobs.
@@ -24,7 +24,6 @@ import json
 import logging
 import os
 import shutil
-import sqlite3
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -38,6 +37,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src import db  # noqa: E402
 from src.ml_calibration import IsotonicCalibratedModel  # noqa: E402
 from sklearn.isotonic import IsotonicRegression  # noqa: E402
 from sklearn.metrics import brier_score_loss  # noqa: E402
@@ -46,11 +46,13 @@ log = logging.getLogger(__name__)
 
 
 def _load_recent_graded(db_path: str, window_days: int) -> list[tuple]:
-    if not os.path.exists(db_path):
-        log.warning("[recal] db missing: %s", db_path)
+    try:
+        db.resolve_dsn(db_path)
+    except (RuntimeError, ValueError) as e:
+        log.warning("[recal] db unavailable: %s", e)
         return []
     cutoff = (datetime.now(timezone.utc) - timedelta(days=window_days)).isoformat()
-    conn = sqlite3.connect(db_path)
+    conn = db.connect(db_path)
     rows = conn.execute("""
         SELECT prop_type, line, predicted_value, over_probability,
                actual_result
@@ -58,7 +60,7 @@ def _load_recent_graded(db_path: str, window_days: int) -> list[tuple]:
         WHERE actual_result IS NOT NULL
           AND over_probability IS NOT NULL
           AND prop_type IS NOT NULL
-          AND timestamp >= ?
+          AND timestamp >= %s
     """, (cutoff,)).fetchall()
     conn.close()
     return rows
@@ -166,7 +168,8 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s")
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default="basketball_data.db")
+    ap.add_argument("--db", default=None,
+                    help="PostgreSQL DSN. Defaults to the DATABASE_URL environment variable.")
     ap.add_argument("--models-dir", default="models")
     ap.add_argument("--window-days", type=int, default=30)
     ap.add_argument("--min-samples", type=int, default=50)

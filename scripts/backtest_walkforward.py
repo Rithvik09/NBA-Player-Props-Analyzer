@@ -21,17 +21,20 @@ Output is a CSV plus a printed summary so a human can spot regime changes.
 Usage
 -----
     python -m scripts.backtest_walkforward \
-        --db basketball_data.db --window-days 14 --conf-threshold 0.6
+        --db postgresql://... --window-days 14 --conf-threshold 0.6
 """
 from __future__ import annotations
 
 import argparse
 import csv
 import os
-import sqlite3
 import sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src import db  # noqa: E402
 
 
 def _date_of(ts: str) -> date:
@@ -68,10 +71,11 @@ def _roi_at_dash110(hit: int) -> float:
 
 def run(db_path: str, window_days: int = 14, conf_threshold: float = 0.6,
         out_csv: str | None = None) -> list[dict]:
-    if not os.path.exists(db_path):
-        raise FileNotFoundError(db_path)
+    # The SQLite file check became a connection-string check: there is no
+    # file to stat, and resolve_dsn raises when none is configured.
+    db.resolve_dsn(db_path)
 
-    conn = sqlite3.connect(db_path)
+    conn = db.connect(db_path)
     rows = conn.execute("""
         SELECT timestamp, prop_type, line, predicted_value, confidence, actual_result
         FROM prediction_logs
@@ -158,7 +162,8 @@ def run(db_path: str, window_days: int = 14, conf_threshold: float = 0.6,
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default="basketball_data.db")
+    ap.add_argument("--db", default=None,
+                    help="PostgreSQL DSN. Defaults to the DATABASE_URL environment variable.")
     ap.add_argument("--window-days", type=int, default=14)
     ap.add_argument("--conf-threshold", type=float, default=0.60)
     ap.add_argument("--out", default="reports/backtest_walkforward.csv")
