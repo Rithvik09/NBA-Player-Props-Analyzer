@@ -515,6 +515,128 @@ CLASSIFIER_EXTRA_KEYS: list[str] = [
 ]
 
 
+# One authoritative fallback per feature whose source lookup can miss.
+#
+# The training builders (scripts/train_models.py, scripts/update_incremental_
+# models.py, src/data_collector.py) and the inference builders (src/models.py,
+# src/basketball_betting_helper.py) each used to carry their own literal, and
+# the literals had drifted: team_pace fell back to 100.0 while training and 0
+# while serving, so whenever the source lookup missed, production fed the model
+# a pace the model had never seen within 90 of. Every builder now reads the
+# fallback from here.
+#
+# Only features whose builders actually disagreed are listed — plus their
+# immediate neighbours in the same block, so a reader does not have to guess
+# why one key in a group is centralised and the next is not. A feature that is
+# computed from the game log on one side keeps its formula; this table is the
+# no-data value, not a replacement for a derivation.
+#
+# Rule for picking the value: zero is not a plausible NBA rate or rating, it is
+# a sentinel that happens to be numerically valid. Where the two sides
+# disagreed, the non-zero side wins. Where zero is the *true* value of the
+# quantity (minutes played against an opponent never faced), zero stays.
+#
+# NOT a feature list — NUMERIC_FEATURE_KEYS alone defines the model schema and
+# its order. This dict is deliberately a subset.
+FEATURE_DEFAULTS: dict[str, float] = {
+    # Team / opponent environment. Pace ~100 possessions, ratings ~110 points
+    # per 100. The serve side read these out of a context dict with a 0
+    # fallback, inside an `if team_context:` branch that bypassed the 100.0
+    # setdefault below it.
+    "team_pace": 100.0,
+    "opp_pace": 100.0,
+    "team_off_rating": 110.0,
+    "team_def_rating": 110.0,
+    "opp_off_rating": 110.0,
+    "opp_def_rating": 110.0,
+    # Serve read `team_context.get('rest_days', 1)` and then setdefault(2).
+    "rest_days": 2.0,
+
+    # Team style and opponent box-score baseline. Training fell back to 0.0 for
+    # all of these — zero fast-break points, zero field-goal attempts, zero
+    # steals — while serving used league averages.
+    "team_pts_fb": 12.0,
+    "opp_pts_fb_allowed": 12.0,
+    "team_pts_off_tov": 16.0,
+    "opp_pts_off_tov_allowed": 16.0,
+    "opp_pts_paint": 44.0,
+    "opp_fga": 86.0,
+    "opp_fg_pct": 0.47,
+    "opp_fg3a": 35.0,
+    "opp_fg3_pct": 0.36,
+    "opp_tov": 14.0,
+    "opp_stl": 7.0,
+    "opp_blk": 5.0,
+
+    # Opponent recent form and rest splits. The b2b/rested pair encodes the
+    # "a team on the second night defends ~2 points worse" prior the serve
+    # side already carried; training had both legs at the flat 110.
+    "opp_blocks_per_game_last5": 5.0,
+    "opp_steals_per_game_last5": 7.0,
+    "opp_foul_rate_per48": 20.0,
+    "opp_foul_rate_last5": 20.0,
+    "opp_def_rating_last5": 110.0,
+    "opp_def_rating_last10": 110.0,
+    "opp_pace_last5": 100.0,
+    "opp_b2b_def_rating": 112.0,
+    "opp_b2b_pace": 100.0,
+    "opp_b2b_pts_allowed": 115.0,
+    "opp_rested_def_rating": 110.0,
+    "opp_rested_pace": 100.0,
+
+    # Individual-defence proxies, both derived from the opponent's team-level
+    # numbers. The incremental serve builder hardcoded 0.0 for both.
+    "def_fg_pct_allowed": 0.47,
+    "def_rating_individual": 110.0,
+
+    # Shot-zone shares. These sum to ~1.0 and are read by half a dozen derived
+    # features; before this table the *same* source key was given three
+    # different fallbacks inside train_models.py alone (rim 0.35 / 0.25,
+    # paint 0.40 / 0.30 / 0.20, midrange 0.25 / 0.20 / 0.0).
+    "rim_fga_pct": 0.25,
+    "paint_fga_pct": 0.30,
+    "midrange_fga_pct": 0.20,
+    "corner3_fga_pct": 0.10,
+    "above_break3_fga_pct": 0.25,
+
+    # Share of points scored in the paint — same story: 0.35 in the paint-
+    # scoring estimates, 0.30 where the feature itself is emitted.
+    "pct_pts_paint": 0.30,
+
+    # Shot-profile frequencies. The main serve builder was reading the
+    # *FG-percentage* key for three of these frequencies, which is why its
+    # values sat 0.1-0.3 above the other two builders.
+    "contested_shot_pct": 0.50,
+    "wide_open_shot_pct": 0.20,
+    "catch_and_shoot_pct": 0.30,
+    "pull_up_shot_pct": 0.30,
+    # 0.25*3ft + 0.30*8ft + 0.20*16ft + 0.10*22ft + 0.25*24ft — the weighted
+    # mean of the zone shares above, which is what the trainer computes when
+    # it has no shot-zone row.
+    "avg_shot_distance": 14.55,
+
+    # Efficiency rates. Training emitted 0.0 true shooting whenever the
+    # attempts denominator was zero; the incremental serve builder emitted 0.0
+    # rebound percentage unconditionally.
+    "true_shooting_pct": 0.55,
+    "effective_fg_pct": 0.50,
+    "rebound_percentage": 0.10,
+    "rebound_contested_pct": 0.30,
+    "corner_3_pct": 0.38,
+    "garbage_time_minutes_pct": 0.05,
+
+    # Player versus this specific opponent. gp/avg_pts/avg_min stay at 0
+    # because zero really is the value when the player has never faced them;
+    # the shooting rates do not, because 0/0 is undefined, not 0%.
+    "vs_opp_fg_pct": 0.45,
+    "vs_opp_ts_pct": 0.55,
+    "vs_opp_avg_min": 0.0,
+
+    # Arena.
+    "arena_capacity": 18000.0,
+}
+
+
 def _to_float(x: Any, default: float = 0.0) -> float:
     try:
         if x is None:

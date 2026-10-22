@@ -60,6 +60,7 @@ import time
 import json
 from datetime import datetime, timezone
 from .injury_tracker import InjuryTracker
+from .ml_features import FEATURE_DEFAULTS
 from .ml_quantile import QuantileEnsemble
 from .ml_stacking import StackingBlender, StackedCalibratedClassifier
 from .ml_validation import out_of_time_split, parse_iso
@@ -736,22 +737,22 @@ class EnhancedMLPredictor:
 
         # ---- team style + opponent baseline (from PrecomputedStore team_stats) ----
         features.update({
-            'team_pts_fb':              float(player_stats.get('team_pts_fb', 12.0)),
-            'opp_pts_fb_allowed':       float(player_stats.get('opp_pts_fb_allowed', 12.0)),
-            'team_pts_off_tov':         float(player_stats.get('team_pts_off_tov', 16.0)),
-            'opp_pts_off_tov_allowed':  float(player_stats.get('opp_pts_off_tov_allowed', 16.0)),
-            'opp_pts_paint':            float(player_stats.get('opp_pts_paint', 44.0)),
-            'opp_fga':                  float(player_stats.get('opp_fga', 86.0)),
-            'opp_fg_pct':               float(player_stats.get('opp_fg_pct', 0.47)),
-            'opp_fg3a':                 float(player_stats.get('opp_fg3a', 35.0)),
-            'opp_fg3_pct':              float(player_stats.get('opp_fg3_pct', 0.36)),
-            'opp_tov':                  float(player_stats.get('opp_tov', 14.0)),
-            'opp_stl':                  float(player_stats.get('opp_stl', 7.0)),
-            'opp_blk':                  float(player_stats.get('opp_blk', 5.0)),
-            'opp_off_rating':           float(player_stats.get('opp_off_rating', 110.0)),
-            'opp_def_rating_last5':     float(player_stats.get('opp_def_rating_last5', 110.0)),
-            'opp_blocks_per_game_last5': float(player_stats.get('opp_blocks_per_game_last5', 5.0)),
-            'opp_steals_per_game_last5': float(player_stats.get('opp_steals_per_game_last5', 7.0)),
+            'team_pts_fb':              float(player_stats.get('team_pts_fb', FEATURE_DEFAULTS['team_pts_fb'])),
+            'opp_pts_fb_allowed':       float(player_stats.get('opp_pts_fb_allowed', FEATURE_DEFAULTS['opp_pts_fb_allowed'])),
+            'team_pts_off_tov':         float(player_stats.get('team_pts_off_tov', FEATURE_DEFAULTS['team_pts_off_tov'])),
+            'opp_pts_off_tov_allowed':  float(player_stats.get('opp_pts_off_tov_allowed', FEATURE_DEFAULTS['opp_pts_off_tov_allowed'])),
+            'opp_pts_paint':            float(player_stats.get('opp_pts_paint', FEATURE_DEFAULTS['opp_pts_paint'])),
+            'opp_fga':                  float(player_stats.get('opp_fga', FEATURE_DEFAULTS['opp_fga'])),
+            'opp_fg_pct':               float(player_stats.get('opp_fg_pct', FEATURE_DEFAULTS['opp_fg_pct'])),
+            'opp_fg3a':                 float(player_stats.get('opp_fg3a', FEATURE_DEFAULTS['opp_fg3a'])),
+            'opp_fg3_pct':              float(player_stats.get('opp_fg3_pct', FEATURE_DEFAULTS['opp_fg3_pct'])),
+            'opp_tov':                  float(player_stats.get('opp_tov', FEATURE_DEFAULTS['opp_tov'])),
+            'opp_stl':                  float(player_stats.get('opp_stl', FEATURE_DEFAULTS['opp_stl'])),
+            'opp_blk':                  float(player_stats.get('opp_blk', FEATURE_DEFAULTS['opp_blk'])),
+            'opp_off_rating':           float(player_stats.get('opp_off_rating', FEATURE_DEFAULTS['opp_off_rating'])),
+            'opp_def_rating_last5':     float(player_stats.get('opp_def_rating_last5', FEATURE_DEFAULTS['opp_def_rating_last5'])),
+            'opp_blocks_per_game_last5': float(player_stats.get('opp_blocks_per_game_last5', FEATURE_DEFAULTS['opp_blocks_per_game_last5'])),
+            'opp_steals_per_game_last5': float(player_stats.get('opp_steals_per_game_last5', FEATURE_DEFAULTS['opp_steals_per_game_last5'])),
             'lg_pts_fb':                float(player_stats.get('lg_pts_fb', 12.0)),
             'lg_opp_pts_fb':            float(player_stats.get('lg_opp_pts_fb', 12.0)),
             'lg_pts_off_tov':           float(player_stats.get('lg_pts_off_tov', 16.0)),
@@ -794,8 +795,8 @@ class EnhancedMLPredictor:
         })
         # ---- Opponent foul rates ----
         features.update({
-            'opp_foul_rate_per48': float(player_stats.get('opp_foul_rate_per48', 20.0)),
-            'opp_foul_rate_last5': float(player_stats.get('opp_foul_rate_last5', 20.0)),
+            'opp_foul_rate_per48': float(player_stats.get('opp_foul_rate_per48', FEATURE_DEFAULTS['opp_foul_rate_per48'])),
+            'opp_foul_rate_last5': float(player_stats.get('opp_foul_rate_last5', FEATURE_DEFAULTS['opp_foul_rate_last5'])),
         })
         # ---- Injury trajectory ----
         features.update({
@@ -891,15 +892,15 @@ class EnhancedMLPredictor:
         })
         # ---- shot zones ----
         features.update({
-            'rim_fga_pct':         float(player_stats.get('rim_fga_pct', 0.25)),
+            'rim_fga_pct':         float(player_stats.get('rim_fga_pct', FEATURE_DEFAULTS['rim_fga_pct'])),
             'rim_fg_pct':          float(player_stats.get('rim_fg_pct', 0.62)),
-            'paint_fga_pct':       float(player_stats.get('paint_fga_pct', 0.30)),
+            'paint_fga_pct':       float(player_stats.get('paint_fga_pct', FEATURE_DEFAULTS['paint_fga_pct'])),
             'paint_fg_pct':        float(player_stats.get('paint_fg_pct', 0.55)),
-            'midrange_fga_pct':    float(player_stats.get('midrange_fga_pct', 0.20)),
+            'midrange_fga_pct':    float(player_stats.get('midrange_fga_pct', FEATURE_DEFAULTS['midrange_fga_pct'])),
             'midrange_fg_pct':     float(player_stats.get('midrange_fg_pct', 0.42)),
-            'corner3_fga_pct':     float(player_stats.get('corner3_fga_pct', 0.10)),
+            'corner3_fga_pct':     float(player_stats.get('corner3_fga_pct', FEATURE_DEFAULTS['corner3_fga_pct'])),
             'corner3_fg_pct':      float(player_stats.get('corner3_fg_pct', 0.38)),
-            'above_break3_fga_pct': float(player_stats.get('above_break3_fga_pct', 0.25)),
+            'above_break3_fga_pct': float(player_stats.get('above_break3_fga_pct', FEATURE_DEFAULTS['above_break3_fga_pct'])),
             'above_break3_fg_pct': float(player_stats.get('above_break3_fg_pct', 0.35)),
         })
         # ---- quarter splits ----
@@ -976,7 +977,7 @@ class EnhancedMLPredictor:
         # ---- Group 3: Scoring Breakdown by Method ----
         features.update({
             'pct_pts_3pt':      float(player_stats.get('pct_pts_3pt', 0.25)),
-            'pct_pts_paint':    float(player_stats.get('pct_pts_paint', 0.30)),
+            'pct_pts_paint':    float(player_stats.get('pct_pts_paint', FEATURE_DEFAULTS['pct_pts_paint'])),
             'pct_pts_ft':       float(player_stats.get('pct_pts_ft', 0.15)),
             'pct_pts_midrange': float(player_stats.get('pct_pts_midrange', 0.20)),
             'pct_uast_fgm':     float(player_stats.get('pct_uast_fgm', 0.40)),
@@ -1006,10 +1007,10 @@ class EnhancedMLPredictor:
         # ---- Group 7: Player vs Opponent Historical Splits ----
         features.update({
             'vs_opp_avg_pts': float(player_stats.get('vs_opp_avg_pts', 0.0)),
-            'vs_opp_fg_pct':  float(player_stats.get('vs_opp_fg_pct', 0.45)),
-            'vs_opp_ts_pct':  float(player_stats.get('vs_opp_ts_pct', 0.55)),
+            'vs_opp_fg_pct':  float(player_stats.get('vs_opp_fg_pct', FEATURE_DEFAULTS['vs_opp_fg_pct'])),
+            'vs_opp_ts_pct':  float(player_stats.get('vs_opp_ts_pct', FEATURE_DEFAULTS['vs_opp_ts_pct'])),
             'vs_opp_gp':      float(player_stats.get('vs_opp_gp', 0.0)),
-            'vs_opp_avg_min': float(player_stats.get('vs_opp_avg_min', 30.0)),
+            'vs_opp_avg_min': float(player_stats.get('vs_opp_avg_min', FEATURE_DEFAULTS['vs_opp_avg_min'])),
         })
         # ---- Group 8: Opponent trend features ----
         features.update({
@@ -1022,32 +1023,32 @@ class EnhancedMLPredictor:
         # ---- Group A: Derived Efficiency Features (computed from existing player_stats keys) ----
         features.update({
             'touch_efficiency': min(float(player_stats.get('tracking_passes_made_pg', 0.0)) / max(float(player_stats.get('tracking_touches_pg', 1.0)), 1.0), 1.0),
-            'pace_adjusted_variance': float(player_stats.get('stddev', 2.0)) * (100.0 / max(float(player_stats.get('team_pace', 100.0)), 80.0)),
+            'pace_adjusted_variance': float(player_stats.get('stddev', 2.0)) * (100.0 / max(float(player_stats.get('team_pace', FEATURE_DEFAULTS['team_pace'])), 80.0)),
             'clutch_efficiency_delta': float(player_stats.get('clutch_pts_per_game', 0.0)) / max(float(player_stats.get('season_avg', 1.0)), 0.1) - 1.0,
-            'rim_volume_quality': float(player_stats.get('rim_fga_pct', 0.25)) * max(float(player_stats.get('rim_shot_quality_matchup', 0.0)) + 1.0, 0.1),
+            'rim_volume_quality': float(player_stats.get('rim_fga_pct', FEATURE_DEFAULTS['rim_fga_pct'])) * max(float(player_stats.get('rim_shot_quality_matchup', 0.0)) + 1.0, 0.1),
             'play_specialization_score': max(float(player_stats.get('iso_poss_pct', 0.0)), float(player_stats.get('pnr_bh_poss_pct', 0.0)), float(player_stats.get('spotup_poss_pct', 0.0)), float(player_stats.get('transition_poss_pct', 0.0)), float(player_stats.get('postup_poss_pct', 0.0))),
             'best_play_type_ppp': max(float(player_stats.get('iso_ppp', 0.9)), float(player_stats.get('pnr_bh_ppp', 0.9)), float(player_stats.get('spotup_ppp', 0.9)), float(player_stats.get('transition_ppp', 0.9))),
             'ts_vs_zone_expected': float(player_stats.get('ts_pct_official', 0.55)) - (
-                float(player_stats.get('rim_fga_pct', 0.25)) * 0.67 +
-                float(player_stats.get('paint_fga_pct', 0.30)) * 0.55 +
-                float(player_stats.get('midrange_fga_pct', 0.20)) * 0.42 +
-                float(player_stats.get('corner3_fga_pct', 0.10)) * 0.38 +
-                float(player_stats.get('above_break3_fga_pct', 0.25)) * 0.36
+                float(player_stats.get('rim_fga_pct', FEATURE_DEFAULTS['rim_fga_pct'])) * 0.67 +
+                float(player_stats.get('paint_fga_pct', FEATURE_DEFAULTS['paint_fga_pct'])) * 0.55 +
+                float(player_stats.get('midrange_fga_pct', FEATURE_DEFAULTS['midrange_fga_pct'])) * 0.42 +
+                float(player_stats.get('corner3_fga_pct', FEATURE_DEFAULTS['corner3_fga_pct'])) * 0.38 +
+                float(player_stats.get('above_break3_fga_pct', FEATURE_DEFAULTS['above_break3_fga_pct'])) * 0.36
             ),
             'usage_stability': max(0.0, 1.0 - min(abs(float(player_stats.get('usage_trend', 0.0))), 0.05) / 0.05),
             'recent_form_confidence': min(float(player_stats.get('games_played', 5)), 20.0) / 20.0,
-            'def_toughness_composite': (float(player_stats.get('opp_def_rating_last5', 110.0)) / 100.0) * (1.0 - float(player_stats.get('opp_fg_pct', 0.47))),
+            'def_toughness_composite': (float(player_stats.get('opp_def_rating_last5', FEATURE_DEFAULTS['opp_def_rating_last5'])) / 100.0) * (1.0 - float(player_stats.get('opp_fg_pct', FEATURE_DEFAULTS['opp_fg_pct']))),
             'load_efficiency_ratio': float(player_stats.get('points_per_shot', 1.0)) / max(float(player_stats.get('fga_per_game', 10.0)) / max(float(player_stats.get('avg_minutes', 30.0)), 1.0), 0.1),
             'tracking_dist_per_touch': float(player_stats.get('tracking_dist_miles', 2.5)) / max(float(player_stats.get('tracking_touches_pg', 50.0)), 1.0),
         })
 
         # ---- Groups B/C/D: Historical vs Opponent, Team Rest Splits, YoY Stats ----
         features.update({
-            'opp_b2b_def_rating':          float(player_stats.get('opp_b2b_def_rating', 112.0)),
-            'opp_b2b_pace':                float(player_stats.get('opp_b2b_pace', 100.0)),
-            'opp_b2b_pts_allowed':         float(player_stats.get('opp_b2b_pts_allowed', 115.0)),
-            'opp_rested_def_rating':       float(player_stats.get('opp_rested_def_rating', 110.0)),
-            'opp_rested_pace':             float(player_stats.get('opp_rested_pace', 100.0)),
+            'opp_b2b_def_rating':          float(player_stats.get('opp_b2b_def_rating', FEATURE_DEFAULTS['opp_b2b_def_rating'])),
+            'opp_b2b_pace':                float(player_stats.get('opp_b2b_pace', FEATURE_DEFAULTS['opp_b2b_pace'])),
+            'opp_b2b_pts_allowed':         float(player_stats.get('opp_b2b_pts_allowed', FEATURE_DEFAULTS['opp_b2b_pts_allowed'])),
+            'opp_rested_def_rating':       float(player_stats.get('opp_rested_def_rating', FEATURE_DEFAULTS['opp_rested_def_rating'])),
+            'opp_rested_pace':             float(player_stats.get('opp_rested_pace', FEATURE_DEFAULTS['opp_rested_pace'])),
             'opp_rest_def_rating_delta':   float(player_stats.get('opp_rest_def_rating_delta', 2.0)),
             'yoy_pts_change':              float(player_stats.get('yoy_pts_change', 0.0)),
             'yoy_ts_change':               float(player_stats.get('yoy_ts_change', 0.0)),
@@ -1068,40 +1069,40 @@ class EnhancedMLPredictor:
                 'matchup_success_rate': float(matchup_history.get('success_rate', 0)),
                 'pos_pts_allowed':      float(position_matchup.get('pts_allowed_per_game', 0)),
                 'pos_def_rating':       float(position_matchup.get('defensive_rating', 0)),
-                'effective_fg_pct':     float(position_matchup.get('effective_fg_pct', 0.47)),
+                'effective_fg_pct':     float(position_matchup.get('effective_fg_pct', FEATURE_DEFAULTS['effective_fg_pct'])),
                 'injury_risk':          injury_risk_map.get(injury_risk_str, 0.0),
             })
 
         # ---- team context ----
         if team_context:
             features.update({
-                'team_pace':       float(team_context.get('pace', 0)),
-                'team_off_rating': float(team_context.get('offensive_rating', 0)),
-                'team_def_rating': float(team_context.get('defensive_rating', 0)),
+                'team_pace':       float(team_context.get('pace', FEATURE_DEFAULTS['team_pace'])),
+                'team_off_rating': float(team_context.get('offensive_rating', FEATURE_DEFAULTS['team_off_rating'])),
+                'team_def_rating': float(team_context.get('defensive_rating', FEATURE_DEFAULTS['team_def_rating'])),
                 'team_form':       float(team_context.get('recent_form', {}).get('win_pct', 0)),
-                'rest_days':       int(team_context.get('rest_days', 1)),
+                'rest_days':       int(team_context.get('rest_days', FEATURE_DEFAULTS['rest_days'])),
                 'team_injuries':   float(team_context.get('injury_impact', 0)),
             })
         # Ensure these keys always exist at inference with sensible defaults
         # matching the training zero-fill values in data_collector._group_defaults
-        features.setdefault('team_pace', 100.0)
-        features.setdefault('team_off_rating', 110.0)
-        features.setdefault('team_def_rating', 110.0)
+        features.setdefault('team_pace', FEATURE_DEFAULTS['team_pace'])
+        features.setdefault('team_off_rating', FEATURE_DEFAULTS['team_off_rating'])
+        features.setdefault('team_def_rating', FEATURE_DEFAULTS['team_def_rating'])
         features.setdefault('team_form', 0.5)
-        features.setdefault('rest_days', 2)
+        features.setdefault('rest_days', FEATURE_DEFAULTS['rest_days'])
         features.setdefault('team_injuries', 0.0)
 
         # ---- opponent context ----
         if opponent_context:
             features.update({
-                'opp_pace':       float(opponent_context.get('pace', 0)),
-                'opp_def_rating': float(opponent_context.get('defensive_rating', 0)),
+                'opp_pace':       float(opponent_context.get('pace', FEATURE_DEFAULTS['opp_pace'])),
+                'opp_def_rating': float(opponent_context.get('defensive_rating', FEATURE_DEFAULTS['opp_def_rating'])),
                 'opp_form':       float(opponent_context.get('recent_form', {}).get('win_pct', 0)),
                 'opp_injuries':   float(opponent_context.get('injury_impact', 0)),
             })
         # Same guard for opponent context keys
-        features.setdefault('opp_pace', 100.0)
-        features.setdefault('opp_def_rating', 110.0)
+        features.setdefault('opp_pace', FEATURE_DEFAULTS['opp_pace'])
+        features.setdefault('opp_def_rating', FEATURE_DEFAULTS['opp_def_rating'])
         features.setdefault('opp_form', 0.5)
         features.setdefault('opp_injuries', 0.0)
 
@@ -1142,36 +1143,57 @@ class EnhancedMLPredictor:
         features.setdefault('isolation_pct', features.get('iso_poss_pct', 0.0))
         features.setdefault('spot_up_pct', features.get('spotup_poss_pct', 0.0))
         features.setdefault('post_up_pct', features.get('postup_poss_pct', 0.0))
-        features.setdefault('corner_3_pct', features.get('corner3_fg_pct', 0.38))
+        features.setdefault('corner_3_pct', features.get('corner3_fg_pct', FEATURE_DEFAULTS['corner_3_pct']))
         features.setdefault('above_break_3_pct', features.get('above_break3_fg_pct', 0.35))
         features.setdefault('corner_three_pct', features.get('corner3_fg_pct', 0.38))
         features.setdefault('above_break_three_pct', features.get('above_break3_fg_pct', 0.35))
-        features.setdefault('catch_and_shoot_pct', features.get('catch_shoot_fg_pct', 0.40))
-        features.setdefault('pull_up_shot_pct', features.get('pullup_fg_pct', 0.40))
-        features.setdefault('wide_open_shot_pct', features.get('open_shot_fg_pct', 0.50))
+        # Shot *frequencies*, each an alias of a tracking key the trainer
+        # reads straight off player_shot_profile. They used to be aliased to
+        # the matching FG-percentage key instead — a different quantity — so
+        # read the frequency when the caller has it and fall back to the
+        # shared default when it doesn't. Reading player_stats rather than
+        # features is deliberate: the frequency entries in features already
+        # carry their own defaults, so they can never tell us "no data".
+        _shot_freq_aliases = {
+            'catch_and_shoot_pct': 'catch_shoot_frequency',
+            'pull_up_shot_pct':    'pullup_frequency',
+            'contested_shot_pct':  'tight_shot_frequency',
+        }
+        for _alias, _source in _shot_freq_aliases.items():
+            features.setdefault(_alias, float(
+                player_stats[_source] if _source in player_stats
+                else FEATURE_DEFAULTS[_alias]))
+        if 'open_shot_frequency' in player_stats and 'tight_shot_frequency' in player_stats:
+            features.setdefault('wide_open_shot_pct', max(
+                0.0,
+                float(player_stats['open_shot_frequency'])
+                - float(player_stats['tight_shot_frequency']),
+            ))
+        else:
+            features.setdefault('wide_open_shot_pct', FEATURE_DEFAULTS['wide_open_shot_pct'])
         features.setdefault('days_rest_opponent', features.get('opp_days_rest', 2.0))
         features.setdefault('opponent_back_to_back', features.get('opp_b2b', 0.0))
 
         # Derived from shot zones + per-game rates
-        features.setdefault('rim_fga_per_game', features.get('rim_fga_pct', 0.25) * _fga)
-        features.setdefault('paint_fga_per_game', features.get('paint_fga_pct', 0.30) * _fga)
-        features.setdefault('mid_range_fga_per_game', features.get('midrange_fga_pct', 0.20) * _fga)
+        features.setdefault('rim_fga_per_game', features.get('rim_fga_pct', FEATURE_DEFAULTS['rim_fga_pct']) * _fga)
+        features.setdefault('paint_fga_per_game', features.get('paint_fga_pct', FEATURE_DEFAULTS['paint_fga_pct']) * _fga)
+        features.setdefault('mid_range_fga_per_game', features.get('midrange_fga_pct', FEATURE_DEFAULTS['midrange_fga_pct']) * _fga)
         features.setdefault('restricted_area_fg_pct', features.get('rim_fg_pct', 0.62))
-        features.setdefault('mid_range_frequency', features.get('midrange_fga_pct', 0.20))
-        features.setdefault('contested_shot_pct', 0.30)
+        features.setdefault('mid_range_frequency', features.get('midrange_fga_pct', FEATURE_DEFAULTS['midrange_fga_pct']))
         features.setdefault('open_shot_pct', features.get('open_shot_frequency', 0.30))
-        features.setdefault('paint_touch_frequency', features.get('paint_fga_pct', 0.30))
-        features.setdefault('paint_pts_per_game', features.get('pct_pts_paint', 0.30) * _seas_avg)
-        features.setdefault('paint_attempts_per_game', features.get('paint_fga_pct', 0.30) * _fga)
+        features.setdefault('paint_touch_frequency', features.get('paint_fga_pct', FEATURE_DEFAULTS['paint_fga_pct']))
+        features.setdefault('paint_pts_per_game', features.get('pct_pts_paint', FEATURE_DEFAULTS['pct_pts_paint']) * _seas_avg)
+        features.setdefault('paint_attempts_per_game', features.get('paint_fga_pct', FEATURE_DEFAULTS['paint_fga_pct']) * _fga)
         features.setdefault('paint_fg_pct', features.get('paint_fg_pct', 0.55))
-        features.setdefault('restricted_area_attempts', features.get('rim_fga_pct', 0.25) * _fga)
-        features.setdefault('paint_touch_to_points', features.get('pct_pts_paint', 0.30))
+        features.setdefault('restricted_area_attempts', features.get('rim_fga_pct', FEATURE_DEFAULTS['rim_fga_pct']) * _fga)
+        features.setdefault('paint_touch_to_points', features.get('pct_pts_paint', FEATURE_DEFAULTS['pct_pts_paint']))
 
         # Efficiency metrics derivable from existing features
         _ts_denom = 2.0 * (_fga + 0.44 * _fta)
-        features.setdefault('true_shooting_pct', features.get('ts_pct_official', (_pts / _ts_denom) if _ts_denom > 0 else 0.55))
+        features.setdefault('true_shooting_pct', features.get('ts_pct_official', (_pts / _ts_denom) if _ts_denom > 0 else FEATURE_DEFAULTS['true_shooting_pct']))
         features.setdefault('assist_percentage', features.get('ast_pct_official', 0.15))
-        features.setdefault('rebound_percentage', features.get('reb_pct_official', 0.10))
+        features.setdefault('rebound_percentage', features.get('reb_pct_official', FEATURE_DEFAULTS['rebound_percentage']))
+        features.setdefault('effective_fg_pct', features.get('efg_pct_official', FEATURE_DEFAULTS['effective_fg_pct']))
         features.setdefault('dreb_rate', features.get('dreb_pct_official', 0.15))
         features.setdefault('oreb_rate', features.get('oreb_pct_official', 0.05))
         features.setdefault('total_reb_rate', features.get('reb_pct_official', 0.10))
@@ -1184,7 +1206,7 @@ class EnhancedMLPredictor:
 
         # Per-100 possessions (approximate from per-game assuming ~100 poss/game)
         _min_ratio = float(player_stats.get('avg_minutes', 30.0)) / 48.0
-        _poss_per_game = features.get('team_pace', 100.0) * _min_ratio
+        _poss_per_game = features.get('team_pace', FEATURE_DEFAULTS['team_pace']) * _min_ratio
         _poss = max(_poss_per_game, 1.0)
         # Per-100 possessions: stat_per_game / poss_per_game * 100
         _ast_pg  = float(player_stats.get('ast_per_game',  features.get('ast_to_tov_ratio', 1.5) * 1.5))
@@ -1250,7 +1272,7 @@ class EnhancedMLPredictor:
         features.setdefault('consecutive_under_games', float(_consec_under))
 
         # Rest advantage
-        _own_rest = features.get('rest_days', 2.0)
+        _own_rest = features.get('rest_days', FEATURE_DEFAULTS['rest_days'])
         _opp_rest = features.get('days_rest_opponent', features.get('opp_days_rest', 2.0))
         features.setdefault('rest_advantage', _own_rest - _opp_rest)
         features.setdefault('rest_advantage_abs', abs(_own_rest - _opp_rest))
@@ -1264,8 +1286,8 @@ class EnhancedMLPredictor:
 
         # Opponent def context
         features.setdefault('opp_win_rate_last10', float(player_stats.get('opp_win_rate_last10', 0.5)))
-        features.setdefault('opp_def_rating_last10', float(player_stats.get('opp_def_rating_last10', 110.0)))
-        features.setdefault('opp_pace_last5', float(player_stats.get('opp_pace_last5', 100.0)))
+        features.setdefault('opp_def_rating_last10', float(player_stats.get('opp_def_rating_last10', FEATURE_DEFAULTS['opp_def_rating_last10'])))
+        features.setdefault('opp_pace_last5', float(player_stats.get('opp_pace_last5', FEATURE_DEFAULTS['opp_pace_last5'])))
 
         # Tracking derived
         _touches = features.get('tracking_touches_pg', 50.0)
@@ -1279,12 +1301,12 @@ class EnhancedMLPredictor:
         features.setdefault('time_of_possession_per_game', _time_poss)
         features.setdefault('elbow_touches_per_game', _touches * 0.05)
         features.setdefault('post_touches_per_game', features.get('postup_poss_pct', 0.0) * _touches)
-        features.setdefault('paint_touches_per_game', features.get('paint_fga_pct', 0.30) * _touches)
+        features.setdefault('paint_touches_per_game', features.get('paint_fga_pct', FEATURE_DEFAULTS['paint_fga_pct']) * _touches)
         features.setdefault('front_court_touches_per_game', _touches * 0.7)
 
         # Shot clock / shot timing
         features.setdefault('avg_shot_clock_time', 14.0)
-        features.setdefault('avg_shot_distance', 14.0)
+        features.setdefault('avg_shot_distance', FEATURE_DEFAULTS['avg_shot_distance'])
         features.setdefault('late_clock_shot_frequency', 0.15)
         features.setdefault('early_clock_shot_frequency', 0.20)
         features.setdefault('shot_quality_vs_expected', features.get('ts_vs_zone_expected', 0.0))
@@ -1315,13 +1337,13 @@ class EnhancedMLPredictor:
         features.setdefault('head_to_head_avg', features.get('vs_team_avg', 0.0))
         features.setdefault('head_to_head_games', features.get('matchup_games', 0))
         features.setdefault('position_vs_position_dvp', features.get('dvp_pts_delta', 0.0))
-        features.setdefault('matchup_pace', (features.get('team_pace', 100.0) + features.get('opp_pace', 100.0)) / 2.0)
+        features.setdefault('matchup_pace', (features.get('team_pace', FEATURE_DEFAULTS['team_pace']) + features.get('opp_pace', FEATURE_DEFAULTS['opp_pace'])) / 2.0)
 
         # Clutch / performance situational
         features.setdefault('clutch_performance_score', features.get('clutch_pts_per_game', 0.0) / max(_seas_avg, 0.1))
         features.setdefault('fourth_quarter_usage_rate', features.get('usage_rate', 18.0))
         features.setdefault('crunch_time_usage', features.get('clutch_min_per_game', 0.0))
-        features.setdefault('garbage_time_minutes_pct', 0.05)
+        features.setdefault('garbage_time_minutes_pct', FEATURE_DEFAULTS['garbage_time_minutes_pct'])
         features.setdefault('typical_substitution_minute', 20.0)
 
         # Performance by game state (defaults to season avg)
@@ -1336,18 +1358,18 @@ class EnhancedMLPredictor:
         # Defender features
         features.setdefault('career_vs_defender', features.get('vs_team_avg', 0.0))
         features.setdefault('recent_vs_defender', features.get('vs_team_avg', 0.0))
-        features.setdefault('primary_defender_rating', features.get('opp_def_rating', 110.0))
+        features.setdefault('primary_defender_rating', features.get('opp_def_rating', FEATURE_DEFAULTS['opp_def_rating']))
         features.setdefault('primary_defender_age', 26.0)
         features.setdefault('defender_size_mismatch', 0.0)
         features.setdefault('defender_recent_form', 0.5)
         features.setdefault('defender_switching_frequency', 0.3)
-        features.setdefault('def_fg_pct_allowed', features.get('opp_fg_pct', 0.47))
-        features.setdefault('def_rating_individual', features.get('opp_def_rating', 110.0))
+        features.setdefault('def_fg_pct_allowed', features.get('opp_fg_pct', FEATURE_DEFAULTS['def_fg_pct_allowed']))
+        features.setdefault('def_rating_individual', features.get('opp_def_rating', FEATURE_DEFAULTS['def_rating_individual']))
         features.setdefault('deflections_per_game', float(player_stats.get('deflections_per_game', 1.0)))
 
         # Arena / travel
         features.setdefault('arena_altitude', 0.0)
-        features.setdefault('arena_capacity', 19000.0)
+        features.setdefault('arena_capacity', FEATURE_DEFAULTS['arena_capacity'])
         features.setdefault('home_court_advantage_rating', 3.0)
         features.setdefault('player_vs_arena', 0.0)
         features.setdefault('travel_distance', 1000.0)
@@ -1392,21 +1414,21 @@ class EnhancedMLPredictor:
         features.setdefault('transition_pct', features.get('transition_poss_pct', 0.0))
 
         # pct_fga splits
-        _rim_pct = features.get('rim_fga_pct', 0.25)
-        _paint_pct = features.get('paint_fga_pct', 0.30)
-        _mid_pct = features.get('midrange_fga_pct', 0.20)
-        _c3_pct = features.get('corner3_fga_pct', 0.10)
-        _ab3_pct = features.get('above_break3_fga_pct', 0.25)
+        _rim_pct = features.get('rim_fga_pct', FEATURE_DEFAULTS['rim_fga_pct'])
+        _paint_pct = features.get('paint_fga_pct', FEATURE_DEFAULTS['paint_fga_pct'])
+        _mid_pct = features.get('midrange_fga_pct', FEATURE_DEFAULTS['midrange_fga_pct'])
+        _c3_pct = features.get('corner3_fga_pct', FEATURE_DEFAULTS['corner3_fga_pct'])
+        _ab3_pct = features.get('above_break3_fga_pct', FEATURE_DEFAULTS['above_break3_fga_pct'])
         _total3 = _c3_pct + _ab3_pct
         features.setdefault('pct_fga_2pt', 1.0 - _total3)
         features.setdefault('pct_fga_3pt', _total3)
-        features.setdefault('pct_pts_in_paint', features.get('pct_pts_paint', 0.30))
+        features.setdefault('pct_pts_in_paint', features.get('pct_pts_paint', FEATURE_DEFAULTS['pct_pts_paint']))
         features.setdefault('pct_pts_off_tov', 0.10)
         features.setdefault('pct_pts_fb', 0.12)
 
         # Additional missing features from NUMERIC_FEATURE_KEYS
-        features.setdefault('opp_def_rating_last10', features.get('opp_def_rating_last5', 110.0))
-        features.setdefault('opp_pace_last5', features.get('opp_pace', 100.0))
+        features.setdefault('opp_def_rating_last10', features.get('opp_def_rating_last5', FEATURE_DEFAULTS['opp_def_rating_last10']))
+        features.setdefault('opp_pace_last5', features.get('opp_pace', FEATURE_DEFAULTS['opp_pace_last5']))
         features.setdefault('opp_win_rate_last10', 0.5)
         features.setdefault('is_rookie', float(features.get('years_experience', 5.0) <= 1))
         features.setdefault('is_veteran', float(features.get('years_experience', 5.0) >= 10))
@@ -1419,16 +1441,16 @@ class EnhancedMLPredictor:
         features.setdefault('player_age', 26.0)
         features.setdefault('years_experience', 5.0)
         features.setdefault('net_rating_player', 0.0)
-        features.setdefault('rebound_contested_pct', 0.4)
+        features.setdefault('rebound_contested_pct', FEATURE_DEFAULTS['rebound_contested_pct'])
         features.setdefault('rebound_positioning_score', 0.5)
-        features.setdefault('paint_touch_to_points', features.get('pct_pts_paint', 0.30))
+        features.setdefault('paint_touch_to_points', features.get('pct_pts_paint', FEATURE_DEFAULTS['pct_pts_paint']))
         features.setdefault('performance_in_overtime', _seas_avg)
         features.setdefault('performance_by_score_differential', 0.0)
-        features.setdefault('both_teams_rested', float(features.get('rest_days', 2) >= 2 and features.get('days_rest_opponent', 2) >= 2))
+        features.setdefault('both_teams_rested', float(features.get('rest_days', FEATURE_DEFAULTS['rest_days']) >= 2 and features.get('days_rest_opponent', 2) >= 2))
         features.setdefault('head_to_head_avg', features.get('vs_team_avg', 0.0))
         features.setdefault('head_to_head_games', features.get('matchup_games', 0))
         features.setdefault('position_vs_position_dvp', features.get('dvp_pts_delta', 0.0))
-        features.setdefault('matchup_pace', (features.get('team_pace', 100.0) + features.get('opp_pace', 100.0)) / 2.0)
+        features.setdefault('matchup_pace', (features.get('team_pace', FEATURE_DEFAULTS['team_pace']) + features.get('opp_pace', FEATURE_DEFAULTS['opp_pace'])) / 2.0)
         features.setdefault('historical_game_script_avg', features.get('blowout_game_pct', 0.2) - features.get('close_game_pct', 0.3))
         features.setdefault('defender_switching_frequency', 0.3)
         features.setdefault('blowout_probability', features.get('blowout_game_pct', 0.2))

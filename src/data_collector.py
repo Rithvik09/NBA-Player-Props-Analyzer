@@ -6,6 +6,8 @@ from nba_api.stats.static import teams as nba_teams
 import time
 from datetime import datetime
 
+from .ml_features import FEATURE_DEFAULTS
+
 
 def _dvp_position_keys(raw_pos: str):
     """
@@ -844,8 +846,8 @@ class TrainingDataCollector:
                        'primary_defender_active', 'opp_lineup_changes_last5'):
                 features.setdefault(_k, 0.0)
             features.setdefault('ref_home_bias', 0.5)
-            features.setdefault('opp_foul_rate_per48', 20.0)
-            features.setdefault('opp_foul_rate_last5', 20.0)
+            features.setdefault('opp_foul_rate_per48', FEATURE_DEFAULTS['opp_foul_rate_per48'])
+            features.setdefault('opp_foul_rate_last5', FEATURE_DEFAULTS['opp_foul_rate_last5'])
             features.setdefault('primary_defender_active', 1.0)
             features.setdefault('implied_game_total', 220.0)
 
@@ -1006,8 +1008,8 @@ class TrainingDataCollector:
                 _usg_pct_v2   = float(features.get('usg_pct_official', 0.18))
                 features['ast_pct_to_usg_ratio'] = _ast_pct_v2 / max(_usg_pct_v2, 0.01)
 
-                _opp_def_v2   = float(features.get('opp_def_rating_last5', 110.0))
-                _opp_fgp_v2   = float(features.get('opp_fg_pct', 0.47))
+                _opp_def_v2   = float(features.get('opp_def_rating_last5', FEATURE_DEFAULTS['opp_def_rating_last5']))
+                _opp_fgp_v2   = float(features.get('opp_fg_pct', FEATURE_DEFAULTS['opp_fg_pct']))
                 features['defensive_burden'] = _opp_def_v2 * (1.0 - _opp_fgp_v2)
 
                 _pct3_v2      = float(features.get('pct_pts_3pt', 0.25))

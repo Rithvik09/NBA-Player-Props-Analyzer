@@ -12,7 +12,7 @@ warnings.filterwarnings('ignore')
 from . import db
 from .models import EnhancedMLPredictor
 from .incremental_models import IncrementalModelManager
-from .ml_features import build_feature_vector, build_classifier_vector
+from .ml_features import FEATURE_DEFAULTS, build_feature_vector, build_classifier_vector
 from .precomputed_store import PrecomputedStore
 from .arena_data import calculate_travel_metrics, ARENA_DATA
 
@@ -1271,7 +1271,7 @@ class BasketballBettingHelper:
             ) if _tkey else 0.0
 
             # b2b flag — derived from current team context rest_days
-            _rest = int(team_context.get('rest_days', 2)) if team_context else 2
+            _rest = int(team_context.get('rest_days', FEATURE_DEFAULTS['rest_days'])) if team_context else FEATURE_DEFAULTS['rest_days']
             stat_data['b2b_flag'] = int(_rest <= 1)
 
             # Multi-task cross-stat recent-5 averages. Pulled from the
@@ -1400,8 +1400,8 @@ class BasketballBettingHelper:
                 for _k in ('dvp_pts_delta_last5', 'dvp_pts_delta_last10', 'dvp_reb_delta_last5',
                            'dvp_ast_delta_last5', 'dvp_fg3m_delta_last5'):
                     stat_data.setdefault(_k, 0.0)
-                stat_data.setdefault('opp_foul_rate_per48', 20.0)
-                stat_data.setdefault('opp_foul_rate_last5', 20.0)
+                stat_data.setdefault('opp_foul_rate_per48', FEATURE_DEFAULTS['opp_foul_rate_per48'])
+                stat_data.setdefault('opp_foul_rate_last5', FEATURE_DEFAULTS['opp_foul_rate_last5'])
                 stat_data.setdefault('implied_game_total', 220.0)
                 stat_data.setdefault('ref_foul_rate', 0.0)
                 stat_data.setdefault('ref_home_bias', 0.5)
@@ -1412,23 +1412,23 @@ class BasketballBettingHelper:
                 _opp_stats      = _pre.get('team_stats', {}).get(int(opponent_team_id), {}) if opponent_team_id else {}
                 _team_stats_own = _pre.get('team_stats', {}).get(int(team_id), {}) if team_id else {}
 
-                stat_data['team_pts_fb']             = float(_team_stats_own.get('pts_fb', 12.0))
-                stat_data['team_pts_off_tov']        = float(_team_stats_own.get('pts_off_tov', 16.0))
-                stat_data['opp_pts_fb_allowed']      = float(_opp_stats.get('opp_pts_fb', 12.0))
-                stat_data['opp_pts_off_tov_allowed'] = float(_opp_stats.get('opp_pts_off_tov', 16.0))
-                stat_data['opp_pts_paint']           = float(_opp_stats.get('opp_pts_paint', 44.0))
-                stat_data['opp_fga']                 = float(_opp_stats.get('opp_fga', 86.0))
-                stat_data['opp_fg_pct']              = float(_opp_stats.get('opp_fg_pct', 0.47))
-                stat_data['opp_fg3a']                = float(_opp_stats.get('opp_fg3a', 35.0))
-                stat_data['opp_fg3_pct']             = float(_opp_stats.get('opp_fg3_pct', 0.36))
-                stat_data['opp_tov']                 = float(_opp_stats.get('opp_tov', 14.0))
-                stat_data['opp_stl']                 = float(_opp_stats.get('opp_stl', 7.0))
-                stat_data['opp_blk']                 = float(_opp_stats.get('opp_blk', 5.0))
+                stat_data['team_pts_fb']             = float(_team_stats_own.get('pts_fb', FEATURE_DEFAULTS['team_pts_fb']))
+                stat_data['team_pts_off_tov']        = float(_team_stats_own.get('pts_off_tov', FEATURE_DEFAULTS['team_pts_off_tov']))
+                stat_data['opp_pts_fb_allowed']      = float(_opp_stats.get('opp_pts_fb', FEATURE_DEFAULTS['opp_pts_fb_allowed']))
+                stat_data['opp_pts_off_tov_allowed'] = float(_opp_stats.get('opp_pts_off_tov', FEATURE_DEFAULTS['opp_pts_off_tov_allowed']))
+                stat_data['opp_pts_paint']           = float(_opp_stats.get('opp_pts_paint', FEATURE_DEFAULTS['opp_pts_paint']))
+                stat_data['opp_fga']                 = float(_opp_stats.get('opp_fga', FEATURE_DEFAULTS['opp_fga']))
+                stat_data['opp_fg_pct']              = float(_opp_stats.get('opp_fg_pct', FEATURE_DEFAULTS['opp_fg_pct']))
+                stat_data['opp_fg3a']                = float(_opp_stats.get('opp_fg3a', FEATURE_DEFAULTS['opp_fg3a']))
+                stat_data['opp_fg3_pct']             = float(_opp_stats.get('opp_fg3_pct', FEATURE_DEFAULTS['opp_fg3_pct']))
+                stat_data['opp_tov']                 = float(_opp_stats.get('opp_tov', FEATURE_DEFAULTS['opp_tov']))
+                stat_data['opp_stl']                 = float(_opp_stats.get('opp_stl', FEATURE_DEFAULTS['opp_stl']))
+                stat_data['opp_blk']                 = float(_opp_stats.get('opp_blk', FEATURE_DEFAULTS['opp_blk']))
                 stat_data['opp_off_rating']          = float(_opp_stats.get('opp_off_rating',
-                                                           (opponent_context or {}).get('offensive_rating', 110.0)))
-                stat_data['opp_def_rating_last5']      = float(_opp_stats.get('opp_def_rating_last5', 110.0))
-                stat_data['opp_blocks_per_game_last5'] = float(_opp_stats.get('opp_blk_last5', 5.0))
-                stat_data['opp_steals_per_game_last5'] = float(_opp_stats.get('opp_stl_last5', 7.0))
+                                                           (opponent_context or {}).get('offensive_rating', FEATURE_DEFAULTS['opp_off_rating'])))
+                stat_data['opp_def_rating_last5']      = float(_opp_stats.get('opp_def_rating_last5', FEATURE_DEFAULTS['opp_def_rating_last5']))
+                stat_data['opp_blocks_per_game_last5'] = float(_opp_stats.get('opp_blk_last5', FEATURE_DEFAULTS['opp_blocks_per_game_last5']))
+                stat_data['opp_steals_per_game_last5'] = float(_opp_stats.get('opp_stl_last5', FEATURE_DEFAULTS['opp_steals_per_game_last5']))
                 # League averages (stored per-row; use _opp_stats as source)
                 _lg = _opp_stats
                 stat_data['lg_pts_fb']          = float(_lg.get('lg_pts_fb', 12.0))
@@ -1753,8 +1753,8 @@ class BasketballBettingHelper:
                 _usg_pct_off  = float(stat_data.get('usg_pct_official', 0.18))
                 stat_data['ast_pct_to_usg_ratio'] = _ast_pct_off / max(_usg_pct_off, 0.01)
 
-                _opp_def_r5   = float(stat_data.get('opp_def_rating_last5', 110.0))
-                _opp_fg_pct_v = float(stat_data.get('opp_fg_pct', 0.47))
+                _opp_def_r5   = float(stat_data.get('opp_def_rating_last5', FEATURE_DEFAULTS['opp_def_rating_last5']))
+                _opp_fg_pct_v = float(stat_data.get('opp_fg_pct', FEATURE_DEFAULTS['opp_fg_pct']))
                 stat_data['defensive_burden'] = _opp_def_r5 * (1.0 - _opp_fg_pct_v)
 
                 _pct_3pt_v    = float(stat_data.get('pct_pts_3pt', 0.25))
@@ -1781,33 +1781,33 @@ class BasketballBettingHelper:
                 _opp_b = int(opponent_team_id) if opponent_team_id else None
                 _pvo = _pre.get('player_vs_opponent', {}).get((_pid_b, _opp_b), {}) if _opp_b else {}
                 stat_data['vs_opp_avg_pts'] = float(_pvo.get('avg_stat_pts', 0.0))
-                stat_data['vs_opp_fg_pct']  = float(_pvo.get('fg_pct', 0.45))
-                stat_data['vs_opp_ts_pct']  = float(_pvo.get('ts_pct', 0.55))
+                stat_data['vs_opp_fg_pct']  = float(_pvo.get('fg_pct', FEATURE_DEFAULTS['vs_opp_fg_pct']))
+                stat_data['vs_opp_ts_pct']  = float(_pvo.get('ts_pct', FEATURE_DEFAULTS['vs_opp_ts_pct']))
                 stat_data['vs_opp_gp']      = float(_pvo.get('gp', 0))
-                stat_data['vs_opp_avg_min'] = float(_pvo.get('avg_min', 30.0))
+                stat_data['vs_opp_avg_min'] = float(_pvo.get('avg_min', FEATURE_DEFAULTS['vs_opp_avg_min']))
             except Exception:
                 stat_data.setdefault('vs_opp_avg_pts', 0.0)
-                stat_data.setdefault('vs_opp_fg_pct', 0.45)
-                stat_data.setdefault('vs_opp_ts_pct', 0.55)
+                stat_data.setdefault('vs_opp_fg_pct', FEATURE_DEFAULTS['vs_opp_fg_pct'])
+                stat_data.setdefault('vs_opp_ts_pct', FEATURE_DEFAULTS['vs_opp_ts_pct'])
                 stat_data.setdefault('vs_opp_gp', 0.0)
-                stat_data.setdefault('vs_opp_avg_min', 30.0)
+                stat_data.setdefault('vs_opp_avg_min', FEATURE_DEFAULTS['vs_opp_avg_min'])
 
             # ---- GROUP C: Team Rest Splits (opponent context when tired vs rested) ----
             try:
                 _opp_c = int(opponent_team_id) if opponent_team_id else None
                 _trs = _pre.get('team_rest_splits', {}).get(_opp_c, {}) if _opp_c else {}
-                stat_data['opp_b2b_def_rating']        = float(_trs.get('opp_b2b_def_rating', 112.0))
-                stat_data['opp_b2b_pace']              = float(_trs.get('opp_b2b_pace', 100.0))
-                stat_data['opp_b2b_pts_allowed']       = float(_trs.get('opp_b2b_pts_allowed', 115.0))
-                stat_data['opp_rested_def_rating']     = float(_trs.get('opp_rested_def_rating', 110.0))
-                stat_data['opp_rested_pace']           = float(_trs.get('opp_rested_pace', 100.0))
+                stat_data['opp_b2b_def_rating']        = float(_trs.get('opp_b2b_def_rating', FEATURE_DEFAULTS['opp_b2b_def_rating']))
+                stat_data['opp_b2b_pace']              = float(_trs.get('opp_b2b_pace', FEATURE_DEFAULTS['opp_b2b_pace']))
+                stat_data['opp_b2b_pts_allowed']       = float(_trs.get('opp_b2b_pts_allowed', FEATURE_DEFAULTS['opp_b2b_pts_allowed']))
+                stat_data['opp_rested_def_rating']     = float(_trs.get('opp_rested_def_rating', FEATURE_DEFAULTS['opp_rested_def_rating']))
+                stat_data['opp_rested_pace']           = float(_trs.get('opp_rested_pace', FEATURE_DEFAULTS['opp_rested_pace']))
                 stat_data['opp_rest_def_rating_delta'] = float(_trs.get('opp_rest_def_rating_delta', 2.0))
             except Exception:
-                stat_data.setdefault('opp_b2b_def_rating', 112.0)
-                stat_data.setdefault('opp_b2b_pace', 100.0)
-                stat_data.setdefault('opp_b2b_pts_allowed', 115.0)
-                stat_data.setdefault('opp_rested_def_rating', 110.0)
-                stat_data.setdefault('opp_rested_pace', 100.0)
+                stat_data.setdefault('opp_b2b_def_rating', FEATURE_DEFAULTS['opp_b2b_def_rating'])
+                stat_data.setdefault('opp_b2b_pace', FEATURE_DEFAULTS['opp_b2b_pace'])
+                stat_data.setdefault('opp_b2b_pts_allowed', FEATURE_DEFAULTS['opp_b2b_pts_allowed'])
+                stat_data.setdefault('opp_rested_def_rating', FEATURE_DEFAULTS['opp_rested_def_rating'])
+                stat_data.setdefault('opp_rested_pace', FEATURE_DEFAULTS['opp_rested_pace'])
                 stat_data.setdefault('opp_rest_def_rating_delta', 2.0)
 
             # ---- GROUP D: Player Year-Over-Year Trajectory ----
@@ -2165,13 +2165,13 @@ class BasketballBettingHelper:
         # ---- team / opponent context ----
         tc = team_context or {}
         oc = opponent_context or {}
-        team_pace       = float(tc.get('pace', 100.0))
-        opp_pace        = float(oc.get('pace', 100.0))
-        team_off_rating = float(tc.get('offensive_rating', 110.0))
-        team_def_rating = float(tc.get('defensive_rating', 110.0))
-        opp_off_rating  = float(oc.get('offensive_rating', 110.0))
-        opp_def_rating  = float(oc.get('defensive_rating', 110.0))
-        rest_days       = int(tc.get('rest_days', 2))
+        team_pace       = float(tc.get('pace', FEATURE_DEFAULTS['team_pace']))
+        opp_pace        = float(oc.get('pace', FEATURE_DEFAULTS['opp_pace']))
+        team_off_rating = float(tc.get('offensive_rating', FEATURE_DEFAULTS['team_off_rating']))
+        team_def_rating = float(tc.get('defensive_rating', FEATURE_DEFAULTS['team_def_rating']))
+        opp_off_rating  = float(oc.get('offensive_rating', FEATURE_DEFAULTS['opp_off_rating']))
+        opp_def_rating  = float(oc.get('defensive_rating', FEATURE_DEFAULTS['opp_def_rating']))
+        rest_days       = int(tc.get('rest_days', FEATURE_DEFAULTS['rest_days']))
         opp_injury_imp  = float(oc.get('injury_impact', 0.0))
         opp_key_out     = int((oc.get('injuries') or {}).get('key_players_out', 0))
         team_key_out    = int((tc.get('injuries') or {}).get('key_players_out', 0))
@@ -2265,13 +2265,21 @@ class BasketballBettingHelper:
             'team_key_players_out': team_key_out,
             'opp_key_players_out':  opp_key_out,
             'opp_injury_impact':    opp_injury_imp,
-            # team style (no live data → 0.0 consistent with training)
-            'team_pts_fb': 0.0, 'opp_pts_fb_allowed': 0.0,
-            'team_pts_off_tov': 0.0, 'opp_pts_off_tov_allowed': 0.0,
-            'opp_pts_paint': 0.0,
-            'opp_fga': 0.0, 'opp_fg_pct': 0.47,
-            'opp_fg3a': 0.0, 'opp_fg3_pct': 0.36,
-            'opp_tov': 0.0, 'opp_stl': 0.0, 'opp_blk': 0.0,
+            # team style — no live data, so the shared league-average
+            # fallbacks stand in (they used to be flat zeros here while the
+            # trainer used league averages)
+            'team_pts_fb':             FEATURE_DEFAULTS['team_pts_fb'],
+            'opp_pts_fb_allowed':      FEATURE_DEFAULTS['opp_pts_fb_allowed'],
+            'team_pts_off_tov':        FEATURE_DEFAULTS['team_pts_off_tov'],
+            'opp_pts_off_tov_allowed': FEATURE_DEFAULTS['opp_pts_off_tov_allowed'],
+            'opp_pts_paint':           FEATURE_DEFAULTS['opp_pts_paint'],
+            'opp_fga':                 FEATURE_DEFAULTS['opp_fga'],
+            'opp_fg_pct':              FEATURE_DEFAULTS['opp_fg_pct'],
+            'opp_fg3a':                FEATURE_DEFAULTS['opp_fg3a'],
+            'opp_fg3_pct':             FEATURE_DEFAULTS['opp_fg3_pct'],
+            'opp_tov':                 FEATURE_DEFAULTS['opp_tov'],
+            'opp_stl':                 FEATURE_DEFAULTS['opp_stl'],
+            'opp_blk':                 FEATURE_DEFAULTS['opp_blk'],
             # league averages (NBA season norms)
             'lg_pts_fb': 12.0, 'lg_opp_pts_fb': 12.0,
             'lg_pts_off_tov': 16.0, 'lg_opp_pts_off_tov': 16.0,
@@ -2308,16 +2316,16 @@ class BasketballBettingHelper:
             'games_in_last_7_days': 2 if b2b_flag else 1,
             # Tier 2: advanced player metrics (0 → defaults; model learned to weight these low)
             'usage_rate': usage_rate / 100.0,  # normalise to 0-1
-            'true_shooting_pct': float(eff.get('fg_pct', 0.55)),
-            'effective_fg_pct':  float(eff.get('fg_pct', 0.50)),
+            'true_shooting_pct': float(eff.get('fg_pct', FEATURE_DEFAULTS['true_shooting_pct'])),
+            'effective_fg_pct':  float(eff.get('fg_pct', FEATURE_DEFAULTS['effective_fg_pct'])),
             'assist_percentage': 0.0,
-            'rebound_percentage': 0.0,
+            'rebound_percentage': FEATURE_DEFAULTS['rebound_percentage'],
             'pie': 0.0,
             # Tier 2: shot location (populated if available, else 0.0)
             'rim_fga_per_game':       0.0,
             'paint_fga_per_game':     0.0,
             'mid_range_fga_per_game': 0.0,
-            'corner_3_pct':           float(player_stats.get('corner3_pct',      0.37)),
+            'corner_3_pct':           float(player_stats.get('corner3_pct',      FEATURE_DEFAULTS['corner_3_pct'])),
             'above_break_3_pct':      float(player_stats.get('above_break3_pct', 0.35)),
             # Tier 2: clutch (0 → model uses other features)
             'clutch_pts_per_game':     0.0,
@@ -2334,8 +2342,8 @@ class BasketballBettingHelper:
             'close_game_pct':           0.0,
             # Tier 4: opp defensive trends
             'opp_def_rating_home_away_split': float(_pre.get('team_home_away_splits', {}).get(int(opponent_team_id) if opponent_team_id else 0, {}).get('home_away_def_split', 0.0)),
-            'opp_blocks_per_game_last5':      0.0,
-            'opp_steals_per_game_last5':      0.0,
+            'opp_blocks_per_game_last5':      FEATURE_DEFAULTS['opp_blocks_per_game_last5'],
+            'opp_steals_per_game_last5':      FEATURE_DEFAULTS['opp_steals_per_game_last5'],
             # Tier 4: game context (unknown → 0)
             'days_rest_opponent': 2, 'opponent_back_to_back': 0,
             'playoff_implications': 0, 'rivalry_game': 0,
@@ -2350,7 +2358,8 @@ class BasketballBettingHelper:
             'consistency_score':        max(0.0, 1.0 - volatility_ratio),
             'ceiling_game_frequency':   0.0,
             # Tier 4: advanced defensive (live → 0)
-            'def_fg_pct_allowed': 0.0, 'def_rating_individual': 0.0,
+            'def_fg_pct_allowed':   FEATURE_DEFAULTS['def_fg_pct_allowed'],
+            'def_rating_individual': FEATURE_DEFAULTS['def_rating_individual'],
             'deflections_per_game': 0.0, 'contested_shots_per_game': 0.0,
             # Tier 4: play type (aliases to canonical poss_pct keys set earlier)
             'pnr_ball_handler_pct': float(player_stats.get('pnr_bh_poss_pct',    0.0)),
@@ -2366,20 +2375,23 @@ class BasketballBettingHelper:
             'must_win_situation': 0.0, 'games_back_from_playoff': 0.0,
             # Tier 5: rotation
             'fourth_quarter_usage_rate': 0.25 if avg_minutes > 30 else 0.18,
-            'garbage_time_minutes_pct': 0.0,
+            'garbage_time_minutes_pct': FEATURE_DEFAULTS['garbage_time_minutes_pct'],
             'typical_substitution_minute': min(48.0, avg_minutes + 3.0),
             'crunch_time_usage': 0.28 if avg_minutes > 28 else 0.15,
             # Tier 5: specific matchup (0)
             'career_vs_defender': 0.0, 'recent_vs_defender': 0.0, 'player_vs_arena': 0.0,
             # Tier 6: shot quality (0; model degrades gracefully)
-            'avg_shot_distance': 0.0, 'contested_shot_pct': 0.5,
-            'open_shot_pct': 0.3, 'wide_open_shot_pct': 0.2,
-            'catch_and_shoot_pct': 0.3, 'pull_up_shot_pct': 0.3,
+            'avg_shot_distance':   FEATURE_DEFAULTS['avg_shot_distance'],
+            'contested_shot_pct':  FEATURE_DEFAULTS['contested_shot_pct'],
+            'open_shot_pct': 0.3,
+            'wide_open_shot_pct':  FEATURE_DEFAULTS['wide_open_shot_pct'],
+            'catch_and_shoot_pct': FEATURE_DEFAULTS['catch_and_shoot_pct'],
+            'pull_up_shot_pct':    FEATURE_DEFAULTS['pull_up_shot_pct'],
             'paint_touch_frequency': 0.0,
             'corner_three_pct':           float(player_stats.get('corner3_pct',      0.37)),
             'above_break_three_pct':      float(player_stats.get('above_break3_pct', 0.35)),
             'restricted_area_fg_pct':     float(eff.get('fg_pct', 0.55)),
-            'mid_range_frequency': float(player_stats.get('midrange_fga_pct', 0.0)), 'shot_quality_vs_expected': 0.0,
+            'mid_range_frequency': float(player_stats.get('midrange_fga_pct', FEATURE_DEFAULTS['midrange_fga_pct'])), 'shot_quality_vs_expected': 0.0,
             'avg_shot_clock_time': 12.0, 'late_clock_shot_frequency': 0.15,
             'early_clock_shot_frequency': 0.25,
             # Tier 6: touch/usage (from tracking stats where available)
@@ -2391,7 +2403,7 @@ class BasketballBettingHelper:
             'paint_touches_per_game': float(player_stats.get('tracking_paint_touches_pg', 0.0)),
             'front_court_touches_per_game': float(player_stats.get('tracking_touches_pg', 50.0)) * 0.6,
             'time_of_possession_per_game': float(player_stats.get('tracking_time_of_poss_pg', avg_minutes * 0.25 / 60.0)) * 60.0,
-            'touches_per_possession': float(player_stats.get('tracking_touches_pg', 50.0)) / max(float(player_stats.get('team_pace', 100.0)), 1.0),
+            'touches_per_possession': float(player_stats.get('tracking_touches_pg', 50.0)) / max(float(player_stats.get('team_pace', FEATURE_DEFAULTS['team_pace'])), 1.0),
             'avg_points_per_touch':   float(recent_avg) / max(float(player_stats.get('tracking_touches_pg', 50.0)), 1.0),
             # Tier 6: lineup (0)
             'net_rating_with_starters': 0.0,
@@ -2406,7 +2418,7 @@ class BasketballBettingHelper:
             'travel_distance':   float(_trav),
             'coast_to_coast':    float(_c2c),
             'arena_altitude':    float(ARENA_DATA.get(int(team_id) if team_id else 0, {}).get('altitude', 0.0)),
-            'arena_capacity':    float(ARENA_DATA.get(int(team_id) if team_id else 0, {}).get('capacity', 18000.0)),
+            'arena_capacity':    float(ARENA_DATA.get(int(team_id) if team_id else 0, {}).get('capacity', FEATURE_DEFAULTS['arena_capacity'])),
             'home_court_advantage_rating': 3.5 if is_home else (-3.5 if is_home is not None else 0.0),
             # Tier 3: lineup on/off
             'on_court_plus_minus':  float(player_stats.get('on_court_net_rating', 0.0)),
@@ -2455,7 +2467,7 @@ class BasketballBettingHelper:
             'lineup_continuity': float(_pre.get('team_lineup_stats', {}).get(int(team_id) if team_id else 0, {}).get('lineup_continuity', 0.7)),
             'team_win_streak': 0.0, 'team_loss_streak': 0.0,
             # Tier 8: defender detail (set earlier from team_special_defenders; defaults here are fallback)
-            'primary_defender_rating': float(player_stats.get('primary_defender_rating', 110.0)),
+            'primary_defender_rating': float(player_stats.get('primary_defender_rating', FEATURE_DEFAULTS['opp_def_rating'])),
             'primary_defender_age':    float(player_stats.get('primary_defender_age', 26.0)),
             'defender_size_mismatch':  float(player_stats.get('defender_size_mismatch', 0.0)),
             'defender_recent_form':    float(player_stats.get('defender_recent_form', 0.5)),
@@ -2467,7 +2479,8 @@ class BasketballBettingHelper:
             'ft_attempts_per_game': 0.0, 'and_one_frequency': 0.0, 'foul_drawing_ability': 0.0,
             # Tier 9: rebounding rates (0)
             'oreb_rate': 0.0, 'dreb_rate': 0.0, 'total_reb_rate': 0.0,
-            'rebound_contested_pct': 0.0, 'rebound_positioning_score': 0.0,
+            'rebound_contested_pct': FEATURE_DEFAULTS['rebound_contested_pct'],
+            'rebound_positioning_score': 0.0,
             # Tier 9: paint scoring (0)
             'paint_pts_per_game': 0.0, 'paint_attempts_per_game': 0.0,
             'paint_fg_pct': float(eff.get('fg_pct', 0.55)),

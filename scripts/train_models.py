@@ -106,7 +106,13 @@ from nba_api.stats.static import teams  # noqa: E402
 
 from src import db  # noqa: E402
 from src.models import EnhancedMLPredictor  # noqa: E402
-from src.ml_features import NUMERIC_FEATURE_KEYS, CLASSIFIER_EXTRA_KEYS, build_feature_vector, build_classifier_vector  # noqa: E402
+from src.ml_features import (  # noqa: E402
+    NUMERIC_FEATURE_KEYS,
+    CLASSIFIER_EXTRA_KEYS,
+    FEATURE_DEFAULTS,
+    build_feature_vector,
+    build_classifier_vector,
+)
 from src.precomputed_store import PrecomputedStore  # noqa: E402
 from src.ml_calibration import IsotonicCalibratedModel  # noqa: E402
 from src.arena_data import calculate_travel_metrics, ARENA_DATA  # noqa: E402
@@ -1097,8 +1103,8 @@ def build_training_examples(
             _dvp_fg3m_delta_last5 = float(_dvp_r5.get("fg3m", 0.0)) - float(_dvp_avg_row.get("fg3m", 0.0) or 0.0)
 
             # Opponent foul rates (from team_stats and team_foul_rates)
-            _opp_foul_rate_season = float(_ts.get("foul_rate_season", _tf.get("foul_rate_season", 0.0)))
-            _opp_foul_rate_last5  = float(_ts.get("foul_rate_last5",  _tf.get("foul_rate_last5",  0.0)))
+            _opp_foul_rate_season = float(_ts.get("foul_rate_season", _tf.get("foul_rate_season", FEATURE_DEFAULTS["opp_foul_rate_per48"])))
+            _opp_foul_rate_last5  = float(_ts.get("foul_rate_last5",  _tf.get("foul_rate_last5",  FEATURE_DEFAULTS["opp_foul_rate_last5"])))
 
             # Team standings context
             _team_win_pct     = float(_std_team.get("win_pct", 0.5))
@@ -1113,11 +1119,11 @@ def build_training_examples(
             _games_back       = float(_std_team.get("games_back", 5.0))
 
             # Opponent rest splits (b2b vs rested)
-            _opp_b2b_def_rating   = float(_rst.get("b2b_def_rating",   (opp_ctx or {}).get("defensive_rating", 110.0)))
-            _opp_b2b_pace         = float(_rst.get("b2b_pace",         (opp_ctx or {}).get("pace", 100.0)))
-            _opp_b2b_pts_allowed  = float(_rst.get("b2b_pts_allowed",  0.0))
-            _opp_rested_def_rating= float(_rst.get("rested_def_rating",(opp_ctx or {}).get("defensive_rating", 110.0)))
-            _opp_rested_pace      = float(_rst.get("rested_pace",      (opp_ctx or {}).get("pace", 100.0)))
+            _opp_b2b_def_rating   = float(_rst.get("b2b_def_rating",   (opp_ctx or {}).get("defensive_rating", FEATURE_DEFAULTS["opp_b2b_def_rating"])))
+            _opp_b2b_pace         = float(_rst.get("b2b_pace",         (opp_ctx or {}).get("pace", FEATURE_DEFAULTS["opp_b2b_pace"])))
+            _opp_b2b_pts_allowed  = float(_rst.get("b2b_pts_allowed",  FEATURE_DEFAULTS["opp_b2b_pts_allowed"]))
+            _opp_rested_def_rating= float(_rst.get("rested_def_rating",(opp_ctx or {}).get("defensive_rating", FEATURE_DEFAULTS["opp_rested_def_rating"])))
+            _opp_rested_pace      = float(_rst.get("rested_pace",      (opp_ctx or {}).get("pace", FEATURE_DEFAULTS["opp_rested_pace"])))
 
             # Infer opponent back-to-back from rest splits availability (proxy: b2b_def_rating populated)
             _opp_is_b2b = 1.0 if (_rst and _rst.get("b2b_def_rating") and _is_b2b == 0.0) else 0.0
@@ -1131,9 +1137,9 @@ def build_training_examples(
             _pvo = _vs_opp_map.get((player_id, int(opp_id)), {})
             _vs_opp_gp      = float(_pvo.get("gp", 0))
             _vs_opp_avg_pts = float(_pvo.get("avg_stat_pts", 0.0))
-            _vs_opp_fg_pct  = float(_pvo.get("fg_pct", 0.0))
-            _vs_opp_ts_pct  = float(_pvo.get("ts_pct", 0.0))
-            _vs_opp_avg_min = float(_pvo.get("avg_min", 0.0))
+            _vs_opp_fg_pct  = float(_pvo.get("fg_pct", FEATURE_DEFAULTS["vs_opp_fg_pct"]))
+            _vs_opp_ts_pct  = float(_pvo.get("ts_pct", FEATURE_DEFAULTS["vs_opp_ts_pct"]))
+            _vs_opp_avg_min = float(_pvo.get("avg_min", FEATURE_DEFAULTS["vs_opp_avg_min"]))
 
             # --- Previously "unavailable" features — now computed from existing data ---
             _games_since_return, _missed_before = _compute_injury_trajectory_from_df(gl, idx)
@@ -1295,27 +1301,27 @@ def build_training_examples(
                     "rest_days": _rest_days,
                     "is_home_game": is_home,
                     "recent_away_streak": float(_away_streak),
-                    "team_pace": float(team_ctx.get("pace", 100.0)),
-                    "opp_pace": float(opp_ctx.get("pace", 100.0)),
-                    "team_off_rating": float(team_ctx.get("offensive_rating", 110.0)),
-                    "team_def_rating": float(team_ctx.get("defensive_rating", 110.0)),
-                    "opp_off_rating": float(opp_ctx.get("offensive_rating", 110.0)),
-                    "opp_def_rating": float(opp_ctx.get("defensive_rating", 110.0)),
+                    "team_pace": float(team_ctx.get("pace", FEATURE_DEFAULTS["team_pace"])),
+                    "opp_pace": float(opp_ctx.get("pace", FEATURE_DEFAULTS["opp_pace"])),
+                    "team_off_rating": float(team_ctx.get("offensive_rating", FEATURE_DEFAULTS["team_off_rating"])),
+                    "team_def_rating": float(team_ctx.get("defensive_rating", FEATURE_DEFAULTS["team_def_rating"])),
+                    "opp_off_rating": float(opp_ctx.get("offensive_rating", FEATURE_DEFAULTS["opp_off_rating"])),
+                    "opp_def_rating": float(opp_ctx.get("defensive_rating", FEATURE_DEFAULTS["opp_def_rating"])),
                     "team_key_players_out": int(_precomp["injury_status"].get(int(team_id) if team_id else 0, {}).get("key_players_out", 0)),
                     "opp_key_players_out":  int(_precomp["injury_status"].get(int(opp_id)   if opp_id   else 0, {}).get("key_players_out", 0)),
                     "opp_injury_impact":    float(_precomp["injury_status"].get(int(opp_id) if opp_id   else 0, {}).get("total_impact", 0.0)),
-                    "team_pts_fb": float(team_style.get("pts_fb", 0.0)),
-                    "opp_pts_fb_allowed": float(opp_style.get("opp_pts_fb", 0.0)),
-                    "team_pts_off_tov": float(team_style.get("pts_off_tov", 0.0)),
-                    "opp_pts_off_tov_allowed": float(opp_style.get("opp_pts_off_tov", 0.0)),
-                    "opp_pts_paint": float(opp_style.get("pts_paint", 0.0)),
-                    "opp_fga": float(opp_base.get("fga", 0.0)),
-                    "opp_fg_pct": float(opp_base.get("fg_pct", 0.47)),
-                    "opp_fg3a": float(opp_base.get("fg3a", 0.0)),
-                    "opp_fg3_pct": float(opp_base.get("fg3_pct", 0.36)),
-                    "opp_tov": float(opp_base.get("tov", 0.0)),
-                    "opp_stl": float(opp_base.get("stl", 0.0)),
-                    "opp_blk": float(opp_base.get("blk", 0.0)),
+                    "team_pts_fb": float(team_style.get("pts_fb", FEATURE_DEFAULTS["team_pts_fb"])),
+                    "opp_pts_fb_allowed": float(opp_style.get("opp_pts_fb", FEATURE_DEFAULTS["opp_pts_fb_allowed"])),
+                    "team_pts_off_tov": float(team_style.get("pts_off_tov", FEATURE_DEFAULTS["team_pts_off_tov"])),
+                    "opp_pts_off_tov_allowed": float(opp_style.get("opp_pts_off_tov", FEATURE_DEFAULTS["opp_pts_off_tov_allowed"])),
+                    "opp_pts_paint": float(opp_style.get("pts_paint", FEATURE_DEFAULTS["opp_pts_paint"])),
+                    "opp_fga": float(opp_base.get("fga", FEATURE_DEFAULTS["opp_fga"])),
+                    "opp_fg_pct": float(opp_base.get("fg_pct", FEATURE_DEFAULTS["opp_fg_pct"])),
+                    "opp_fg3a": float(opp_base.get("fg3a", FEATURE_DEFAULTS["opp_fg3a"])),
+                    "opp_fg3_pct": float(opp_base.get("fg3_pct", FEATURE_DEFAULTS["opp_fg3_pct"])),
+                    "opp_tov": float(opp_base.get("tov", FEATURE_DEFAULTS["opp_tov"])),
+                    "opp_stl": float(opp_base.get("stl", FEATURE_DEFAULTS["opp_stl"])),
+                    "opp_blk": float(opp_base.get("blk", FEATURE_DEFAULTS["opp_blk"])),
                     "lg_pts_fb": float(league_avgs.get("pts_fb", 12.0)),
                     "lg_opp_pts_fb": float(league_avgs.get("opp_pts_fb", 12.0)),
                     "lg_pts_off_tov": float(league_avgs.get("pts_off_tov", 16.0)),
@@ -1338,8 +1344,8 @@ def build_training_examples(
                     "blowout_game_pct": float(blowout_game_pct),
                     "close_game_pct": float(close_game_pct),
                     "opp_def_rating_home_away_split": float(_precomp["home_away"].get(int(opp_id) if opp_id else 0, {}).get("home_away_def_split", 0.0)),
-                    "opp_blocks_per_game_last5": float(_ts.get("opp_blk_last5", opp_base.get("blk", 0.0))),
-                    "opp_steals_per_game_last5": float(_ts.get("opp_stl_last5", opp_base.get("stl", 0.0))),
+                    "opp_blocks_per_game_last5": float(_ts.get("opp_blk_last5", opp_base.get("blk", FEATURE_DEFAULTS["opp_blocks_per_game_last5"]))),
+                    "opp_steals_per_game_last5": float(_ts.get("opp_stl_last5", opp_base.get("stl", FEATURE_DEFAULTS["opp_steals_per_game_last5"]))),
                     "days_rest_opponent": _opp_rest_days_est,
                     "opponent_back_to_back": _opp_is_b2b,
                     # Playoff implications proxy: late-season + tight
@@ -1393,11 +1399,11 @@ def build_training_examples(
                         # to express "fraction that misses against this
                         # team" — giving a feature where higher = better
                         # defense, monotonic with intuition.
-                        "def_fg_pct_allowed": float(opp_base.get("fg_pct", 0.47)),
+                        "def_fg_pct_allowed": float(opp_base.get("fg_pct", FEATURE_DEFAULTS["def_fg_pct_allowed"])),
                         # Individual defensive rating proxy: opponent's
                         # team-level def rating (best per-row signal we
                         # have without per-defender tracking).
-                        "def_rating_individual": float(opp_ctx.get("defensive_rating", 110.0)),
+                        "def_rating_individual": float(opp_ctx.get("defensive_rating", FEATURE_DEFAULTS["def_rating_individual"])),
                         "pnr_ball_handler_pct": float(_pt.get("pnr_bh_poss_pct",    0.0)),
                         "pnr_roll_man_pct":    float(_pt.get("pnr_roll_poss_pct",  0.0)),
                         "isolation_pct":       float(_pt.get("iso_poss_pct",        0.0)),
@@ -1445,17 +1451,21 @@ def build_training_examples(
                         "career_vs_defender": float(_career_vs_opp_target - _target_mean),
                         "recent_vs_defender": float(_recent_vs_opp_target - _target_mean),
                         "player_vs_arena": float(_player_vs_arena),
-                        "avg_shot_distance": float(_sz.get("rim_fga_pct", 0.25)) * 3.0 + float(_sz.get("paint_fga_pct", 0.20)) * 8.0 + float(_sz.get("midrange_fga_pct", 0.20)) * 16.0 + float(_sz.get("corner3_fga_pct", 0.10)) * 22.0 + float(_sz.get("above_break3_fga_pct", 0.25)) * 24.0,
-                        "contested_shot_pct": float(_sp.get("tight_shot_freq", 0.5)),
+                        "avg_shot_distance": float(_sz.get("rim_fga_pct", FEATURE_DEFAULTS["rim_fga_pct"])) * 3.0 + float(_sz.get("paint_fga_pct", FEATURE_DEFAULTS["paint_fga_pct"])) * 8.0 + float(_sz.get("midrange_fga_pct", FEATURE_DEFAULTS["midrange_fga_pct"])) * 16.0 + float(_sz.get("corner3_fga_pct", FEATURE_DEFAULTS["corner3_fga_pct"])) * 22.0 + float(_sz.get("above_break3_fga_pct", FEATURE_DEFAULTS["above_break3_fga_pct"])) * 24.0,
+                        "contested_shot_pct": float(_sp.get("tight_shot_freq", FEATURE_DEFAULTS["contested_shot_pct"])),
                         "open_shot_pct": float(_sp.get("open_shot_freq", 0.3)),
-                        "wide_open_shot_pct": max(0.0, float(_sp.get("open_shot_freq", 0.5)) - float(_sp.get("tight_shot_freq", 0.3))),
-                        "catch_and_shoot_pct": float(_sp.get("catch_shoot_freq", 0.3)),
-                        "pull_up_shot_pct": float(_sp.get("pullup_freq", 0.3)),
+                        "wide_open_shot_pct": (
+                            max(0.0, float(_sp["open_shot_freq"]) - float(_sp["tight_shot_freq"]))
+                            if "open_shot_freq" in _sp and "tight_shot_freq" in _sp
+                            else FEATURE_DEFAULTS["wide_open_shot_pct"]
+                        ),
+                        "catch_and_shoot_pct": float(_sp.get("catch_shoot_freq", FEATURE_DEFAULTS["catch_and_shoot_pct"])),
+                        "pull_up_shot_pct": float(_sp.get("pullup_freq", FEATURE_DEFAULTS["pull_up_shot_pct"])),
                         "paint_touch_frequency": float(hist[hist['PTS'] > 0]['PTS'].count() * 0.1) if 'PTS' in hist.columns else 0.0,
                         "corner_three_pct": float(fg3_pct_recent),
                         "above_break_three_pct": float(fg3_pct_recent),
                         "restricted_area_fg_pct": float(fg_pct_recent),
-                        "mid_range_frequency": float(_sz.get("midrange_fga_pct", 0.0)),
+                        "mid_range_frequency": float(_sz.get("midrange_fga_pct", FEATURE_DEFAULTS["midrange_fga_pct"])),
                         # Player's shot-quality delta vs the league
                         # baseline. Proxy: TS% above league avg (~0.55)
                         # weighted by usage. High-usage above-average
@@ -1513,7 +1523,7 @@ def build_training_examples(
                         "dvp_tov_delta": float(dvp_deltas.get("dvp_tov_delta", 0.0)),
                         "dvp_fg3m_delta": float(dvp_deltas.get("dvp_fg3m_delta", 0.0)),
                         "usage_rate": float(hist["FGA"].mean() + hist["FTA"].mean() * 0.44 + hist["TOV"].mean() if all(c in hist.columns for c in ["FGA", "FTA", "TOV"]) else 0.0) / max(mins_season, 1) * 48,
-                        "true_shooting_pct": float(pts_mean / (2 * (fga_per_game + 0.44 * fta_per_game)) if (fga_per_game + 0.44 * fta_per_game) > 0 else 0.0),
+                        "true_shooting_pct": float(pts_mean / (2 * (fga_per_game + 0.44 * fta_per_game)) if (fga_per_game + 0.44 * fta_per_game) > 0 else FEATURE_DEFAULTS["true_shooting_pct"]),
                         "effective_fg_pct": float((_adv.get("efg_pct") or
                             (((hist["FGM"].mean() if "FGM" in hist.columns else fga_per_game * 0.47)
                               + 0.5 * (hist["FG3M"].mean() if "FG3M" in hist.columns else fg3a_per_game * 0.36))
@@ -1531,15 +1541,15 @@ def build_training_examples(
                         "travel_distance": float(_travel_dist),
                         "time_zone_change": float(_tz_change),
                         "arena_altitude":   float(_arena_info.get("altitude", 0.0)),
-                        "arena_capacity":   float(_arena_info.get("capacity", 18000.0)),
+                        "arena_capacity":   float(_arena_info.get("capacity", FEATURE_DEFAULTS["arena_capacity"])),
                         "home_court_advantage_rating": 3.5 if (is_home is not None and is_home) else (-3.5 if is_home is not None else 0.0),
                         "vs_team_win_pct": float(_vs_team_win_pct),
                         "vs_team_last_season_avg": float(_vs_opp_avg_pts) if _vs_opp_gp > 0 else float(season_avg),
                         "vs_team_home_away_split": float(_vs_team_home_away_split),
                         "clutch_minutes_per_game": float(_clt.get("clutch_min_pg", mins_season * 0.15)),
-                        "paint_fga_per_game": float(_sz.get("paint_fga_pct", 0.40)) * fga_per_game,
-                        "mid_range_fga_per_game": float(_sz.get("midrange_fga_pct", 0.25)) * fga_per_game,
-                        "rim_fga_per_game": float(_sz.get("rim_fga_pct", 0.35)) * fga_per_game,
+                        "paint_fga_per_game": float(_sz.get("paint_fga_pct", FEATURE_DEFAULTS["paint_fga_pct"])) * fga_per_game,
+                        "mid_range_fga_per_game": float(_sz.get("midrange_fga_pct", FEATURE_DEFAULTS["midrange_fga_pct"])) * fga_per_game,
+                        "rim_fga_per_game": float(_sz.get("rim_fga_pct", FEATURE_DEFAULTS["rim_fga_pct"])) * fga_per_game,
                         "corner_3_pct": float(fg3_pct_recent * 1.05),
                         "above_break_3_pct": fg3_pct_recent,
                         "coast_to_coast": float(_coast_to_coast),
@@ -1602,16 +1612,18 @@ def build_training_examples(
                         "opp_def_rating_last5": _rolling_team_stat(
                             _opp_recent_games, _pred_date_iso, "def_rating", 5,
                             float(_ts.get("opp_def_rating_last5",
-                                          (opp_ctx or {}).get("defensive_rating", 110.0))),
+                                          (opp_ctx or {}).get("defensive_rating",
+                                                              FEATURE_DEFAULTS["opp_def_rating_last5"]))),
                         ),
                         "opp_def_rating_last10": _rolling_team_stat(
                             _opp_recent_games, _pred_date_iso, "def_rating", 10,
-                            float((opp_ctx or {}).get("defensive_rating", 110.0)),
+                            float((opp_ctx or {}).get("defensive_rating",
+                                                      FEATURE_DEFAULTS["opp_def_rating_last10"])),
                         ),
                         "opp_def_rating_trend": float(_dvp_pts_delta_last5),
                         "opp_pace_last5": _rolling_team_stat(
                             _opp_recent_games, _pred_date_iso, "pace", 5,
-                            float((opp_ctx or {}).get("pace", 100.0)),
+                            float((opp_ctx or {}).get("pace", FEATURE_DEFAULTS["opp_pace_last5"])),
                         ),
                         "opp_win_rate_last10": _opp_win_rate_l10,
                         # Tier 8: Player Age & Experience (DB precomputed > CommonPlayerInfo)
@@ -1665,13 +1677,17 @@ def build_training_examples(
                         "oreb_rate": _oreb_rate,
                         "dreb_rate": _dreb_rate,
                         "total_reb_rate": _total_reb_rate,
-                        "rebound_contested_pct": min(1.0, float(_hsl.get("contested_shots_pg", 3.0)) / 10.0),
+                        "rebound_contested_pct": (
+                            min(1.0, float(_hsl["contested_shots_pg"]) / 10.0)
+                            if "contested_shots_pg" in _hsl
+                            else FEATURE_DEFAULTS["rebound_contested_pct"]
+                        ),
                         "rebound_positioning_score": float(reb_rate_per_36 / max(_total_reb_pg * 36 / max(mins_season, 1), 0.1)),
                         # Tier 9: Points in Paint (estimated)
-                        "paint_pts_per_game": float(_scr.get("pct_pts_paint", 0.35)) * pts_mean,
-                        "paint_attempts_per_game": float(_sz.get("paint_fga_pct", 0.40)) * fga_per_game,
-                        "paint_touch_to_points": float(_scr.get("pct_pts_paint", 0.35)) * pts_mean / max(float(_sz.get("paint_fga_pct", 0.40)) * fga_per_game, 0.1),
-                        "restricted_area_attempts": float(_sz.get("rim_fga_pct", 0.25)) * fga_per_game,
+                        "paint_pts_per_game": float(_scr.get("pct_pts_paint", FEATURE_DEFAULTS["pct_pts_paint"])) * pts_mean,
+                        "paint_attempts_per_game": float(_sz.get("paint_fga_pct", FEATURE_DEFAULTS["paint_fga_pct"])) * fga_per_game,
+                        "paint_touch_to_points": float(_scr.get("pct_pts_paint", FEATURE_DEFAULTS["pct_pts_paint"])) * pts_mean / max(float(_sz.get("paint_fga_pct", FEATURE_DEFAULTS["paint_fga_pct"])) * fga_per_game, 0.1),
+                        "restricted_area_attempts": float(_sz.get("rim_fga_pct", FEATURE_DEFAULTS["rim_fga_pct"])) * fga_per_game,
                         # Tier 9: Game Situation Performance (from W/L splits)
                         "performance_when_leading": _perf_lead,
                         "performance_when_trailing": _perf_trail,
@@ -1745,15 +1761,15 @@ def build_training_examples(
                         "on_court_plus_minus":  float(hist["PLUS_MINUS"].mean() if "PLUS_MINUS" in hist.columns else 0.0),
                         "off_court_plus_minus": float(_oo.get("off_court_net_rating", 0.0)),
                         # Shot zones (from player_shot_zones)
-                        "rim_fga_pct":          float(_sz.get("rim_fga_pct",          0.25)),
+                        "rim_fga_pct":          float(_sz.get("rim_fga_pct",          FEATURE_DEFAULTS["rim_fga_pct"])),
                         "rim_fg_pct":           float(_sz.get("rim_fg_pct",           0.62)),
-                        "paint_fga_pct":        float(_sz.get("paint_fga_pct",        0.30)),
+                        "paint_fga_pct":        float(_sz.get("paint_fga_pct",        FEATURE_DEFAULTS["paint_fga_pct"])),
                         "paint_fg_pct":         float(_sz.get("paint_fg_pct",         0.55)),
-                        "midrange_fga_pct":     float(_sz.get("midrange_fga_pct",     0.20)),
+                        "midrange_fga_pct":     float(_sz.get("midrange_fga_pct",     FEATURE_DEFAULTS["midrange_fga_pct"])),
                         "midrange_fg_pct":      float(_sz.get("midrange_fg_pct",      0.42)),
-                        "corner3_fga_pct":      float(_sz.get("corner3_fga_pct",      0.10)),
+                        "corner3_fga_pct":      float(_sz.get("corner3_fga_pct",      FEATURE_DEFAULTS["corner3_fga_pct"])),
                         "corner3_fg_pct":       float(_sz.get("corner3_fg_pct",       0.38)),
-                        "above_break3_fga_pct": float(_sz.get("above_break3_fga_pct", 0.25)),
+                        "above_break3_fga_pct": float(_sz.get("above_break3_fga_pct", FEATURE_DEFAULTS["above_break3_fga_pct"])),
                         "above_break3_fg_pct":  float(_sz.get("above_break3_fg_pct",  0.35)),
                         # Quarter splits (from player_quarter_splits)
                         "q1_avg":          float(_qs.get("q1_avg",    0.0)),
@@ -1776,12 +1792,12 @@ def build_training_examples(
                         "tracking_secondary_ast_pg":   float(_trk.get("secondary_ast_pg",   1.0)),
                         # Scoring breakdown (from player_scoring_breakdown)
                         "pct_pts_3pt":      float(_scr.get("pct_pts_3pt",      0.25)),
-                        "pct_pts_paint":    float(_scr.get("pct_pts_paint",    0.30)),
+                        "pct_pts_paint":    float(_scr.get("pct_pts_paint",    FEATURE_DEFAULTS["pct_pts_paint"])),
                         "pct_pts_ft":       float(_scr.get("pct_pts_ft",       0.15)),
                         "pct_pts_midrange": float(_scr.get("pct_pts_midrange", 0.20)),
                         "pct_uast_fgm":     float(_scr.get("pct_uast_fgm",    0.40)),
                         "pct_ast_fgm":      float(_scr.get("pct_ast_fgm",     0.60)),
-                        "pct_pts_in_paint": float(_scr.get("pct_pts_paint",    0.30)),
+                        "pct_pts_in_paint": float(_scr.get("pct_pts_paint",    FEATURE_DEFAULTS["pct_pts_paint"])),
                         "pct_pts_off_tov":  float(_scr.get("pct_pts_off_tov", 0.10)),
                         "pct_pts_fb":       float(_scr.get("pct_pts_fb",      0.12)),
                         # YoY stats (from player_yoy_stats)
