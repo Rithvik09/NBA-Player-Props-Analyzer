@@ -50,8 +50,9 @@ def _decide_result(side: str, line: float, actual: float) -> str:
 def settle_open_bets(db_path: str, *, dry_run: bool = False) -> dict:
     """Settle every open bet with a graded ``prediction_log_id``.
 
-    Returns counts of {settled, skipped, errors}. Skipped means the linked
-    prediction is still pending (actual_result is NULL).
+    Returns counts of {settled, skipped, errors}. Skipped means this run did
+    not settle the bet: either the linked prediction is still pending
+    (actual_result is NULL) or a concurrent settler claimed the row first.
     """
     # The SQLite file check became a connection-string check: there is no
     # file to stat, and resolve_dsn raises when none is configured.
@@ -87,6 +88,15 @@ def settle_open_bets(db_path: str, *, dry_run: bool = False) -> dict:
                       f"side={side} line={line} actual={actual} -> {result}")
             else:
                 out = tracker.settle(int(bet_id), result)
+                # settle() reports a lost compare-and-set rather than
+                # raising: the bankroll was credited by whoever won the
+                # race, not here. Counting it as settled inflates the tally
+                # and prints pnl=0.00 as though the bet had pushed.
+                if out.get("status") == "already_settled":
+                    print(f"[settle] bet#{bet_id} already settled by another "
+                          f"writer — bankroll left alone")
+                    skipped += 1
+                    continue
                 print(f"[settle] bet#{bet_id} -> {result} pnl={out['pnl']:.2f} "
                       f"new_balance={out['new_balance']:.2f}")
             settled += 1

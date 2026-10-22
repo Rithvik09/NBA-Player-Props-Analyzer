@@ -673,8 +673,12 @@ class BasketballBettingHelper:
             rows = [dict(zip(cols, row)) for row in cursor.fetchall()]
             conn.close()
             return rows
-        except Exception as e:
-            print(f"error fetching logs: {e}")
+        except Exception:
+            # Returning the empty container is deliberate — callers render
+            # it — but it used to be the *only* trace of a failure, and on
+            # print() rather than the logger, so a hard SQL error read as
+            # "no rows" all the way out to a 200.
+            log.exception("prediction log query failed")
             return []
 
     def get_accuracy_stats(self):
@@ -757,8 +761,8 @@ class BasketballBettingHelper:
                 'recent_accuracy': recent_accuracy,
                 'total_predictions': total_predictions,
             }
-        except Exception as e:
-            print(f"accuracy stats error: {e}")
+        except Exception:
+            log.exception("accuracy stats query failed")
             return {}
 
     def get_bias_report(self):
@@ -826,8 +830,8 @@ class BasketballBettingHelper:
                 'by_location': by_location,
                 'by_confidence': by_confidence,
             }
-        except Exception as e:
-            print(f"bias report error: {e}")
+        except Exception:
+            log.exception("bias report query failed")
             return {}
 
     def get_confidence_calibration_data(self):

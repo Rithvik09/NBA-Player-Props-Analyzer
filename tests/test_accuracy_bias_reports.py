@@ -197,3 +197,42 @@ def test_reports_contain_no_decimals(helper, report):
 
     for key, value in _walk(getattr(helper, report)()):
         assert not isinstance(value, Decimal), f"{key} is a Decimal: {value!r}"
+
+
+
+# ------------------------------------------------- the blanket except itself
+
+@pytest.mark.parametrize("method, empty", [
+    ("get_prediction_logs", []),
+    ("get_accuracy_stats", {}),
+    ("get_bias_report", {}),
+])
+def test_report_errors_are_logged_not_swallowed(method, empty, monkeypatch, caplog):
+    """An induced SQL error must reach the structured log.
+
+    Both PostgreSQL bugs above shipped because these handlers answered
+    ``print()`` + an empty container: the endpoint returned 200 with nothing
+    in it and nothing landed in the logs. The empty return is deliberate —
+    callers depend on the shape — so visibility is the whole fix.
+    """
+    import logging
+
+    import psycopg
+
+    helper = BasketballBettingHelper.__new__(BasketballBettingHelper)
+    boom = psycopg.ProgrammingError('column "edge" does not exist')
+
+    def _explode():
+        raise boom
+
+    monkeypatch.setattr(helper, "get_db", _explode)
+
+    with caplog.at_level(logging.ERROR, logger="src.basketball_betting_helper"):
+        assert getattr(helper, method)() == empty
+
+    errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert errors, f"{method} swallowed the error with nothing in the log"
+    assert any(r.exc_info for r in errors), (
+        f"{method} logged without a traceback — use log.exception so the "
+        f"failing SQL is identifiable"
+    )
