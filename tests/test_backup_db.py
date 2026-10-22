@@ -8,7 +8,9 @@ usable database.
 from __future__ import annotations
 
 import os
+import re
 import shutil
+import stat
 import subprocess
 from pathlib import Path
 
@@ -23,9 +25,17 @@ def _have(*tools: str) -> bool:
 
 
 pytestmark = pytest.mark.skipif(
-    not _have("pg_dump", "psql", "gzip", "gunzip", "bash"),
-    reason="needs pg_dump/psql/gzip/bash on PATH",
+    not _have("pg_dump", "psql", "gzip", "gunzip", "bash", "python3"),
+    reason="needs pg_dump/psql/gzip/bash/python3 on PATH",
 )
+
+
+def _env(tmp_path: Path, dsn: str) -> dict:
+    """Environment for a script run: the DSN arrives here, never in argv."""
+    env = os.environ.copy()
+    env["BACKUP_DIR"] = str(tmp_path / "out")
+    env["DATABASE_URL"] = dsn
+    return env
 
 
 @pytest.fixture
@@ -52,10 +62,9 @@ def seeded_db(pg_dsn):
 
 
 def test_backup_creates_compressed_file(seeded_db, tmp_path):
-    env = os.environ.copy()
-    env["BACKUP_DIR"] = str(tmp_path / "out")
+    env = _env(tmp_path, seeded_db)
     r = subprocess.run(
-        ["bash", str(SCRIPT), seeded_db],
+        ["bash", str(SCRIPT)],
         env=env, capture_output=True, text=True, timeout=60,
     )
     assert r.returncode == 0, r.stderr
@@ -65,10 +74,9 @@ def test_backup_creates_compressed_file(seeded_db, tmp_path):
 
 
 def test_backup_round_trips_data(seeded_db, tmp_path):
-    env = os.environ.copy()
-    env["BACKUP_DIR"] = str(tmp_path / "out")
+    env = _env(tmp_path, seeded_db)
     subprocess.run(
-        ["bash", str(SCRIPT), seeded_db],
+        ["bash", str(SCRIPT)],
         env=env, check=True, timeout=60, capture_output=True,
     )
     backup_gz = next((tmp_path / "out").glob("*.sql.gz"))
@@ -85,6 +93,7 @@ def test_backup_missing_dsn_errors(tmp_path):
     env = os.environ.copy()
     env["BACKUP_DIR"] = str(tmp_path)
     env.pop("DATABASE_URL", None)
+    env.pop("TEST_DATABASE_URL", None)
     r = subprocess.run(
         ["bash", str(SCRIPT)],
         env=env, capture_output=True, text=True, timeout=10,
@@ -94,10 +103,10 @@ def test_backup_missing_dsn_errors(tmp_path):
 
 
 def test_backup_unreachable_db_errors(tmp_path):
-    env = os.environ.copy()
+    env = _env(tmp_path, "postgresql:///definitely_not_a_database_here")
     env["BACKUP_DIR"] = str(tmp_path)
     r = subprocess.run(
-        ["bash", str(SCRIPT), "postgresql:///definitely_not_a_database_here"],
+        ["bash", str(SCRIPT)],
         env=env, capture_output=True, text=True, timeout=30,
     )
     assert r.returncode != 0
@@ -105,11 +114,120 @@ def test_backup_unreachable_db_errors(tmp_path):
 
 
 def test_backup_keep_flag_validates_integer(seeded_db, tmp_path):
-    env = os.environ.copy()
-    env["BACKUP_DIR"] = str(tmp_path / "out")
+    env = _env(tmp_path, seeded_db)
     r = subprocess.run(
-        ["bash", str(SCRIPT), seeded_db, "--keep", "not-a-number"],
+        ["bash", str(SCRIPT), "--keep", "not-a-number"],
         env=env, capture_output=True, text=True, timeout=60,
     )
     assert r.returncode != 0
     assert "non-negative integer" in r.stderr
+
+
+# ---------------------------------------------------------------------------
+# The dump holds every bet, bankroll row and prediction, and the DSN that
+# produced it holds the password. Neither may escape into a filename, into
+# pg_dump's argv (visible in `ps` for the whole dump) or into a
+# world-readable file.
+# ---------------------------------------------------------------------------
+
+SENTINEL = "Sw0rdf1shTunaMackerel"
+
+LEAKY_DSNS = {
+    "url": f"postgresql://leakuser:{SENTINEL}@127.0.0.1:1/nba_props",
+    "keyword_value": (
+        f"host=127.0.0.1 port=1 user=leakuser password={SENTINEL} "
+        f"dbname=nba_props"
+    ),
+}
+
+
+@pytest.fixture
+def fake_pg_dump(tmp_path):
+    """A pg_dump stub that records its argv and environment.
+
+    The real one cannot be asked what it was called with, and the point of
+    this fix is exactly what lands in argv.
+    """
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    argv_log = tmp_path / "argv.txt"
+    env_log = tmp_path / "env.txt"
+    stub = bindir / "pg_dump"
+    stub.write_text(
+        "#!/usr/bin/env bash\n"
+        f'printf "%s\\n" "$@" > {argv_log}\n'
+        f"env > {env_log}\n"
+        'out=""\n'
+        'for a in "$@"; do case "$a" in --file=*) out="${a#--file=}" ;; esac; done\n'
+        "printf -- '-- fake dump\\n-- PostgreSQL database dump complete\\n' > \"$out\"\n"
+    )
+    stub.chmod(0o755)
+    return bindir, argv_log, env_log
+
+
+@pytest.mark.parametrize("shape", sorted(LEAKY_DSNS))
+def test_password_never_reaches_pg_dump_argv(shape, tmp_path, fake_pg_dump):
+    bindir, argv_log, env_log = fake_pg_dump
+    env = _env(tmp_path, LEAKY_DSNS[shape])
+    env["PATH"] = f"{bindir}:{env['PATH']}"
+    r = subprocess.run(["bash", str(SCRIPT)], env=env,
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    assert SENTINEL not in argv_log.read_text()
+    # …but it still has to reach libpq, or the backup silently stops working.
+    assert f"PGPASSWORD={SENTINEL}" in env_log.read_text()
+
+
+@pytest.mark.parametrize("shape", sorted(LEAKY_DSNS))
+def test_password_never_reaches_the_filename(shape, tmp_path, fake_pg_dump):
+    bindir, _argv_log, _env_log = fake_pg_dump
+    env = _env(tmp_path, LEAKY_DSNS[shape])
+    env["PATH"] = f"{bindir}:{env['PATH']}"
+    r = subprocess.run(["bash", str(SCRIPT)], env=env,
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    names = [p.name for p in (tmp_path / "out").iterdir()]
+    assert names == [n for n in names if SENTINEL not in n]
+    # Named after the database, nothing else.
+    assert re.fullmatch(r"nba_props_\d{8}_\d{6}\.sql\.gz", names[0]), names
+
+
+@pytest.mark.parametrize("shape", sorted(LEAKY_DSNS))
+def test_password_never_reaches_stdout_or_stderr(shape, tmp_path, fake_pg_dump):
+    bindir, _a, _e = fake_pg_dump
+    env = _env(tmp_path, LEAKY_DSNS[shape])
+    env["PATH"] = f"{bindir}:{env['PATH']}"
+    r = subprocess.run(["bash", str(SCRIPT)], env=env,
+                       capture_output=True, text=True, timeout=60)
+    assert SENTINEL not in r.stdout + r.stderr
+
+
+def test_a_dsn_on_the_command_line_is_refused(tmp_path):
+    """It used to be the documented way to call this, which put the
+    password in shell history, in the crontab line and in `ps`."""
+    env = _env(tmp_path, "postgresql:///nba_props_test")
+    r = subprocess.run(
+        ["bash", str(SCRIPT), LEAKY_DSNS["url"]],
+        env=env, capture_output=True, text=True, timeout=30,
+    )
+    assert r.returncode != 0
+    assert "DATABASE_URL" in r.stderr
+    assert SENTINEL not in r.stdout + r.stderr
+    assert not list((tmp_path / "out").glob("*")) if (tmp_path / "out").exists() else True
+
+
+def test_backup_file_is_not_world_readable(seeded_db, tmp_path):
+    """Default umask 022 left the dump 0644; gzip -f preserved that."""
+    env = _env(tmp_path, seeded_db)
+    subprocess.run(["bash", str(SCRIPT)], env=env, check=True,
+                   timeout=60, capture_output=True)
+    backup = next((tmp_path / "out").glob("*.sql.gz"))
+    assert stat.S_IMODE(backup.stat().st_mode) == 0o600
+
+
+def test_backup_is_named_after_the_database(seeded_db, tmp_path):
+    env = _env(tmp_path, seeded_db)
+    subprocess.run(["bash", str(SCRIPT)], env=env, check=True,
+                   timeout=60, capture_output=True)
+    backup = next((tmp_path / "out").glob("*.sql.gz"))
+    assert re.fullmatch(r"nba_props_test_\d{8}_\d{6}\.sql\.gz", backup.name)
