@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import os
 import re
+from urllib.parse import unquote
 
 import psycopg
 from psycopg.rows import dict_row  # noqa: F401  (re-exported for call sites)
@@ -25,6 +26,7 @@ from psycopg.rows import dict_row  # noqa: F401  (re-exported for call sites)
 __all__ = [
     "connect",
     "resolve_dsn",
+    "scrub_credentials",
     "dict_row",
     "DSN_ENV_VAR",
     "table_columns",
@@ -59,12 +61,90 @@ def resolve_dsn(dsn: str | None = None) -> str:
             f"{DSN_ENV_VAR} (e.g. postgresql://user@localhost/nba_props)."
         )
     if _looks_like_a_file_path(candidate):
+        # The candidate is deliberately not quoted back. The guard skips
+        # anything holding "://" or "=", but a near-miss typo like
+        # "postgres:/user:pw@host/x.db" — one slash short of a URL —
+        # reaches here carrying a password, and this message ends up in
+        # logs and HTTP bodies.
         raise ValueError(
-            f"{candidate!r} looks like a SQLite file path, not a PostgreSQL "
-            f"DSN. This project moved to PostgreSQL — set {DSN_ENV_VAR} or "
-            f"pass --db postgresql://..."
+            f"The connection string looks like a SQLite file path, not a "
+            f"PostgreSQL DSN (it is not echoed here: it may carry a "
+            f"password). This project moved to PostgreSQL — set "
+            f"{DSN_ENV_VAR} or pass --db postgresql://..."
         )
     return candidate
+
+
+# ---------------------------------------------------------------------------
+# Credential scrubbing
+#
+# libpq quotes the offending token back on a parse error — a password
+# holding a bare "%" produces ``invalid percent-encoded token: "<pw>"`` —
+# and names the connection target when a connection fails. Those strings
+# used to travel out of :func:`connect` into ``jsonify({'error': str(e)})``
+# on routes that need no authentication, so they are scrubbed here, at the
+# one place that knows the DSN.
+# ---------------------------------------------------------------------------
+
+_REDACTED = "[redacted]"
+
+# ``scheme://user:pass@`` anywhere in a message. Matches the whole
+# userinfo segment rather than just the password: the username is half a
+# credential on its own.
+_URL_CREDENTIALS_RE = re.compile(r"\b([a-zA-Z][a-zA-Z0-9+.\-]*://)[^\s/?#@]*@")
+
+# ``password=secret`` / ``password = 'se cret'`` in libpq keyword/value form.
+_KEYWORD_PASSWORD_RE = re.compile(
+    r"(?i)\bpassword\s*=\s*('(?:[^'\\]|\\.)*'|\S+)"
+)
+
+_URL_USERINFO_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.\-]*://([^/?#@]*)@")
+
+
+def _secret_tokens(dsn: str | None) -> list[str]:
+    """Every substring of ``dsn`` that must not survive into a message.
+
+    Longest first, so replacing the password does not leave the rest of
+    the DSN — which contains it — stranded in the output.
+    """
+    candidate = (dsn or "").strip() or os.environ.get(DSN_ENV_VAR, "").strip()
+    if not candidate:
+        return []
+    tokens = {candidate}
+    match = _URL_USERINFO_RE.match(candidate)
+    if match:
+        userinfo = match.group(1)
+        tokens.add(userinfo)
+        if ":" in userinfo:
+            password = userinfo.split(":", 1)[1]
+            # libpq percent-decodes the userinfo, so a message can quote
+            # either spelling depending on how far the connection got.
+            tokens.update({password, unquote(password)})
+    for match in _KEYWORD_PASSWORD_RE.finditer(candidate):
+        value = match.group(1)
+        tokens.update({value, value.strip("'")})
+    return sorted((t for t in tokens if t), key=len, reverse=True)
+
+
+def scrub_credentials(text: str, dsn: str | None = None) -> str:
+    """Remove DSN credentials from ``text``.
+
+    Two passes. The first strips literal pieces of ``dsn`` — the whole
+    string, its ``user:pass`` segment, the password both raw and
+    percent-decoded — which catches the tokens libpq quotes back without
+    any surrounding syntax. ``dsn`` defaults to ``DATABASE_URL`` so
+    call sites that only have a message (the odds poller's last-error
+    field, say) still get the configured credentials removed.
+
+    The second is syntactic and catches credentials this process never
+    resolved: any ``scheme://user:pass@`` and any ``password=...``.
+    """
+    out = str(text)
+    for token in _secret_tokens(dsn):
+        out = out.replace(token, _REDACTED)
+    out = _URL_CREDENTIALS_RE.sub(rf"\g<1>{_REDACTED}@", out)
+    out = _KEYWORD_PASSWORD_RE.sub(f"password={_REDACTED}", out)
+    return out
 
 
 def connect(dsn: str | None = None, *, row_factory=None, autocommit: bool = False):
@@ -73,11 +153,26 @@ def connect(dsn: str | None = None, *, row_factory=None, autocommit: bool = Fals
     ``row_factory`` defaults to psycopg's tuple rows, which is what the
     old SQLite default produced. Call sites that used to set a
     ``Row``-style factory pass ``row_factory=dict_row``.
+
+    A failure is re-raised as the same psycopg class with a scrubbed
+    message, so no caller can print the password by printing the error.
     """
     kwargs = {"autocommit": autocommit}
     if row_factory is not None:
         kwargs["row_factory"] = row_factory
-    return psycopg.connect(resolve_dsn(dsn), **kwargs)
+    resolved = resolve_dsn(dsn)
+    try:
+        return psycopg.connect(resolved, **kwargs)
+    except psycopg.Error as exc:
+        # ``from None``: the original holds the DSN in its own ``args``
+        # and (for connection errors) a PGconn that can be asked for the
+        # password, so chaining it would hand both back to the caller.
+        message = scrub_credentials(str(exc), resolved)
+        try:
+            scrubbed = type(exc)(message)
+        except Exception:  # noqa: BLE001 — exotic subclass, still must not leak
+            scrubbed = psycopg.Error(message)
+        raise scrubbed from None
 
 
 # ---------------------------------------------------------------------------

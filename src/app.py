@@ -185,10 +185,14 @@ if _odds_key:
 # on a night with no NBA a capture stores nothing and says so loudly (see the
 # canary in src/betting_splits.py).
 #
-# On by default. Set BETTING_SPLITS_POLL=0 to stop it — the test suite does,
-# so no test run reaches the live endpoint.
+# Off by default, like its sibling ODDS_PROP_POLL: set BETTING_SPLITS_POLL=1
+# to collect. It used to default on, which made tests/conftest.py forcing the
+# flag to "0" the only thing between the suite and the live endpoint — and
+# any entry point that does not load that conftest would have missed it.
+# A disabled run says so at startup, so an empty betting_splits_history is
+# never a silent mystery.
 _splits_poll_interval = int(os.environ.get('BETTING_SPLITS_POLL_INTERVAL', 1200))
-_splits_poll_enabled = os.environ.get('BETTING_SPLITS_POLL', '1').strip().lower() in ('1', 'true', 'yes')
+_splits_poll_enabled = os.environ.get('BETTING_SPLITS_POLL', '0').strip().lower() in ('1', 'true', 'yes')
 
 def _betting_splits_loop():
     from src.betting_splits import BettingSplitsTracker
@@ -207,6 +211,9 @@ if _splits_poll_enabled:
     threading.Thread(target=_betting_splits_loop, daemon=True,
                      name='betting-splits').start()
     app.logger.info(f'Betting splits poller started (every {_splits_poll_interval}s)')
+else:
+    app.logger.info('Betting splits poller disabled (BETTING_SPLITS_POLL is not '
+                    'set to 1) — betting_splits_history will not grow')
 
 def _startup_auto_grade():
     try:
@@ -308,10 +315,10 @@ def healthz():
     checks: dict = {}
 
     # 1. Bankroll DB schema
+    from . import db as _db
     try:
         bt = _BT(betting_helper.db_name)
         from .bankroll import _current_user_version
-        from . import db as _db
         conn = _db.connect(bt.db_path)
         try:
             v = _current_user_version(conn)
@@ -323,7 +330,13 @@ def healthz():
             "target": _TARGET_VERSION,
         }
     except Exception as e:  # noqa: BLE001
-        checks["bankroll_db"] = {"ok": False, "error": str(e)}
+        # /healthz is unauthenticated, so the caller gets a constant.
+        # libpq errors name the host, the user and — before db.connect
+        # scrubbed them — the password; that detail goes to the log,
+        # where it is useful and not world-readable.
+        app.logger.warning("healthz: bankroll db check failed: %s",
+                           _db.scrub_credentials(str(e)))
+        checks["bankroll_db"] = {"ok": False, "error": "db unavailable"}
 
     # 2. Model artifacts on disk
     models_dir = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "models")
@@ -1045,7 +1058,11 @@ def healthz_clv():
         finally:
             conn.close()
     except Exception as e:  # noqa: BLE001
-        return jsonify({"error": f"healthz/clv read failed: {e}"}), 500
+        # Same reasoning as /healthz: constant for the anonymous caller,
+        # detail in the log.
+        app.logger.warning("healthz/clv read failed: %s",
+                           _db.scrub_credentials(str(e)))
+        return jsonify({"error": "db unavailable"}), 500
 
     last = last_poll_status()
     out["last_close_captured_at"] = last.get("closes_checked_at")

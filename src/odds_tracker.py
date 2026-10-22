@@ -1314,7 +1314,10 @@ def poll_odds(api_key: str, db_path: str | None = None) -> int:
         log.info(f"[odds] Poll complete: {count} lines stored")
         return count
     except Exception as exc:  # noqa: BLE001
-        _LAST_POLL["error"] = f"{type(exc).__name__}: {exc}"
+        # /odds/status is unauthenticated and returns this field verbatim,
+        # so anything DSN-shaped in the message comes out here.
+        _LAST_POLL["error"] = db.scrub_credentials(
+            f"{type(exc).__name__}: {exc}")
         log.exception("[odds] Poll failed")
         return 0
 

@@ -172,9 +172,11 @@ export ODDS_REGIONS=us,eu                     # capture regions; "eu" is where P
 export ODDS_QUOTA_FLOOR=50                    # refuse captures below this many credits
 
 # Public/sharp betting splits from Action Network's scoreboard feed. Free,
-# keyless and independent of ODDS_API_KEY, so this poller runs whether or not
-# an Odds API account exists. Cadence is courtesy, not budget.
-export BETTING_SPLITS_POLL=1                  # on by default; 0 stops the poller
+# keyless and independent of ODDS_API_KEY, so it runs whether or not an Odds
+# API account exists — but it is OFF until you set the flag, so no process
+# reaches a live endpoint just by importing the app. Cadence is courtesy,
+# not budget. A run with the flag unset says so at startup.
+export BETTING_SPLITS_POLL=1                  # off by default; must be enabled explicitly
 export BETTING_SPLITS_POLL_INTERVAL=1200      # seconds between polls (20 min default)
 export BETTING_SPLITS_USER_AGENT="..."        # overrides the identity we send
 ```
@@ -205,10 +207,11 @@ python3 run.py
 
 When `ODDS_API_KEY` is set, a background thread polls prop lines every 60 minutes and a close-line sweeper runs every 5 minutes on game days. The sweeper also takes the two daily game-line snapshots (`open`, `close`) into `game_line_history` — twice a game day rather than hourly, because on the free 500-credit tier a 6-credit capture every hour would exhaust the month in under a week.
 
-A third thread polls Action Network's public-betting scoreboard every 20
-minutes into `betting_splits_history`: per book and per market, the share of
-tickets and the share of money on each side. That endpoint is free, keyless
-and undocumented, so the poller is gated on nothing — and shouts at ERROR
+With `BETTING_SPLITS_POLL=1`, a third thread polls Action Network's
+public-betting scoreboard every 20 minutes into `betting_splits_history`: per
+book and per market, the share of tickets and the share of money on each side.
+That endpoint is free, keyless and undocumented, so the poller is gated on no
+API key — only on that flag, which must be set explicitly. It shouts at ERROR
 whenever a poll parses but yields no splits, because an empty table otherwise
 looks identical to a night with no NBA.
 

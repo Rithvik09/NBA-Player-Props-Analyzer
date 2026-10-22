@@ -14,6 +14,7 @@ suite off the network.
 from __future__ import annotations
 
 import importlib
+import logging
 import sys
 
 import pytest
@@ -56,11 +57,25 @@ def test_splits_poller_starts_without_an_odds_api_key(import_app):
     assert "close-sweeper" not in started  # that one does need the key
 
 
-def test_splits_poller_is_on_by_default(import_app):
+def test_splits_poller_is_off_by_default(import_app):
+    """Off unless asked for, like its sibling ODDS_PROP_POLL.
+
+    It used to default on, which left ``tests/conftest.py`` forcing it to
+    "0" as the only thing standing between the suite and the live Action
+    Network endpoint — a guard any entry point that skips that conftest
+    would walk straight past.
+    """
     mod, started = import_app(ODDS_API_KEY=None, BETTING_SPLITS_POLL=None,
                               AUTO_JOBS="0")
-    assert mod._splits_poll_enabled is True
-    assert "betting-splits" in started
+    assert mod._splits_poll_enabled is False
+    assert "betting-splits" not in started
+
+
+def test_disabled_splits_poller_says_so(import_app, caplog):
+    """An empty betting_splits_history must not be a silent mystery."""
+    with caplog.at_level(logging.INFO):
+        import_app(ODDS_API_KEY=None, BETTING_SPLITS_POLL="0", AUTO_JOBS="0")
+    assert "BETTING_SPLITS_POLL" in caplog.text
 
 
 def test_splits_poller_can_be_switched_off(import_app):
