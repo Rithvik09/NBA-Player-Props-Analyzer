@@ -448,7 +448,9 @@ class EnhancedMLPredictor:
 
             position_matchup = self.get_position_matchup_stats(position, opponent_team_id)
 
-            team_id = int(player_info['TEAM_ID'].iloc[0])
+            from .current_rosters import current_player
+            current = current_player(player_id)
+            team_id = current['team_id'] if current else int(player_info['TEAM_ID'].iloc[0])
 
             return {
                 'position': position,
@@ -1213,8 +1215,8 @@ class EnhancedMLPredictor:
         features.setdefault('ft_rate', _fta / max(_fga, 1.0))
         features.setdefault('fta_rate_player', _fta / max(_fga, 1.0))
         features.setdefault('ft_attempts_per_game', _fta)
-        features.setdefault('fouls_drawn_per_game', _fta * 0.6)
-        features.setdefault('and_one_frequency', _fta * 0.05)
+        features.setdefault('fouls_drawn_per_game', _fta * 0.44)
+        features.setdefault('and_one_frequency', min(0.3, _fta / max(_fga * 3, 1.0)))
         features.setdefault('foul_drawing_ability',
                             _fta / _per36 if _mins_season > 0 else 0.0)
 
@@ -1319,27 +1321,22 @@ class EnhancedMLPredictor:
         features.setdefault('front_court_touches_per_game', _touches * 0.7)
 
         # Shot clock / shot timing
-        features.setdefault('avg_shot_clock_time', 14.0)
+        features.setdefault('avg_shot_clock_time', 24.0 - 0.12 * features.get('team_pace', FEATURE_DEFAULTS['team_pace']))
         features.setdefault('avg_shot_distance', FEATURE_DEFAULTS['avg_shot_distance'])
-        features.setdefault('late_clock_shot_frequency', 0.15)
-        features.setdefault('early_clock_shot_frequency', 0.20)
+        features.setdefault('late_clock_shot_frequency', max(0.05, 0.30 - 0.0015 * features.get('team_pace', FEATURE_DEFAULTS['team_pace'])))
+        features.setdefault('early_clock_shot_frequency', min(0.45, 0.10 + 0.0015 * features.get('team_pace', FEATURE_DEFAULTS['team_pace'])))
         features.setdefault('shot_quality_vs_expected', features.get('ts_vs_zone_expected', 0.0))
 
         # Lineup / role features
         features.setdefault('net_rating_with_starters', features.get('on_court_net_rating', 0.0))
-        # usage_rate is now possessions per 48. This feature's own formula
-        # is a separate divergence from training (which uses FGA/game * 1.1)
-        # and is deliberately left where it was, so convert back to the
-        # per-game basis rather than silently scaling it up by mins/48.
-        _usage_pg = (features.get('usage_rate', FEATURE_DEFAULTS['usage_rate'])
-                     * max(features.get('mins_season', 24.0), 1.0) / 48.0)
-        features.setdefault('usage_rate_with_star_out', _usage_pg * 1.05)
-        features.setdefault('minutes_with_starting_lineup_pct', 0.6)
+        features.setdefault('usage_rate_with_star_out', features.get('fga_per_game', 0.0) * 1.1)
+        features.setdefault('minutes_with_starting_lineup_pct', min(
+            0.85, max(0.20, 0.20 + features.get('mins_season', 24.0) / 36.0 * 0.65)))
         features.setdefault('five_man_unit_net_rating', features.get('on_court_net_rating', 0.0))
         features.setdefault('lineups_played_count', 50.0)
         features.setdefault('off_court_plus_minus', features.get('off_court_net_rating', 0.0))
         features.setdefault('on_court_plus_minus', features.get('on_court_net_rating', 0.0))
-        features.setdefault('top_lineup_minutes_pct', 0.4)
+        features.setdefault('top_lineup_minutes_pct', min(0.85, max(0.20, 0.20 + features.get('mins_season', 24.0) / 36.0 * 0.65)))
         features.setdefault('net_rating', features.get('net_rating_player', 0.0))
         features.setdefault('lineup_continuity', 0.7)
         features.setdefault('lineup_stability_score', float(player_stats.get('lineup_stability_score', 0.7)))
@@ -1365,7 +1362,7 @@ class EnhancedMLPredictor:
         # Reading usage_rate here fed a ~30 into a feature fitted on ~0.3.
         features.setdefault('fourth_quarter_usage_rate', 0.15 + 0.005 * max(
             0.0, min(30.0, float(features.get('mins_season', 24.0)))))
-        features.setdefault('crunch_time_usage', features.get('clutch_min_per_game', 0.0))
+        features.setdefault('crunch_time_usage', 0.13 + 0.0055 * max(0.0, min(30.0, _mins_season)))
         features.setdefault('garbage_time_minutes_pct', FEATURE_DEFAULTS['garbage_time_minutes_pct'])
         features.setdefault('typical_substitution_minute', 20.0)
 
@@ -1563,6 +1560,8 @@ class EnhancedMLPredictor:
         features.setdefault('is_forward', 1.0 if 'F' in _pos_u else 0.0)
         features.setdefault('is_center', 1.0 if 'C' in _pos_u else 0.0)
 
+        from src.feature_context import apply_serving_context
+        apply_serving_context(features, player_stats, team_context, opponent_context)
         return features
 
     def predict(self, features, line, prop_type=None):

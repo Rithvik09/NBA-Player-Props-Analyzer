@@ -405,10 +405,10 @@ def main():
                         "must_win_situation": 0.0,
                         "games_back_from_playoff": 0.0,
                         # Tier 5: Rotation Patterns (estimate from minutes)
-                        "fourth_quarter_usage_rate": 0.25 if mins_season > 30 else 0.18,
+                        "fourth_quarter_usage_rate": 0.15 + 0.005 * max(0.0, min(30.0, mins_season)),
                         "garbage_time_minutes_pct": float(blowout_game_pct * 0.15),
                         "typical_substitution_minute": float(min(48.0, mins_season + 3.0)),
-                        "crunch_time_usage": 0.28 if mins_season > 28 else 0.15,
+                        "crunch_time_usage": 0.13 + 0.0055 * max(0.0, min(30.0, mins_season)),
                         # Tier 5: Specific Matchup History (would need opponent tracking)
                         "career_vs_defender": 0.0,
                         "recent_vs_defender": 0.0,
@@ -426,9 +426,9 @@ def main():
                         "restricted_area_fg_pct": float(fg_pct_recent),
                         "mid_range_frequency": FEATURE_DEFAULTS["midrange_fga_pct"],
                         "shot_quality_vs_expected": 0.0,
-                        "avg_shot_clock_time": 12.0,
-                        "late_clock_shot_frequency": 0.15,
-                        "early_clock_shot_frequency": 0.25,
+                        "avg_shot_clock_time": 24.0 - 0.12 * float(team_ctx.get("pace", 100.0)),
+                        "late_clock_shot_frequency": max(0.05, 0.30 - 0.0015 * float(team_ctx.get("pace", 100.0))),
+                        "early_clock_shot_frequency": min(0.45, 0.10 + 0.0015 * float(team_ctx.get("pace", 100.0))),
                         # Tier 6: Touch & Usage (estimated from usage rate)
                         "touches_per_game": float(hist["FGA"].mean() + hist["AST"].mean() if "FGA" in hist.columns and "AST" in hist.columns else 0.0),
                         "avg_dribbles_per_touch": 2.0,
@@ -443,7 +443,7 @@ def main():
                         # Tier 6: Lineup Context (estimated)
                         "net_rating_with_starters": 0.0,
                         "usage_rate_with_star_out": float(hist["FGA"].mean() * 1.1 if "FGA" in hist.columns else 0.0),
-                        "minutes_with_starting_lineup_pct": 0.65 if mins_season > 25 else 0.35,
+                        "minutes_with_starting_lineup_pct": min(0.85, max(0.20, 0.20 + mins_season / 36.0 * 0.65)),
                         "five_man_unit_net_rating": 0.0,
                         "on_court_net_rating": float(hist["PLUS_MINUS"].mean() if "PLUS_MINUS" in hist.columns else 0.0),
                         "off_court_net_rating": 0.0,

@@ -1,0 +1,506 @@
+{
+  "fixture": "14 identical games; absent precomputes; points; diagnostic differences, not all are defects",
+  "feature_count": 416,
+  "differences": [
+    {
+      "feature": "games_played",
+      "train": 10,
+      "serve": 13
+    },
+    {
+      "feature": "rest_days",
+      "train": 1.0,
+      "serve": 2.0
+    },
+    {
+      "feature": "is_home_game_num",
+      "train": 1.0,
+      "serve": 0.5
+    },
+    {
+      "feature": "team_key_players_out",
+      "train": 0,
+      "serve": null
+    },
+    {
+      "feature": "opp_key_players_out",
+      "train": 0,
+      "serve": null
+    },
+    {
+      "feature": "opp_injury_impact",
+      "train": 0.0,
+      "serve": null
+    },
+    {
+      "feature": "lg_pts_fb",
+      "train": 14.3,
+      "serve": 12.0
+    },
+    {
+      "feature": "lg_opp_pts_fb",
+      "train": 14.3,
+      "serve": 12.0
+    },
+    {
+      "feature": "lg_pts_off_tov",
+      "train": 15.9,
+      "serve": 16.0
+    },
+    {
+      "feature": "lg_opp_pts_off_tov",
+      "train": 15.9,
+      "serve": 16.0
+    },
+    {
+      "feature": "lg_fga",
+      "train": 88.4,
+      "serve": 86.0
+    },
+    {
+      "feature": "lg_fg_pct",
+      "train": 0.467,
+      "serve": 0.47
+    },
+    {
+      "feature": "lg_fg3a",
+      "train": 37.5,
+      "serve": 35.0
+    },
+    {
+      "feature": "lg_tov",
+      "train": 13.9,
+      "serve": 14.0
+    },
+    {
+      "feature": "lg_stl",
+      "train": 7.6,
+      "serve": 7.0
+    },
+    {
+      "feature": "vs_team_avg",
+      "train": 0.0,
+      "serve": null
+    },
+    {
+      "feature": "matchup_games",
+      "train": 0,
+      "serve": null
+    },
+    {
+      "feature": "fg3_pct_recent",
+      "train": 0.36,
+      "serve": 0.33
+    },
+    {
+      "feature": "plus_minus_avg",
+      "train": 3.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "win_rate_last10",
+      "train": 1.0,
+      "serve": 0.5
+    },
+    {
+      "feature": "true_shooting_pct",
+      "train": 0.5966587112171837,
+      "serve": 0.55
+    },
+    {
+      "feature": "effective_fg_pct",
+      "train": 0.5333333333333333,
+      "serve": 0.5
+    },
+    {
+      "feature": "assist_percentage",
+      "train": 0.26666666666666666,
+      "serve": 0.15
+    },
+    {
+      "feature": "rebound_percentage",
+      "train": 0.05,
+      "serve": 0.1
+    },
+    {
+      "feature": "corner_3_pct",
+      "train": 0.378,
+      "serve": 0.38
+    },
+    {
+      "feature": "above_break_3_pct",
+      "train": 0.36,
+      "serve": 0.35
+    },
+    {
+      "feature": "clutch_minutes_per_game",
+      "train": 4.5,
+      "serve": 0.0
+    },
+    {
+      "feature": "travel_distance",
+      "train": 0.0,
+      "serve": 1000.0
+    },
+    {
+      "feature": "on_court_plus_minus",
+      "train": 3.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "net_rating",
+      "train": 3.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "vs_team_last_season_avg",
+      "train": 20.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "vs_team_win_pct",
+      "train": 1.0,
+      "serve": 0.5
+    },
+    {
+      "feature": "arena_altitude",
+      "train": 10.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "arena_capacity",
+      "train": 19156.0,
+      "serve": 18000.0
+    },
+    {
+      "feature": "home_court_advantage_rating",
+      "train": 0.0,
+      "serve": 3.0
+    },
+    {
+      "feature": "model_accuracy_player",
+      "train": 0.85,
+      "serve": 0.55
+    },
+    {
+      "feature": "calibration_score_player",
+      "train": 0.9,
+      "serve": 0.5
+    },
+    {
+      "feature": "ast_to_tov_ratio",
+      "train": 2.0,
+      "serve": 1.5
+    },
+    {
+      "feature": "reb_rate_per_36",
+      "train": 6.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "minutes_volatility",
+      "train": 0.0,
+      "serve": 3.0
+    },
+    {
+      "feature": "blowout_game_pct",
+      "train": 0.0,
+      "serve": 0.2
+    },
+    {
+      "feature": "close_game_pct",
+      "train": 1.0,
+      "serve": 0.3
+    },
+    {
+      "feature": "playoff_implications",
+      "train": 0.0,
+      "serve": 0.5
+    },
+    {
+      "feature": "rivalry_game",
+      "train": 1.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "season_phase",
+      "train": 1.0,
+      "serve": 0.5
+    },
+    {
+      "feature": "lineup_stability_score",
+      "train": 1.0,
+      "serve": 0.7
+    },
+    {
+      "feature": "bench_strength",
+      "train": 0.0,
+      "serve": 0.5
+    },
+    {
+      "feature": "pts_vs_top10_defenses",
+      "train": 20.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "pts_vs_bottom10_defenses",
+      "train": 20.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "ceiling_game_frequency",
+      "train": 0.0,
+      "serve": 0.1
+    },
+    {
+      "feature": "consecutive_under_games",
+      "train": 10.0,
+      "serve": 13.0
+    },
+    {
+      "feature": "recent_variance_spike",
+      "train": -1.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "playoff_seeding_impact",
+      "train": 0.3333333333333333,
+      "serve": 0.5
+    },
+    {
+      "feature": "garbage_time_minutes_pct",
+      "train": 0.0,
+      "serve": 0.05
+    },
+    {
+      "feature": "typical_substitution_minute",
+      "train": 33.0,
+      "serve": 20.0
+    },
+    {
+      "feature": "paint_touch_frequency",
+      "train": 1.0,
+      "serve": 0.3
+    },
+    {
+      "feature": "corner_three_pct",
+      "train": 0.36,
+      "serve": 0.38
+    },
+    {
+      "feature": "above_break_three_pct",
+      "train": 0.36,
+      "serve": 0.35
+    },
+    {
+      "feature": "restricted_area_fg_pct",
+      "train": 0.4699999999999999,
+      "serve": 0.62
+    },
+    {
+      "feature": "shot_quality_vs_expected",
+      "train": 0.0,
+      "serve": 0.00550000000000006
+    },
+    {
+      "feature": "touches_per_game",
+      "train": 19.0,
+      "serve": 50.0
+    },
+    {
+      "feature": "avg_dribbles_per_touch",
+      "train": 2.0,
+      "serve": 1.5
+    },
+    {
+      "feature": "elbow_touches_per_game",
+      "train": 0.0,
+      "serve": 2.5
+    },
+    {
+      "feature": "paint_touches_per_game",
+      "train": 2.5,
+      "serve": 15.0
+    },
+    {
+      "feature": "front_court_touches_per_game",
+      "train": 19.0,
+      "serve": 35.0
+    },
+    {
+      "feature": "time_of_possession_per_game",
+      "train": 7.5,
+      "serve": 2.5
+    },
+    {
+      "feature": "touches_per_possession",
+      "train": 0.5,
+      "serve": 0.8
+    },
+    {
+      "feature": "lineups_played_count",
+      "train": 1.0,
+      "serve": 50.0
+    },
+    {
+      "feature": "head_to_head_avg",
+      "train": 20.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "defender_switching_frequency",
+      "train": 0.0,
+      "serve": 0.3
+    },
+    {
+      "feature": "historical_game_script_avg",
+      "train": -1.0,
+      "serve": 0.5
+    },
+    {
+      "feature": "rest_advantage",
+      "train": -1.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "rest_advantage_abs",
+      "train": 1.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "both_teams_rested",
+      "train": 0.0,
+      "serve": 1.0
+    },
+    {
+      "feature": "expected_game_script",
+      "train": -1.0,
+      "serve": 0.5
+    },
+    {
+      "feature": "blowout_probability",
+      "train": 0.0,
+      "serve": 0.2
+    },
+    {
+      "feature": "close_game_probability",
+      "train": 1.0,
+      "serve": 0.3
+    },
+    {
+      "feature": "first_quarter_avg",
+      "train": 5.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "fourth_quarter_avg",
+      "train": 5.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "clutch_performance_score",
+      "train": 1.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "shot_selection_rating",
+      "train": 0.4699999999999999,
+      "serve": 0.55
+    },
+    {
+      "feature": "bad_shot_frequency",
+      "train": 0.53,
+      "serve": 0.44999999999999996
+    },
+    {
+      "feature": "shot_clock_management",
+      "train": 12.0,
+      "serve": 0.5
+    },
+    {
+      "feature": "teammate_chemistry_score",
+      "train": 0.65,
+      "serve": 0.5
+    },
+    {
+      "feature": "ast_per_100",
+      "train": 6.4,
+      "serve": 3.5999999999999996
+    },
+    {
+      "feature": "tov_per_100",
+      "train": 3.2,
+      "serve": 1.7999999999999998
+    },
+    {
+      "feature": "rebound_positioning_score",
+      "train": 1.0,
+      "serve": 0.5
+    },
+    {
+      "feature": "paint_touch_to_points",
+      "train": 1.3333333333333333,
+      "serve": 0.3
+    },
+    {
+      "feature": "performance_when_leading",
+      "train": 20.0,
+      "serve": 19.0
+    },
+    {
+      "feature": "performance_when_trailing",
+      "train": 20.0,
+      "serve": 21.0
+    },
+    {
+      "feature": "minutes_fatigue_score",
+      "train": 1.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "pct_fga_2pt",
+      "train": 0.6666666666666667,
+      "serve": 0.65
+    },
+    {
+      "feature": "pct_fga_3pt",
+      "train": 0.3333333333333333,
+      "serve": 0.35
+    },
+    {
+      "feature": "games_since_return",
+      "train": 9.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "days_into_season",
+      "train": 91.0,
+      "serve": 90.0
+    },
+    {
+      "feature": "season_phase_numeric",
+      "train": 1.0,
+      "serve": 0.5
+    },
+    {
+      "feature": "games_remaining_approx",
+      "train": 39.0,
+      "serve": 40.0
+    },
+    {
+      "feature": "primary_defender_active",
+      "train": 0.0,
+      "serve": 1.0
+    },
+    {
+      "feature": "team_current_streak",
+      "train": 10.0,
+      "serve": 0.0
+    },
+    {
+      "feature": "team_l10_wins",
+      "train": 10.0,
+      "serve": 5.0
+    }
+  ]
+}

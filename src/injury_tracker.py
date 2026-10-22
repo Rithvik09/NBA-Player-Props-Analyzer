@@ -1,8 +1,6 @@
-from nba_api.stats.endpoints import CommonTeamRoster, PlayerCareerStats
-import requests
-from bs4 import BeautifulSoup
-import pandas as pd
 import time
+import json
+from pathlib import Path
 
 class InjuryTracker:
     def __init__(self):
@@ -11,104 +9,49 @@ class InjuryTracker:
         self.cache_timeout = 3600  # 1 hour
 
     def get_team_injuries(self, team_id):
-        max_retries = 3
-        retry_count = 0
-    
-        while retry_count < max_retries:
-            try:
-                current_time = time.time()
-            
-                if (team_id in self.injury_cache and
-                    current_time - self.cache_timestamps.get(team_id, 0) < self.cache_timeout):
-                    return self.injury_cache[team_id]
-            
-                roster = CommonTeamRoster(team_id=team_id, timeout=60).get_data_frames()[0]
-                time.sleep(1)
-            
-                injuries = self._fetch_espn_injuries()
-            
-                team_injuries = []
-                for _, player in roster.iterrows():
-                    player_name = f"{player['PLAYER']}"
-                    if player_name in injuries:
-                        injury_info = injuries[player_name]
-                    
-                        career_stats = PlayerCareerStats(
-                            player_id=player['PLAYER_ID']
-                        ).get_data_frames()[0]
-                        time.sleep(1)
-                    
-                        if len(career_stats) > 0:
-                            recent_stats = career_stats.iloc[-1]
-                            impact_score = self._calculate_player_impact(recent_stats)
-                        else:
-                            impact_score = 0.1
-                    
-                        team_injuries.append({
-                            'player_name': player_name,
-                            'player_id': player['PLAYER_ID'],
-                            'status': injury_info['status'],
-                            'injury': injury_info['injury'],
-                            'expected_return': injury_info['return'],
-                            'impact_score': impact_score
-                        })
-            
-                injury_analysis = {
-                    'active_injuries': team_injuries,
-                    'total_impact': sum(inj['impact_score'] for inj in team_injuries),
-                    'key_players_out': len([inj for inj in team_injuries if inj['impact_score'] > 0.15]),
-                    'total_players_out': len(team_injuries)
-                }
-            
-                self.injury_cache[team_id] = injury_analysis
-                self.cache_timestamps[team_id] = current_time
-            
-                return injury_analysis
-            
-            except Exception as e:
-                retry_count += 1
-                if retry_count == max_retries:
-                    print(f"failed to get team injuries after {max_retries} retries: {e}")
-                    return {
-                        'active_injuries': [],
-                        'total_impact': 0,
-                        'key_players_out': 0,
-                        'total_players_out': 0
-                    }
-                print(f"retry {retry_count}/{max_retries}: {e}")
-                time.sleep(2 * retry_count)
+        """Use the shared live report; source failure must not mean healthy.
 
-    def _fetch_espn_injuries(self):
+        Impact uses cached prior-season per-game statistics and severity.
+        Missing player statistics are explicitly marked unavailable.
+        """
+        from nba_api.stats.static import teams
+        from .live_injuries import summarise_team
+        from .current_rosters import get_rosters, name_key
+        team = teams.find_team_name_by_id(int(team_id))
+        if team is None:
+            raise ValueError('Unknown NBA team')
+        report = summarise_team(team['full_name'])
+        roster = get_rosters()
+        by_name = {name_key(p['full_name']): p for p in (roster or {}).get('players', [])
+                   if p['team_id'] == int(team_id)}
+        # Historical per-game averages estimate player importance; never
+        # divide these by games played a second time.
+        from .current_rosters import season_now
+        previous_year = int(season_now()[:4]) - 1
+        baseline_season = f'{previous_year}-{str(previous_year + 1)[2:]}'
+        baseline_path = Path(__file__).resolve().parents[1] / 'logs/precompute_cache' / f'player_averages_{baseline_season}.json'
         try:
-            url = "https://www.espn.com/nba/injuries"
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-
-            response = requests.get(url, headers=headers, timeout=10)
-            soup = BeautifulSoup(response.text, 'html.parser')
-
-            injuries = {}
-
-            for row in soup.find_all('tr', class_='Table__TR'):
-                cells = row.find_all('td')
-                if len(cells) >= 4:
-                    player_name = cells[0].get_text().strip()
-                    status = cells[1].get_text().strip()
-                    injury = cells[2].get_text().strip()
-                    exp_return = cells[3].get_text().strip()
-                    
-                    injuries[player_name] = {
-                        'status': status,
-                        'injury': injury,
-                        'return': exp_return
-                    }
-            
-            return injuries
-            
-        except Exception as e:
-            print(f"ESPN injury fetch failed: {e}")
-            return {}
+            stats_by_id = {int(r['PLAYER_ID']): r for r in json.loads(baseline_path.read_text())}
+        except (OSError, ValueError, KeyError):
+            stats_by_id = {}
+        injuries = []
+        for entry in report['players']:
+            player = by_name.get(name_key(entry['player']), {})
+            baseline = stats_by_id.get(player.get('nba_id'))
+            impact = self._calculate_player_impact({**baseline, 'GP': 1}) if baseline else None
+            injuries.append({**entry, 'player_name': entry['player'],
+                             'player_id': player.get('nba_id'),
+                             'expected_return': entry['return'],
+                             'impact_score': impact,
+                             'impact_available': impact is not None})
+        return {'active_injuries': injuries,
+                'total_impact': sum((r['impact_score'] or 0) * r['severity'] for r in injuries),
+                'impact_available': all(r['impact_available'] for r in injuries),
+                'impact_baseline_season': baseline_season,
+                'key_players_out': sum(r['severity'] >= .85 and (r['impact_score'] or 0) > .15 for r in injuries),
+                'total_players_out': report['out_count'],
+                'questionable_players': report['questionable_count'],
+                'status': 'available', 'fetched_at': time.time()}
 
     def _calculate_player_impact(self, stats):
         """0–1 score based on mins/pts/reb/ast per game."""

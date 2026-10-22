@@ -295,3 +295,24 @@ def test_game_logs_foreign_key_is_now_enforced(db_conn, db_url):
             "INSERT INTO game_logs (player_id, game_date, pts) VALUES (%s,%s,%s)",
             (BIG_ID, "2026-01-01", 30),
         )
+
+
+from tests.test_precompute_seasons import UPSERTS
+
+
+@pytest.mark.parametrize('upsert', UPSERTS, ids=lambda fn: fn.__name__)
+def test_player_upsert_preserves_two_historical_seasons(real_conn, upsert):
+    """Exercise real PostgreSQL constraints and the production insert SQL."""
+    import inspect
+    import re
+    from src import precompute_jobs
+
+    precompute_jobs.ensure_tables(real_conn)
+    table = re.search(r'INSERT INTO (\w+)', inspect.getsource(upsert)).group(1)
+    for season in ('2022-23', '2023-24', '2022-23'):
+        upsert(real_conn, [{'player_id': 2544}], updated_at=123, season=season)
+    rows = real_conn.execute(
+        f'SELECT season FROM {table} WHERE player_id = %s ORDER BY season',
+        (2544,),
+    ).fetchall()
+    assert rows == [('2022-23',), ('2023-24',)]

@@ -645,6 +645,7 @@ class BasketballBettingHelper:
             conn.close()
             return dict(zip(cols, row)) if row else {}
         except Exception as e:
+            log.error("retrain metadata query failed (%s)", type(e).__name__)
             return {}
 
     def get_prediction_logs(self, limit=50, prop_type=None, player_id=None, graded_only=False):
@@ -867,7 +868,10 @@ class BasketballBettingHelper:
             return []
             
         try:
-            all_players = players.get_players()
+            from .current_rosters import get_rosters
+            roster = get_rosters()
+            all_players = ([{'id': p['nba_id'], 'full_name': p['full_name'], 'is_active': True}
+                            for p in roster['players']] if roster else players.get_players())
             suggestions = [
                 {
                     'id': player['id'],
@@ -1000,6 +1004,8 @@ class BasketballBettingHelper:
                  0.44 * pd.to_numeric(games_df['FTA'], errors='coerce').fillna(0) +
                  pd.to_numeric(games_df['TOV'], errors='coerce').fillna(0)).mean()
             )
+            from src.feature_context import summarize_game_log
+            stats['feature_inputs'] = summarize_game_log(games_df)
             stats['efficiency'] = {
                 'avg_minutes':    _avg_minutes,
                 'recent_minutes': float(pd.to_numeric(games_df['MIN'], errors='coerce').fillna(0).head(5).mean()),
@@ -1023,6 +1029,7 @@ class BasketballBettingHelper:
                 # every player.
                 'oreb_per_game':  float(pd.to_numeric(games_df['OREB'], errors='coerce').fillna(0).mean()),
                 'dreb_per_game':  float(pd.to_numeric(games_df['DREB'], errors='coerce').fillna(0).mean()),
+                'fga_per_game':   float(pd.to_numeric(games_df['FGA'], errors='coerce').fillna(0).mean()),
                 'fta_per_game':   float(pd.to_numeric(games_df['FTA'], errors='coerce').fillna(0).mean()),
             }
 
@@ -1299,7 +1306,7 @@ class BasketballBettingHelper:
             # leaves them at 1.0 / 3.0 / 4.0 for everybody, and oreb_rate,
             # dreb_rate, total_reb_rate and foul_drawing_ability are built
             # on top of them.
-            for _box_key in ('oreb_per_game', 'dreb_per_game', 'fta_per_game'):
+            for _box_key in ('oreb_per_game', 'dreb_per_game', 'fta_per_game', 'fga_per_game'):
                 if _box_key in efficiency:
                     stat_data[_box_key] = float(efficiency[_box_key])
 
@@ -1436,7 +1443,7 @@ class BasketballBettingHelper:
                 stat_data['implied_game_total'] = float(_avg_pace * 2.0 * 1.1)
 
                 # Referee features
-                _ref_features = self._get_referee_features(game_id=None, precomputed=_pre)
+                _ref_features = self._get_referee_features(game_id=None, precomputed=_pre, team_id=team_id, opponent_team_id=opponent_team_id)
                 stat_data.update(_ref_features)
 
             except Exception as _new_feat_err:
@@ -1958,6 +1965,21 @@ class BasketballBettingHelper:
                 stat_data['playoff_home'] = 0.0
                 stat_data['playoff_away'] = 0.0
 
+            # Preserve actual row presence; upstream default filling cannot
+            # distinguish a missing row from a real value equal to the default.
+            stat_data['_log_summary'] = stats.get('feature_inputs', {})
+            stat_data['_team_id'] = team_id
+            stat_data['_opponent_team_id'] = opponent_team_id
+            stat_data['is_home'] = (float(is_home) if location_known and is_home is not None else 0.5)
+            stat_data['_feature_sources'] = {
+                'advanced': _pre.get('player_advanced', {}).get(int(player_id), {}),
+                'shot_profile': _pre.get('player_shot_profile', {}).get(int(player_id), {}),
+                'tracking': _pre.get('player_tracking', {}).get(int(player_id), {}),
+                'clutch': _pre.get('player_clutch', {}).get(int(player_id), {}),
+                'quarters': _pre.get('player_quarter_splits', {}).get(int(player_id), {}),
+                'lineup': _pre.get('team_lineup_stats', {}).get(int(team_id) if team_id else 0, {}),
+                'vs_opponent': _pre.get('player_vs_opponent', {}).get((int(player_id), int(opponent_team_id) if opponent_team_id else 0), {}),
+            }
             features = self.ml_predictor.prepare_features(
                 stat_data, player_context, team_context, opponent_context
             )
@@ -1970,12 +1992,8 @@ class BasketballBettingHelper:
             if location_known and is_home is not None:
                 location_key = 'home_avg' if is_home else 'away_avg'
                 location_avg_val = float(stat_data.get(location_key, stat_data.get('avg', 0)) or stat_data.get('avg', 0))
-                # Override recent/season averages with location-specific values
-                if stat_data.get(location_key) is not None:
-                    features['recent_avg'] = location_avg_val
-                    features['season_avg'] = location_avg_val
-                    # keep edge consistent with the location-adjusted baseline
-                    features['edge'] = ((location_avg_val - line) / line) if line > 0 else 0
+                # Location has its own feature. recent_avg and season_avg
+                # retain the definitions used in historical training.
             else:
                 location_avg_val = float(stat_data.get('avg', 0))
             features['location_avg'] = location_avg_val
@@ -2112,61 +2130,29 @@ class BasketballBettingHelper:
     _opp_gamelog_cache: dict = {}
 
     @staticmethod
-    def _get_referee_features(game_id, precomputed):
-        """
-        Look up referee stats for today's game officials via ScoreboardV2.
-        Result is cached once per calendar day (officials don't change intra-day).
-        Falls back to league-average defaults if officials not known yet.
-        """
-        from datetime import date
-        today_str = str(date.today())
-        cached = BasketballBettingHelper._ref_features_cache.get(today_str)
-        if cached is not None:
-            return cached
+    def _get_referee_features(game_id, precomputed, team_id=None, opponent_team_id=None):
+        """Resolve this game's crew. ScoreboardV2 does not contain officials.
 
+        Unknown assignments keep feature defaults; they never borrow another
+        game's crew or cache one league-wide result for an entire day.
+        """
         result = {'ref_foul_rate': 0.0, 'ref_home_bias': 0.5, 'ref_pace_tendency': 0.0}
         try:
-            from nba_api.stats.endpoints import scoreboardv2
-            import time as _time
-            sb = scoreboardv2.ScoreboardV2()
-            _time.sleep(0.5)
-            dfs = sb.get_data_frames()
-            officials_df = None
-            for df in dfs:
-                cols = [c.lower() for c in df.columns]
-                if any('official' in c or 'first_name' in c for c in cols):
-                    officials_df = df
-                    break
-
-            if officials_df is None or officials_df.empty:
-                raise ValueError("no officials data")
-
-            refs_store = precomputed.get('refs', {})
-            foul_rates, home_biases, paces = [], [], []
-
-            for _, row in officials_df.iterrows():
-                name_parts = []
-                for col in officials_df.columns:
-                    if 'name' in col.lower() or 'first' in col.lower() or 'last' in col.lower():
-                        name_parts.append(str(row[col]).strip())
-                ref_name = ' '.join(p for p in name_parts if p and p != 'nan').lower()
-
-                ref_data = refs_store.get(ref_name, {})
-                if ref_data:
-                    foul_rates.append(float(ref_data.get('foul_rate', 0.0)))
-                    home_biases.append(float(ref_data.get('home_win_pct', 0.5)))
-                    paces.append(float(ref_data.get('pace', 0.0)))
-
-            if foul_rates:
-                result = {
-                    'ref_foul_rate':     float(sum(foul_rates) / len(foul_rates)),
-                    'ref_home_bias':     float(sum(home_biases) / len(home_biases)),
-                    'ref_pace_tendency': float(sum(paces) / len(paces)),
-                }
-        except Exception:
-            pass
-
-        BasketballBettingHelper._ref_features_cache[today_str] = result
+            from .live_officials import matchup_officials
+            if team_id is None or opponent_team_id is None:
+                return result
+            names = matchup_officials(team_id, opponent_team_id)
+            refs = {str(k).strip().lower(): v for k, v in precomputed.get('refs', {}).items()}
+            records = [refs[n.strip().lower()] for n in names if n.strip().lower() in refs]
+            if records:
+                for feature, field in [('ref_foul_rate', 'foul_rate'),
+                                       ('ref_home_bias', 'home_win_pct'),
+                                       ('ref_pace_tendency', 'pace')]:
+                    values = [float(r[field]) for r in records if r.get(field) is not None]
+                    if values:
+                        result[feature] = sum(values) / len(values)
+        except Exception as exc:
+            log.debug('Game officials unavailable: %s', type(exc).__name__)
         return result
 
     @staticmethod
@@ -2249,7 +2235,7 @@ class BasketballBettingHelper:
         eff = efficiency or {}
         fg_pct_recent  = float(eff.get('recent_fg_pct', eff.get('fg_pct',  0.0)))
         ft_pct_recent  = float(eff.get('ft_pct',  0.75))
-        fga_per_game   = float(sum(values) / max(len(values), 1)) if prop_type == 'points' else 0.0
+        fga_per_game   = float(eff.get('fga_per_game', 0.0))
         fg3_pct_recent = float(player_stats.get('fg3_pct', 0.0))  # populated for 3PT props
         avg_minutes    = float(eff.get('avg_minutes',    24.0))
         recent_minutes = float(eff.get('recent_minutes', 24.0))
@@ -2443,7 +2429,7 @@ class BasketballBettingHelper:
             'fourth_quarter_usage_rate': 0.15 + 0.005 * max(0.0, min(30.0, avg_minutes)),
             'garbage_time_minutes_pct': FEATURE_DEFAULTS['garbage_time_minutes_pct'],
             'typical_substitution_minute': min(48.0, avg_minutes + 3.0),
-            'crunch_time_usage': 0.28 if avg_minutes > 28 else 0.15,
+            'crunch_time_usage': 0.13 + 0.0055 * max(0.0, min(30.0, avg_minutes)),
             # Tier 5: specific matchup (0)
             'career_vs_defender': 0.0, 'recent_vs_defender': 0.0, 'player_vs_arena': 0.0,
             # Tier 6: shot quality (0; model degrades gracefully)
@@ -2458,8 +2444,8 @@ class BasketballBettingHelper:
             'above_break_three_pct':      float(player_stats.get('above_break3_pct', 0.35)),
             'restricted_area_fg_pct':     float(eff.get('fg_pct', 0.55)),
             'mid_range_frequency': float(player_stats.get('midrange_fga_pct', FEATURE_DEFAULTS['midrange_fga_pct'])), 'shot_quality_vs_expected': 0.0,
-            'avg_shot_clock_time': 12.0, 'late_clock_shot_frequency': 0.15,
-            'early_clock_shot_frequency': 0.25,
+            'avg_shot_clock_time': 24.0 - 0.12 * team_pace, 'late_clock_shot_frequency': max(0.05, 0.30 - 0.0015 * team_pace),
+            'early_clock_shot_frequency': min(0.45, 0.10 + 0.0015 * team_pace),
             # Tier 6: touch/usage (from tracking stats where available)
             'touches_per_game': float(fga_per_game + recent_avg * 0.3),
             'avg_dribbles_per_touch': float(player_stats.get('tracking_avg_drib_per_touch', 2.0)),
@@ -2473,8 +2459,8 @@ class BasketballBettingHelper:
             'avg_points_per_touch':   float(recent_avg) / max(float(player_stats.get('tracking_touches_pg', 50.0)), 1.0),
             # Tier 6: lineup (0)
             'net_rating_with_starters': 0.0,
-            'usage_rate_with_star_out': poss_per_game / 100.0 * 1.1,
-            'minutes_with_starting_lineup_pct': 0.65 if avg_minutes > 25 else 0.35,
+            'usage_rate_with_star_out': fga_per_game * 1.1,
+            'minutes_with_starting_lineup_pct': min(0.85, max(0.20, 0.20 + avg_minutes / 36.0 * 0.65)),
             'five_man_unit_net_rating': float(_pre.get('team_lineup_stats', {}).get(int(team_id) if team_id else 0, {}).get('top_lineup_net_rating', 0.0)),
             'on_court_net_rating': 0.0, 'off_court_net_rating': 0.0,
             'on_off_differential': float(player_stats.get('on_off_differential', 0.0)),
@@ -2489,7 +2475,7 @@ class BasketballBettingHelper:
             # Tier 3: lineup on/off
             'on_court_plus_minus':  float(player_stats.get('on_court_net_rating', 0.0)),
             'off_court_plus_minus': float(player_stats.get('off_court_net_rating', 0.0)),
-            'net_rating': 0.0, 'top_lineup_minutes_pct': 0.0,
+            'net_rating': 0.0, 'top_lineup_minutes_pct': min(0.85, max(0.20, 0.20 + avg_minutes / 36.0 * 0.65)),
             # Tier 3: vs-team history
             'vs_team_last_season_avg': vs_team_avg,
             'vs_team_home_away_split': home_avg - away_avg,
@@ -2541,8 +2527,8 @@ class BasketballBettingHelper:
             'pts_per_100': 0.0, 'ast_per_100': 0.0, 'reb_per_100': 0.0,
             'stl_per_100': 0.0, 'blk_per_100': 0.0, 'tov_per_100': 0.0,
             # Tier 9: FT / foul drawing
-            'ft_rate': 0.0, 'fouls_drawn_per_game': 0.0,
-            'ft_attempts_per_game': 0.0, 'and_one_frequency': 0.0,
+            'ft_rate': 0.0, 'fouls_drawn_per_game': fta_per_game * 0.44,
+            'ft_attempts_per_game': 0.0, 'and_one_frequency': min(0.3, fta_per_game / max(fga_per_game * 3, 1.0)),
             'foul_drawing_ability': foul_drawing_ability,
             # Tier 9: rebounding rates
             'oreb_rate': oreb_rate, 'dreb_rate': dreb_rate,
@@ -2573,6 +2559,10 @@ class BasketballBettingHelper:
 
     def _get_player_team_id(self, player_id):
         try:
+            from src.current_rosters import current_player
+            current = current_player(player_id)
+            if current:
+                return current['team_id']
             from src.api_cache import fetch_player_info
             player_info = fetch_player_info(int(player_id))
             return int(player_info['TEAM_ID'].iloc[0])
