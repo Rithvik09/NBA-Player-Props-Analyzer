@@ -21,7 +21,7 @@ import re
 from urllib.parse import unquote
 
 import psycopg
-from psycopg.rows import dict_row  # noqa: F401  (re-exported for call sites)
+from psycopg.rows import dict_row, tuple_row  # noqa: F401  (dict_row is re-exported)
 
 __all__ = [
     "connect",
@@ -180,15 +180,23 @@ def connect(dsn: str | None = None, *, row_factory=None, autocommit: bool = Fals
 #
 # Replaces ``PRAGMA table_info(<t>)``, which several modules used to probe
 # for optional columns before SELECTing them.
+#
+# Both helpers open their own ``tuple_row`` cursor rather than inheriting
+# the connection's row factory. They index positionally, so on a
+# ``dict_row`` connection — which scripts/train_models.py opens — they
+# used to raise ``KeyError: 0``, and the per-player loader there catches
+# everything and returns ``{}``: all 11 precompute tables loaded empty on
+# every training run.
 # ---------------------------------------------------------------------------
 
 def table_columns(conn, table: str) -> set[str]:
     """Column names of ``table``, or an empty set if it does not exist."""
-    rows = conn.execute(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_schema = current_schema() AND table_name = %s",
-        (table,),
-    ).fetchall()
+    with conn.cursor(row_factory=tuple_row) as cur:
+        rows = cur.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = current_schema() AND table_name = %s",
+            (table,),
+        ).fetchall()
     return {r[0] for r in rows}
 
 
@@ -198,22 +206,23 @@ def column_info(conn, table: str) -> list[tuple[str, str, bool, str | None]]:
     ``type`` is the fully-formatted SQL type (``character varying(20)``,
     not ``character varying``) so callers can paste it straight into DDL.
     """
-    rows = conn.execute(
-        """
-        SELECT column_name,
-               format_type(a.atttypid, a.atttypmod),
-               attnotnull,
-               pg_get_expr(d.adbin, d.adrelid)
-        FROM information_schema.columns c
-        JOIN pg_attribute a
-          ON a.attrelid = to_regclass(quote_ident(c.table_schema) || '.'
-                                      || quote_ident(c.table_name))
-         AND a.attname = c.column_name
-        LEFT JOIN pg_attrdef d
-          ON d.adrelid = a.attrelid AND d.adnum = a.attnum
-        WHERE c.table_schema = current_schema() AND c.table_name = %s
-        ORDER BY c.ordinal_position
-        """,
-        (table,),
-    ).fetchall()
+    with conn.cursor(row_factory=tuple_row) as cur:
+        rows = cur.execute(
+            """
+            SELECT column_name,
+                   format_type(a.atttypid, a.atttypmod),
+                   attnotnull,
+                   pg_get_expr(d.adbin, d.adrelid)
+            FROM information_schema.columns c
+            JOIN pg_attribute a
+              ON a.attrelid = to_regclass(quote_ident(c.table_schema) || '.'
+                                          || quote_ident(c.table_name))
+             AND a.attname = c.column_name
+            LEFT JOIN pg_attrdef d
+              ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+            WHERE c.table_schema = current_schema() AND c.table_name = %s
+            ORDER BY c.ordinal_position
+            """,
+            (table,),
+        ).fetchall()
     return [(r[0], r[1], bool(r[2]), r[3]) for r in rows]
