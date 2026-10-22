@@ -1194,15 +1194,29 @@ class EnhancedMLPredictor:
         features.setdefault('assist_percentage', features.get('ast_pct_official', 0.15))
         features.setdefault('rebound_percentage', features.get('reb_pct_official', FEATURE_DEFAULTS['rebound_percentage']))
         features.setdefault('effective_fg_pct', features.get('efg_pct_official', FEATURE_DEFAULTS['effective_fg_pct']))
-        features.setdefault('dreb_rate', features.get('dreb_pct_official', 0.15))
-        features.setdefault('oreb_rate', features.get('oreb_pct_official', 0.05))
-        features.setdefault('total_reb_rate', features.get('reb_pct_official', 0.10))
+        # Rebound and foul-drawing rates, as scripts/train_models.py defines
+        # them: oreb_rate/dreb_rate are shares of this player's own rebounds
+        # (they sum to 1), total_reb_rate and foul_drawing_ability are per-36
+        # counts. The *_pct_official keys relabelled here are percentages of
+        # the rebounds available while on court, and foul_drawing_ability was
+        # free-throw rate (FTA per FGA) — different quantities under the same
+        # names, with no multiplier between them. Floors are the trainer's.
+        _oreb_pg = float(features.get('oreb_per_game', 0.0))
+        _dreb_pg = float(features.get('dreb_per_game', 0.0))
+        _total_reb_pg = _oreb_pg + _dreb_pg
+        _mins_season = float(features.get('mins_season', 0.0))
+        _per36 = max(_mins_season / 36.0, 0.1)
+        features.setdefault('dreb_rate', _dreb_pg / max(_total_reb_pg, 0.1))
+        features.setdefault('oreb_rate', _oreb_pg / max(_total_reb_pg, 0.1))
+        features.setdefault('total_reb_rate',
+                            _total_reb_pg / _per36 if _mins_season > 0 else 0.1)
         features.setdefault('ft_rate', _fta / max(_fga, 1.0))
         features.setdefault('fta_rate_player', _fta / max(_fga, 1.0))
         features.setdefault('ft_attempts_per_game', _fta)
         features.setdefault('fouls_drawn_per_game', _fta * 0.6)
         features.setdefault('and_one_frequency', _fta * 0.05)
-        features.setdefault('foul_drawing_ability', _fta / max(_fga, 1.0))
+        features.setdefault('foul_drawing_ability',
+                            _fta / _per36 if _mins_season > 0 else 0.0)
 
         # Per-100 possessions (approximate from per-game assuming ~100 poss/game)
         _min_ratio = float(player_stats.get('avg_minutes', 30.0)) / 48.0

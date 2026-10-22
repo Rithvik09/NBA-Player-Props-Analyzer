@@ -306,6 +306,8 @@ def test_numeric_feature_keys_unchanged():
 # that moves the quantity fails here rather than silently re-agreeing at a
 # new wrong value.
 _MINS = _GAME_LOG_COLUMNS["MIN"]            # 30.0
+_PER36 = max(_MINS / 36.0, 0.1)             # 0.8333…
+_TOTAL_REB = _GAME_LOG_COLUMNS["OREB"] + _GAME_LOG_COLUMNS["DREB"]   # 5.0
 
 SCALE_ALIGNED_EXPECTED = {
     # (FGA + 0.44 FTA + TOV) / max(mins, 1) * 48 — possessions used per 48
@@ -317,6 +319,12 @@ SCALE_ALIGNED_EXPECTED = {
     # 0.15 + 0.005 * clamp(mins, 0, 30) — a *fraction*, deliberately not a
     # function of usage_rate. Inheriting usage_rate here is a ~60x error.
     "fourth_quarter_usage_rate": 0.15 + 0.005 * max(0.0, min(30.0, _MINS)),
+    # share of the player's own rebounds; the pair sums to 1
+    "oreb_rate": _GAME_LOG_COLUMNS["OREB"] / max(_TOTAL_REB, 0.1),
+    "dreb_rate": _GAME_LOG_COLUMNS["DREB"] / max(_TOTAL_REB, 0.1),
+    # per-36 counts, not percentages of the rebounds available
+    "total_reb_rate": _TOTAL_REB / _PER36,
+    "foul_drawing_ability": _GAME_LOG_COLUMNS["FTA"] / _PER36,
 }
 
 
@@ -343,11 +351,11 @@ def _serve_efficiency(monkeypatch):
 def _serve_feature_dict_with_game_log(monkeypatch, team_context):
     """``prepare_features`` fed the same game log the trainer saw.
 
-    The efficiency scalars come from the real serving path. The per-game
-    box-score inputs are supplied directly: analyze_prop_bet currently
-    setdefaults them to constants (15.0 / 4.0 / 1.0 / 3.0) rather than
-    reading the log, which is a divergence of its own and not one of the
-    six — passing the true values keeps this test on the six.
+    Everything the six features are built from comes out of the real
+    serving source, so a placeholder reintroduced anywhere between the
+    game log and prepare_features fails here. ``fga_per_game`` is the one
+    exception: analyze_prop_bet still setdefaults it to 15.0, it is not an
+    input to any of the six, and supplying it keeps this test on the six.
     """
     from src.models import EnhancedMLPredictor
 
@@ -364,11 +372,12 @@ def _serve_feature_dict_with_game_log(monkeypatch, team_context):
         "recent_fg_pct": eff["recent_fg_pct"],
         "ft_pct": eff["ft_pct"],
         "usage_rate": eff["usage_rate"],
-        # per-game box score, straight off the same log
+        "fta_per_game": eff["fta_per_game"],
+        "oreb_per_game": eff["oreb_per_game"],
+        "dreb_per_game": eff["dreb_per_game"],
+        # not an input to any of the six; analyze_prop_bet still fills it
+        # from a constant
         "fga_per_game": _GAME_LOG_COLUMNS["FGA"],
-        "fta_per_game": _GAME_LOG_COLUMNS["FTA"],
-        "oreb_per_game": _GAME_LOG_COLUMNS["OREB"],
-        "dreb_per_game": _GAME_LOG_COLUMNS["DREB"],
     }
     return predictor.prepare_features(
         player_stats, {}, dict(team_context), dict(team_context))
@@ -403,4 +412,51 @@ def test_fourth_quarter_usage_does_not_inherit_usage_rate(monkeypatch):
         f"fourth_quarter_usage_rate is {q4!r}; the trainer's range is "
         f"[0.15, 0.30] and anything near usage_rate ({usage!r}) means it "
         f"was derived from usage_rate instead of from minutes"
+    )
+
+
+def test_rebound_shares_sum_to_one_on_the_serve_side(monkeypatch):
+    """oreb_rate and dreb_rate are shares of the same denominator."""
+    serve = _serve_feature_dict_with_game_log(monkeypatch, {})
+    total = float(serve["oreb_rate"]) + float(serve["dreb_rate"])
+    assert total == pytest.approx(1.0, rel=1e-9), (
+        f"oreb_rate + dreb_rate = {total!r}; the model was fitted on a split "
+        f"that sums to 1"
+    )
+
+
+def _constant_valued_features(path, keys):
+    """``'feature': 1.23`` — a feature pinned to a literal instead of built
+    from the game log. Mirrors ``_hardcoded_fallbacks`` above, but for the
+    emitted value rather than the fallback."""
+    tree = ast.parse(open(os.path.join(REPO_ROOT, path)).read())
+    found = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Dict):
+            continue
+        for key, value in zip(node.keys, node.values):
+            if not (isinstance(key, ast.Constant) and key.value in keys):
+                continue
+            if (isinstance(value, ast.Constant)
+                    and isinstance(value.value, (int, float))
+                    and not isinstance(value.value, bool)):
+                found.append(f"{path}:{key.lineno} {key.value} -> {value.value!r}")
+    return found
+
+
+@pytest.mark.parametrize("path", BUILDER_FILES)
+def test_no_builder_pins_a_scale_aligned_feature_to_a_constant(path):
+    """``_build_incremental_features`` emitted four of these as flat 0.0.
+
+    A static guard rather than a numeric one because that builder is
+    currently unreachable: nothing calls it, and the ``_pre`` it reads on
+    its ``opp_def_rating_home_away_split`` line is undefined there, so it
+    raises NameError on its first call. Repairing it is outside this
+    change, so the four rates are held to the definition statically
+    instead of by running the builder.
+    """
+    offenders = _constant_valued_features(path, set(SCALE_ALIGNED_EXPECTED))
+    assert not offenders, (
+        "compute these from the game log the way scripts/train_models.py "
+        "does:\n  " + "\n  ".join(offenders)
     )

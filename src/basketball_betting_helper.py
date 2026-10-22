@@ -1012,6 +1012,14 @@ class BasketballBettingHelper:
                 # figure. Not a model feature — nothing reads it from the
                 # 416-key schema.
                 'possessions_per_game': _poss_per_game,
+                # Per-game box score behind the rebound and foul-drawing
+                # rates. Both serving builders used to pin these to
+                # placeholders (0.0, or an FTA guessed from usage), which
+                # made every rate derived from them the same number for
+                # every player.
+                'oreb_per_game':  float(pd.to_numeric(games_df['OREB'], errors='coerce').fillna(0).mean()),
+                'dreb_per_game':  float(pd.to_numeric(games_df['DREB'], errors='coerce').fillna(0).mean()),
+                'fta_per_game':   float(pd.to_numeric(games_df['FTA'], errors='coerce').fillna(0).mean()),
             }
 
             return stats
@@ -1283,6 +1291,13 @@ class BasketballBettingHelper:
                 'ft_pct':         efficiency.get('ft_pct',           0.75),
                 'usage_rate':     efficiency.get('usage_rate',       FEATURE_DEFAULTS['usage_rate']),
             })
+            # Straight off the game log. Without these the zero-fill below
+            # leaves them at 1.0 / 3.0 / 4.0 for everybody, and oreb_rate,
+            # dreb_rate, total_reb_rate and foul_drawing_ability are built
+            # on top of them.
+            for _box_key in ('oreb_per_game', 'dreb_per_game', 'fta_per_game'):
+                if _box_key in efficiency:
+                    stat_data[_box_key] = float(efficiency[_box_key])
 
             # trend slope for this specific prop (already computed in get_player_stats)
             _trend_key_map = {
@@ -2240,6 +2255,21 @@ class BasketballBettingHelper:
         # realignment, so they keep reading the per-game figure.
         poss_per_game  = float(eff.get('possessions_per_game', 18.0))
 
+        # ---- rebound / FT rates, as scripts/train_models.py defines them ----
+        # oreb_rate and dreb_rate are shares of this player's own rebounds
+        # and sum to 1; total_reb_rate and foul_drawing_ability are per-36
+        # counts. All four were flat 0.0 here, and fta_per_game was guessed
+        # from usage rather than read off the log.
+        oreb_per_game = float(eff.get('oreb_per_game', 0.0))
+        dreb_per_game = float(eff.get('dreb_per_game', 0.0))
+        fta_per_game  = float(eff.get('fta_per_game',  0.0))
+        total_reb_pg  = oreb_per_game + dreb_per_game
+        per36         = max(avg_minutes / 36.0, 0.1)
+        oreb_rate            = oreb_per_game / max(total_reb_pg, 0.1)
+        dreb_rate            = dreb_per_game / max(total_reb_pg, 0.1)
+        total_reb_rate       = total_reb_pg / per36 if avg_minutes > 0 else 0.1
+        foul_drawing_ability = fta_per_game / per36 if avg_minutes > 0 else 0.0
+
         # computed efficiency metrics (from efficiency block)
         total_pts = float(player_stats.get('avg', 0)) * len(values)
         pts_per_shot = total_pts / max(poss_per_game * len(values), 1.0)
@@ -2327,9 +2357,9 @@ class BasketballBettingHelper:
             'ft_pct_recent':  ft_pct_recent,
             'fga_per_game':   fga_per_game,
             'fg3a_per_game':  0.0,   # populated when prop_type = three_pointers below
-            'fta_per_game':   poss_per_game * 0.15,  # rough FTA proxy
-            'oreb_per_game':  0.0,
-            'dreb_per_game':  0.0,
+            'fta_per_game':   fta_per_game,
+            'oreb_per_game':  oreb_per_game,
+            'dreb_per_game':  dreb_per_game,
             'plus_minus_avg': 0.0,
             'fouls_per_game': 2.0,
             'win_rate_last10': float(tc.get('recent_form', {}).get('win_pct', 0.5)),
@@ -2508,9 +2538,11 @@ class BasketballBettingHelper:
             'stl_per_100': 0.0, 'blk_per_100': 0.0, 'tov_per_100': 0.0,
             # Tier 9: FT / foul drawing
             'ft_rate': 0.0, 'fouls_drawn_per_game': 0.0,
-            'ft_attempts_per_game': 0.0, 'and_one_frequency': 0.0, 'foul_drawing_ability': 0.0,
-            # Tier 9: rebounding rates (0)
-            'oreb_rate': 0.0, 'dreb_rate': 0.0, 'total_reb_rate': 0.0,
+            'ft_attempts_per_game': 0.0, 'and_one_frequency': 0.0,
+            'foul_drawing_ability': foul_drawing_ability,
+            # Tier 9: rebounding rates
+            'oreb_rate': oreb_rate, 'dreb_rate': dreb_rate,
+            'total_reb_rate': total_reb_rate,
             'rebound_contested_pct': FEATURE_DEFAULTS['rebound_contested_pct'],
             'rebound_positioning_score': 0.0,
             # Tier 9: paint scoring (0)
