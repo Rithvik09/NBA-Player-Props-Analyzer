@@ -10,6 +10,7 @@ Writes to PostgreSQL:
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
@@ -37,6 +38,8 @@ from nba_api.stats.endpoints import (
 from nba_api.stats.static import teams
 
 from src import db
+
+log = logging.getLogger(__name__)
 
 FANTASYPROS_DVP_URL = "https://www.fantasypros.com/daily-fantasy/nba/fanduel-defense-vs-position.php"
 
@@ -2204,7 +2207,17 @@ def upsert_advanced_player_stats(
     conn.commit()
 
 
-def upsert_clutch_stats(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int, *, season: str | None = None) -> None:
+def upsert_clutch_stats(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist clutch stats per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
     eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
@@ -2234,7 +2247,17 @@ def upsert_clutch_stats(conn: psycopg.Connection, rows: list[dict[str, Any]], up
     conn.commit()
 
 
-def upsert_hustle_stats(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int, *, season: str | None = None) -> None:
+def upsert_hustle_stats(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist hustle stats per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
     eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
@@ -2260,7 +2283,17 @@ def upsert_hustle_stats(conn: psycopg.Connection, rows: list[dict[str, Any]], up
     conn.commit()
 
 
-def upsert_shot_profile(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int, *, season: str | None = None) -> None:
+def upsert_shot_profile(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist shot profile per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
     eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
@@ -2294,7 +2327,17 @@ def upsert_shot_profile(conn: psycopg.Connection, rows: list[dict[str, Any]], up
     conn.commit()
 
 
-def upsert_play_types(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int, *, season: str | None = None) -> None:
+def upsert_play_types(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist play-type usage per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
     eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
@@ -2336,7 +2379,17 @@ def upsert_play_types(conn: psycopg.Connection, rows: list[dict[str, Any]], upda
     conn.commit()
 
 
-def upsert_on_off(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int, *, season: str | None = None) -> None:
+def upsert_on_off(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist on/off ratings per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
     eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
@@ -2362,7 +2415,17 @@ def upsert_on_off(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_
     conn.commit()
 
 
-def upsert_shot_zones(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int, *, season: str | None = None) -> None:
+def upsert_shot_zones(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist shot-zone breakdown per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
     eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
@@ -2400,7 +2463,17 @@ def upsert_shot_zones(conn: psycopg.Connection, rows: list[dict[str, Any]], upda
     conn.commit()
 
 
-def upsert_quarter_splits(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int, *, season: str | None = None) -> None:
+def upsert_quarter_splits(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist quarter splits per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
     eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
@@ -2591,7 +2664,17 @@ def compute_player_tracking(season: str = '2024-25') -> list[dict[str, Any]]:
     return results
 
 
-def upsert_player_tracking(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int, *, season: str | None = None) -> None:
+def upsert_player_tracking(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist player tracking stats per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
     eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
@@ -2797,7 +2880,17 @@ def compute_player_scoring_breakdown(season: str = '2024-25') -> list[dict[str, 
     return results
 
 
-def upsert_player_scoring_breakdown(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int, *, season: str | None = None) -> None:
+def upsert_player_scoring_breakdown(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist scoring breakdown per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
     eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
@@ -3127,7 +3220,17 @@ def compute_player_yoy(season: str = '2024-25', max_players: int = 400) -> list[
     return results
 
 
-def upsert_player_yoy(conn: psycopg.Connection, rows: list[dict[str, Any]], updated_at: int, *, season: str | None = None) -> None:
+def upsert_player_yoy(
+    conn: psycopg.Connection,
+    rows: list[dict[str, Any]],
+    updated_at: int,
+    season: str | None = None,
+) -> None:
+    """Persist year-over-year stats per (player, season).
+
+    ``season`` defaults on the same terms as
+    :func:`upsert_advanced_player_stats` — see that docstring.
+    """
     eff_season = season or compute_current_season()
     cur = conn.cursor()
     for r in rows:
@@ -3313,6 +3416,30 @@ def upsert_injury_status(conn: psycopg.Connection, rows: list[dict[str, Any]], u
     conn.commit()
 
 
+def _record_job_failure(
+    conn: psycopg.Connection,
+    failed: list[str],
+    job: str,
+    exc: Exception,
+) -> None:
+    """Note a failed precompute job instead of losing it.
+
+    Every job below is wrapped on its own so one dead NBA endpoint can't kill
+    the nightly run. For years that also meant a *write* failure was
+    indistinguishable from success: ten per-season upserts raised on every
+    row and all the caller ever saw was a stdout line. The name goes into the
+    summary's ``failed_jobs`` so the next one is visible.
+
+    The rollback is what keeps that list honest. A failed statement aborts
+    the whole PostgreSQL transaction, so without it every later job fails too
+    and the summary can't say which one actually broke — same reasoning as
+    the per-table rollback in the migration loop in :func:`ensure_tables`.
+    """
+    log.error("%s failed: %s", job, exc)
+    failed.append(job)
+    conn.rollback()
+
+
 def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any]:
     """
     Runs full update and returns summary.
@@ -3320,6 +3447,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
     """
     season = season or compute_current_season()
     updated_at = int(time.time())
+    failed_jobs: list[str] = []
 
     conn = db.connect(db_path)
     ensure_tables(conn)
@@ -3357,7 +3485,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_advanced_player_stats(conn, adv_rows, updated_at=updated_at, season=season)
         print(f"  advanced player stats: {len(adv_rows)} rows")
     except Exception as _e:
-        print(f"advanced player stats failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "advanced player stats", _e)
 
     clutch_rows: list[dict[str, Any]] = []
     try:
@@ -3366,7 +3494,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_clutch_stats(conn, clutch_rows, updated_at=updated_at, season=season)
         print(f"  clutch stats: {len(clutch_rows)} rows")
     except Exception as _e:
-        print(f"clutch stats failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "clutch stats", _e)
 
     hustle_rows: list[dict[str, Any]] = []
     try:
@@ -3375,7 +3503,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_hustle_stats(conn, hustle_rows, updated_at=updated_at, season=season)
         print(f"  hustle stats: {len(hustle_rows)} rows")
     except Exception as _e:
-        print(f"hustle stats failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "hustle stats", _e)
 
     shot_profile_rows: list[dict[str, Any]] = []
     try:
@@ -3384,7 +3512,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_shot_profile(conn, shot_profile_rows, updated_at=updated_at, season=season)
         print(f"  shot profile: {len(shot_profile_rows)} rows")
     except Exception as _e:
-        print(f"shot profile failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "shot profile", _e)
 
     play_type_rows: list[dict[str, Any]] = []
     try:
@@ -3393,7 +3521,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_play_types(conn, play_type_rows, updated_at=updated_at, season=season)
         print(f"  play types: {len(play_type_rows)} rows")
     except Exception as _e:
-        print(f"synergy play types failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "synergy play types", _e)
 
     on_off_rows: list[dict[str, Any]] = []
     try:
@@ -3402,7 +3530,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_on_off(conn, on_off_rows, updated_at=updated_at, season=season)
         print(f"  on/off ratings: {len(on_off_rows)} rows")
     except Exception as _e:
-        print(f"on/off ratings failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "on/off ratings", _e)
 
     shot_zone_rows: list[dict[str, Any]] = []
     try:
@@ -3411,7 +3539,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_shot_zones(conn, shot_zone_rows, updated_at=updated_at, season=season)
         print(f"  shot zones: {len(shot_zone_rows)} rows")
     except Exception as _e:
-        print(f"shot zone breakdown failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "shot zone breakdown", _e)
 
     quarter_split_rows: list[dict[str, Any]] = []
     try:
@@ -3420,7 +3548,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_quarter_splits(conn, quarter_split_rows, updated_at=updated_at, season=season)
         print(f"  quarter splits: {len(quarter_split_rows)} rows")
     except Exception as _e:
-        print(f"quarter splits failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "quarter splits", _e)
 
     opp_shot_zone_rows: list[dict[str, Any]] = []
     try:
@@ -3429,7 +3557,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_opp_shot_zones(conn, opp_shot_zone_rows, updated_at=updated_at)
         print(f"  opp shot zones: {len(opp_shot_zone_rows)} rows")
     except Exception as _e:
-        print(f"opp shot zones failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "opp shot zones", _e)
 
     synergy_def_rows: list[dict[str, Any]] = []
     try:
@@ -3438,7 +3566,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_synergy_defense(conn, synergy_def_rows, updated_at=updated_at)
         print(f"  synergy defense: {len(synergy_def_rows)} rows")
     except Exception as _e:
-        print(f"synergy team defense failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "synergy team defense", _e)
 
     # ---- New feature group jobs ----
     tracking_rows: list[dict[str, Any]] = []
@@ -3448,7 +3576,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_player_tracking(conn, tracking_rows, updated_at=updated_at, season=season)
         print(f"  player tracking: {len(tracking_rows)} rows")
     except Exception as _e:
-        print(f"player tracking failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "player tracking", _e)
 
     standings_rows: list[dict[str, Any]] = []
     try:
@@ -3457,7 +3585,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_team_standings(conn, standings_rows, updated_at=updated_at)
         print(f"  team standings: {len(standings_rows)} rows")
     except Exception as _e:
-        print(f"team standings failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "team standings", _e)
 
     scoring_breakdown_rows: list[dict[str, Any]] = []
     try:
@@ -3466,7 +3594,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_player_scoring_breakdown(conn, scoring_breakdown_rows, updated_at=updated_at, season=season)
         print(f"  scoring breakdown: {len(scoring_breakdown_rows)} rows")
     except Exception as _e:
-        print(f"player scoring breakdown failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "player scoring breakdown", _e)
 
     player_vs_opp_rows: list[dict[str, Any]] = []
     try:
@@ -3475,7 +3603,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_player_vs_opponent(conn, player_vs_opp_rows)
         print(f"  player vs opponent: {len(player_vs_opp_rows)} rows")
     except Exception as _e:
-        print(f"player vs opponent failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "player vs opponent", _e)
 
     team_rest_rows: list[dict[str, Any]] = []
     try:
@@ -3484,7 +3612,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_team_rest_splits(conn, team_rest_rows, updated_at=updated_at)
         print(f"  team rest splits: {len(team_rest_rows)} rows")
     except Exception as _e:
-        print(f"team rest splits failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "team rest splits", _e)
 
     player_yoy_rows: list[dict[str, Any]] = []
     try:
@@ -3493,7 +3621,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_player_yoy(conn, player_yoy_rows, updated_at=updated_at, season=season)
         print(f"  player yoy: {len(player_yoy_rows)} rows")
     except Exception as _e:
-        print(f"player yoy stats failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "player yoy stats", _e)
 
     # ---- New Tier B jobs ----
     home_away_rows: list[dict[str, Any]] = []
@@ -3503,7 +3631,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_team_home_away_splits(conn, home_away_rows, updated_at=updated_at)
         print(f"  home/away splits: {len(home_away_rows)} rows")
     except Exception as _e:
-        print(f"team home/away splits failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "team home/away splits", _e)
 
     lineup_rows: list[dict[str, Any]] = []
     try:
@@ -3512,7 +3640,7 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_lineup_stats(conn, lineup_rows, updated_at=updated_at)
         print(f"  lineup stats: {len(lineup_rows)} rows")
     except Exception as _e:
-        print(f"lineup stats failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "lineup stats", _e)
 
     injury_rows: list[dict[str, Any]] = []
     try:
@@ -3521,12 +3649,16 @@ def update_precomputed(db_path: str, season: str | None = None) -> dict[str, Any
         upsert_injury_status(conn, injury_rows, updated_at=updated_at)
         print(f"  injury status: {len(injury_rows)} rows")
     except Exception as _e:
-        print(f"injury status failed: {_e}")
+        _record_job_failure(conn, failed_jobs, "injury status", _e)
 
     conn.close()
     return {
         "season": season,
         "updated_at": updated_at,
+        # Jobs that raised. Non-empty means the run wrote less than the
+        # row counts below suggest — they count what was computed.
+        "failed_jobs": failed_jobs,
+        "failed_job_count": len(failed_jobs),
         "dvp_rows": len(dvp),
         "defender_rows": len(defenders),
         "ref_rows": len(ref_rows),
