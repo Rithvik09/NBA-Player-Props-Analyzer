@@ -19,6 +19,10 @@ set -euo pipefail
 #
 # Safety:
 #  - lockfile to prevent overlapping runs
+#  - no command below takes --db. Every script's --db defaults to None,
+#    meaning "read DATABASE_URL", which this script exports; passing it
+#    explicitly only put the password in `ps` — visible to every account
+#    on the box, for the whole run, which for a batch retrain is hours.
 #
 # Usage:
 #  ./scripts/run_daily_jobs.sh
@@ -68,9 +72,9 @@ echo "[daily-jobs] BATCH_WEEKLY=$BATCH_WEEKLY BATCH_WEEKDAY=$BATCH_WEEKDAY BATCH
 # running it after would defer that signal a full day. Per-row errors
 # don't abort the script — || true keeps the rest of the pipeline
 # moving even if one prediction's gamelog lookup fails.
-PYTHONUNBUFFERED=1 python3 -u -m scripts.grade_and_settle --db "$DATABASE_URL" || true
+PYTHONUNBUFFERED=1 python3 -u -m scripts.grade_and_settle || true
 
-PYTHONUNBUFFERED=1 python3 -u scripts/update_precomputed.py --db "$DATABASE_URL"
+PYTHONUNBUFFERED=1 python3 -u scripts/update_precomputed.py
 
 if [[ -z "$INCREMENTAL_SEASON" ]]; then
   INCREMENTAL_SEASON="$(python3 - <<'PY'
@@ -89,24 +93,21 @@ if [[ "$BATCH_WEEKLY" == "1" || "$BATCH_WEEKLY" == "true" || "$BATCH_WEEKLY" == 
     PYTHONUNBUFFERED=1 python3 -u scripts/train_models.py \
       --seasons "$BATCH_SEASONS" \
       --max-players "$BATCH_MAX_PLAYERS" \
-      --models-dir "$MODELS_DIR" \
-      --db "$DATABASE_URL"
+      --models-dir "$MODELS_DIR"
     echo "[daily-jobs] skipping incremental update on batch day (batch retrain supersedes it)."
   else
     echo "[daily-jobs] weekly batch skipped (today dow=$today_dow, configured=$BATCH_WEEKDAY)"
     PYTHONUNBUFFERED=1 python3 -u scripts/update_incremental_models.py \
       --season "$INCREMENTAL_SEASON" \
       --max-players "$INCREMENTAL_MAX_PLAYERS" \
-      --models-dir "$MODELS_DIR" \
-      --db "$DATABASE_URL"
+      --models-dir "$MODELS_DIR"
   fi
 else
   echo "[daily-jobs] weekly batch disabled"
   PYTHONUNBUFFERED=1 python3 -u scripts/update_incremental_models.py \
     --season "$INCREMENTAL_SEASON" \
     --max-players "$INCREMENTAL_MAX_PLAYERS" \
-    --models-dir "$MODELS_DIR" \
-    --db "$DATABASE_URL"
+    --models-dir "$MODELS_DIR"
 fi
 
 echo "[daily-jobs] done at $(date)"

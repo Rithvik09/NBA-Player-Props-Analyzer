@@ -18,6 +18,11 @@
     <key>Minute</key><integer>0</integer>
   </dict>
 
+  <!-- Once DATABASE_URL below holds a real password this file is a
+       credential. launchd does not care about its mode, so nothing will
+       tell you if it is world-readable:
+         chmod 600 ~/Library/LaunchAgents/com.example.nba-props-analyzer.daily-jobs.plist
+  -->
   <key>EnvironmentVariables</key>
   <dict>
     <key>DATABASE_URL</key>

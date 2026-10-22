@@ -69,7 +69,8 @@ def fit(db_path: str, min_samples: int = 30) -> dict:
     """).fetchall()
     conn.close()
 
-    print(f"[fit] {len(rows)} graded rows loaded from {db_path}")
+    # No DSN in the message: this print lands in the cron log.
+    print(f"[fit] {len(rows)} graded rows loaded")
 
     # Bucket by (player, date) → {prop: residual}
     bundles: dict[tuple[int, str], dict[str, float]] = defaultdict(dict)
