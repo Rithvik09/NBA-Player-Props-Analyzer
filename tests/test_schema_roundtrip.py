@@ -82,13 +82,6 @@ def test_ensure_tables_is_idempotent(real_conn):
     assert "season" in _coltypes(real_conn, "player_clutch_stats")
 
 
-@pytest.fixture
-def precompute_schema(db_conn):
-    from src import precompute_jobs
-    precompute_jobs.ensure_tables(db_conn)
-    return db_conn
-
-
 def test_precompute_ids_are_bigint(precompute_schema):
     """player_id / team_id must not be int4-narrow."""
     conn = precompute_schema
