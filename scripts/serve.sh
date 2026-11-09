@@ -20,6 +20,30 @@ LOG_LEVEL="${GUNICORN_LOG_LEVEL:-info}"
 
 cd "$(dirname "$0")/.."
 
+# Load .env if present. Nothing else in this project reads it — there is no
+# dotenv dependency and no module calls a loader — so without this the
+# ODDS_API_KEY and DATABASE_URL that have sat in .env since October never
+# reach the pollers, and BETTING_SPLITS_POLL can never take effect.
+#
+# A value already in the environment wins, so launchd, or a one-off
+# `FOO=bar ./scripts/serve.sh`, is never silently overridden by a stale file.
+if [[ -f .env ]]; then
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line#"${line%%[![:space:]]*}"}"       # strip leading whitespace
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    key="${line%%=*}"
+    [[ "$key" == "$line" ]] && continue            # no '=' on this line
+    value="${line#*=}"                             # split on the FIRST '=' only,
+                                                   # a DSN query string has more
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    [[ -n "${!key:-}" ]] && continue               # environment wins
+    if [[ ( "$value" == \"*\" || "$value" == \'*\' ) && ${#value} -ge 2 ]]; then
+      value="${value:1:${#value}-2}"               # strip one layer of quotes
+    fi
+    export "$key=$value"
+  done < .env
+fi
+
 # Confirm models exist before binding the port — fail fast in CI/CD.
 if [[ ! -f models/model_metadata.json ]]; then
   echo "[serve] WARNING: models/model_metadata.json not found — /healthz will return 503" >&2

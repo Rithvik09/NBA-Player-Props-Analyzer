@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Keeps the Flask app running, which is what hosts the background pollers.
+
+  The other plist here (macos.launchd.com.example...) is a calendar-scheduled
+  cron for run_daily_jobs.sh with KeepAlive=false. It does NOT keep a server
+  up, so none of the in-process pollers survive under it. That gap is why
+  betting_splits_history sat unchanged from 2026-10-22 to 2026-11-09: the key
+  and the flag were both fine, but nothing was running to act on them.
+
+  What this gets you once loaded:
+    betting-splits   every 20 min (free Action Network endpoint, no quota)
+    close-sweeper    every  5 min (local SQL; triggers game-line capture at
+                     the open/close windows, ~6 Odds API credits twice a day)
+
+  Carries NO credentials by design. scripts/serve.sh loads .env itself, so
+  secrets stay in one 0600 file instead of being copied into a plist that
+  launchd will happily leave world-readable.
+
+  Install:
+    sed "s|/ABSOLUTE/PATH/TO/REPO|$PWD|g" \
+      scripts/macos.launchd.serve.plist.example \
+      > ~/Library/LaunchAgents/com.nba-props-analyzer.serve.plist
+    chmod 600 ~/Library/LaunchAgents/com.nba-props-analyzer.serve.plist
+    launchctl load ~/Library/LaunchAgents/com.nba-props-analyzer.serve.plist
+
+  Check / stop:
+    launchctl list | grep nba-props
+    tail -f logs/serve.out logs/serve.err
+    launchctl unload ~/Library/LaunchAgents/com.nba-props-analyzer.serve.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.nba-props-analyzer.serve</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/ABSOLUTE/PATH/TO/REPO/scripts/serve.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/ABSOLUTE/PATH/TO/REPO</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- The whole point: restart if it dies, so polling is not silently lost
+       the way it was for 18 days. -->
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- Don't spin a restart loop if it crashes at startup. -->
+  <key>ThrottleInterval</key>
+  <integer>60</integer>
+
+  <key>StandardOutPath</key>
+  <string>/ABSOLUTE/PATH/TO/REPO/logs/serve.out</string>
+  <key>StandardErrorPath</key>
+  <string>/ABSOLUTE/PATH/TO/REPO/logs/serve.err</string>
+
+  <!-- serve.sh reads .env for ODDS_API_KEY, DATABASE_URL and the poll flags.
+       Only non-secret overrides belong here. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PORT</key>
+    <string>8000</string>
+    <key>HOST</key>
+    <string>127.0.0.1</string>
+  </dict>
+</dict>
+</plist>
