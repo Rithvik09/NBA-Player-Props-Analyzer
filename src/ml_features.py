@@ -675,6 +675,11 @@ def build_feature_vector(raw_features: dict[str, Any]) -> FeatureVector:
     row = {k: _to_float(safe.get(k, 0.0)) for k in NUMERIC_FEATURE_KEYS}
     X = pd.DataFrame([row], columns=NUMERIC_FEATURE_KEYS)
     X = X.replace([np.inf, -np.inf], 0.0).fillna(0.0)
+    if safe.get('_feature_policy') in ('point_in_time_v2','point_in_time_v3','point_in_time_v4'):
+        # Missing pregame reports are not healthy teams or zero shot rates.
+        for key in safe.get('_missing_features', []):
+            if key in X.columns:
+                X.loc[0,key] = np.nan
     return FeatureVector(X=X)
 
 
@@ -686,5 +691,4 @@ def build_classifier_vector(raw_features: dict[str, Any], line: float) -> Featur
     cols = NUMERIC_FEATURE_KEYS + CLASSIFIER_EXTRA_KEYS
     base = base.reindex(columns=cols, fill_value=0.0)
     return FeatureVector(X=base)
-
 

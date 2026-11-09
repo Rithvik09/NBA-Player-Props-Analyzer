@@ -10,3 +10,5 @@ scipy
 requests
 beautifulsoup4
 gunicorn
+
+pdfplumber>=0.11,<0.12

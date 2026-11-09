@@ -4,6 +4,113 @@ A data-driven NBA player prop betting assistant. It ingests stats from the NBA A
 
 ---
 
+## Current model readiness
+
+The app still serves the legacy416-feature models in `models/`. Frozen prospective
+studies and newer research candidates are separate; none of the recent research
+models has been promoted. Passing feature tests does not establish an advantage
+over market probabilities. See `PROSPECTIVE_POINTS_VALIDATION.md` for the dated
+foundational audit, comparison evidence and remaining integration gaps.
+
+Invalid core prediction inputs now return unavailable/PASS. Failed model inference
+is labeled as a statistical fallback, returns PASS/LOW and is excluded from the
+named-model prediction ledger. Nightly automatic retraining is disabled by default;
+`NIGHTLY_RETRAIN=1` explicitly enables it. Serving artifact replacement requires a
+separate deliberate training/promotion decision.
+
+### Reproducible serving and database verification
+
+Serving now records a content-addressed manifest (artifact and source hashes,
+Python/library versions, feature policy and known training cutoffs). Each successful
+model prediction stores its exact model inputs and output alongside that manifest
+in PostgreSQL, in the same transaction as the prediction log. A failed evidence
+write rolls back the prediction and returns `prediction_logged=false`.
+
+Export a versioned manifest before starting a serving process:
+
+```bash
+.venv/bin/python -m scripts.serving_manifest --output logs/my_serving_release/manifest.json
+.venv/bin/python -m scripts.serving_manifest --verify logs/my_serving_release/manifest.json
+APP_BACKGROUND_TASKS=0 SERVING_MANIFEST_PATH=logs/my_serving_release/manifest.json .venv/bin/python run.py
+```
+
+`DATABASE_URL` must point to the intended database. `SERVING_MODEL_DIR` optionally
+selects another artifact directory; use the same directory with the export command's
+`--model-dir`. No artifact is promoted by exporting a manifest. Without a pinned
+manifest, startup creates an observed identity; any subsequent artifact/source/runtime
+drift fails verification. `GET /serving/provenance` exposes the active identity.
+The sibling `.requirements.txt` records the observed inference package versions;
+the manifest records Python. Keep the corresponding source revision and artifacts.
+
+Replay a new logged prediction using its exact saved feature vector:
+
+```bash
+.venv/bin/python -m scripts.replay_served_prediction 123
+```
+
+Replay checks the hashes and exact model result. It does not refetch mutable source
+data or certify historical training provenance. Old rows without evidence cannot
+be replayed this way. Legacy training cutoffs remain unknown. The compatible
+environment below resolves serialized-model version warnings. Confidence labels and
+`edge` remain legacy heuristics, not validated price-aware expected returns.
+
+The isolated integration suite uses real Flask, feature construction, loaded models
+and PostgreSQL, with canned provider responses and HTTP blocked. Create a dedicated
+local database named `codex_serving_test_<suffix>` and set `TEST_DATABASE_URL` to it;
+the test setup resets its schema. Never use the application database for these tests.
+
+```bash
+APP_BACKGROUND_TASKS=0 .venv/bin/python -m pytest -q tests/test_serving_pipeline.py
+```
+
+On 2026-10-27 UTC, 149 targeted app/database/regression checks passed. Evidence is in
+`logs/serving_pipeline_verification_01/`, including the HTTP round trip, exact replay,
+manifest and frozen-artifact integrity check. Equality with the line now grades as
+PUSH, excluded from win/loss correctness. `APP_BACKGROUND_TASKS=0` disables all Flask
+startup jobs, but is not a general network sandbox for interactive analysis requests.
+
+### Compatible legacy environment — verified 2026-10-27 UTC
+
+Do not upgrade the existing `.venv`: frozen research continues to use it. A separate
+clean environment loaded all 44 legacy joblib artifacts with no warnings using
+scikit-learn 1.8.0 and XGBoost 3.2.0, matching their embedded serialization evidence.
+The original environment used 1.6.1 and 3.4.1 respectively. The tested Python version
+is 3.12.5 on macOS arm64; the original training Python version is unknown.
+
+```bash
+python3.12 -m venv .venv-serving-legacy
+.venv-serving-legacy/bin/python -m pip install -r requirements.serving-legacy.lock
+.venv-serving-legacy/bin/python -m pip check
+.venv-serving-legacy/bin/python -m scripts.audit_legacy_runtime --output logs/new_legacy_check.json
+```
+
+The audit reads trusted local artifacts, checks their Git custody hashes, and tests
+84 predictions across all 14 props. It refuses to overwrite its report. All 84
+outputs matched the original environment exactly. The clean environment also
+passed 150 app/database tests against the isolated local database, with external
+connections blocked and sklearn version warnings treated as errors. A fresh-process
+database replay and the previous environment's HTTP prediction matched exactly.
+Evidence: `logs/legacy_runtime_recovery_01/`. The complete resolved package lock is
+`requirements.serving-legacy.lock`; it leaves the main research lock unchanged.
+
+For a deliberate future serving launch, use this environment with a newly exported
+manifest from it. Runtime versions are part of the manifest identity, so an old
+environment's manifest must not be reused. This verification did not restart or
+deploy the app, change serving artifacts, or modify frozen validation.
+
+**Provenance limit:** all artifact bytes match their last Git commits, but neither
+Git dates nor embedded library versions establish training dates or dataset rows.
+No exact legacy dataset hash, training cutoff, original Python version or complete
+original environment was recovered. These remain explicitly unknown in the audit.
+The batch trainer now records supplied-example hashes (including features, targets,
+identities and order), outcome-date bounds, package versions, source hashes and
+configuration in newly trained metadata. It does not invent history for old models
+or certify that source features were available before each game. No retraining was
+performed for this compatibility check.
+
+The recovery follows the [scikit-learn persistence guidance](https://scikit-learn.org/stable/model_persistence.html)
+and [XGBoost serialization guidance](https://github.com/dmlc/xgboost/blob/master/doc/tutorials/saving_model.rst).
+
 ## What it does
 
 - Predicts whether a player will go **over or under** a prop line (points, assists, rebounds, combos, double-double, etc.)

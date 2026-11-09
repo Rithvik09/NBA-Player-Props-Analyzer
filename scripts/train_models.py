@@ -64,6 +64,7 @@ from __future__ import annotations
 # follow-up commit, then retrain again.
 # ---------------------------------------------------------------------------
 
+from pathlib import Path
 import argparse
 import json
 import logging
@@ -563,6 +564,9 @@ class Example:
     # optional: minutes played in the training-source game — used for
     # minutes-weighted sample weights (filters out garbage-time distortion)
     minutes: float = 0.0
+    player_id: int = 0
+    game_id: str = ""
+    feature_policy: str = "legacy"
 
 
 def compute_sample_weights(
@@ -667,27 +671,33 @@ def build_training_examples(
     predictor: EnhancedMLPredictor,
     precomputed: PrecomputedStore,
     db_path: str | None = None,
+    historical_inputs=None,
+    prop_types: tuple[str, ...] | None = None,
 ) -> list[Example]:
     # Load all player precomputed data once (shot zones, tracking, clutch, etc.)
-    _precomp = _load_precomputed_player_data(db_path)
+    _precomp = historical_inputs.precomputed if historical_inputs is not None else _load_precomputed_player_data(db_path)
 
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            players_df = leaguedashplayerstats.LeagueDashPlayerStats(
-                season=season, measure_type_detailed_defense="Base", timeout=60
-            ).get_data_frames()[0]
-            break
-        except Exception as e:
-            if attempt < max_retries - 1:
-                print(f"[train] API timeout on attempt {attempt+1}/{max_retries}, retrying in 10s...")
-                time.sleep(10)
-            else:
-                print(f"[train] Failed to fetch player stats for {season} after {max_retries} attempts")
-                raise
-    players_df = players_df.sort_values("MIN", ascending=False).head(max_players)
+    if historical_inputs is not None:
+        players_df = historical_inputs.catalog(max_players)
+        pre = {}
+    else:
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                players_df = leaguedashplayerstats.LeagueDashPlayerStats(
+                    season=season, measure_type_detailed_defense="Base", timeout=60
+                ).get_data_frames()[0]
+                break
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"[train] API timeout on attempt {attempt+1}/{max_retries}, retrying in 10s...")
+                    time.sleep(10)
+                else:
+                    print(f"[train] Failed to fetch player stats for {season} after {max_retries} attempts")
+                    raise
+        players_df = players_df.sort_values("MIN", ascending=False).head(max_players)
 
-    pre = precomputed.refresh(force=True)
+        pre = precomputed.refresh(force=True)
     dvp_map = pre.get("dvp", {})
     dvp_pos_avgs = pre.get("dvp_pos_avgs", {})
     defenders_map = pre.get("defenders", {})
@@ -717,35 +727,40 @@ def build_training_examples(
         # Player vs opponent lookup (keyed by (player_id, opp_team_id) — resolved per game below)
         _vs_opp_map = _precomp["vs_opponent"]
         
-        # Retry logic for player game logs
-        gl = None
-        for attempt in range(3):
-            try:
-                gl = playergamelog.PlayerGameLog(player_id=player_id, season=season, timeout=60).get_data_frames()[0]
-                break
-            except Exception as e:
-                if attempt < 2:
-                    time.sleep(5)
-                else:
-                    print(f"[train] Skipping player {player_id} after 3 failed attempts")
+        if historical_inputs is not None:
+            gl = historical_inputs.player_log(player_id)
+            if gl.empty:
+                continue
+        else:
+            # Retry logic for player game logs
+            gl = None
+            for attempt in range(3):
+                try:
+                    gl = playergamelog.PlayerGameLog(player_id=player_id, season=season, timeout=60).get_data_frames()[0]
+                    break
+                except Exception as e:
+                    if attempt < 2:
+                        time.sleep(5)
+                    else:
+                        print(f"[train] Skipping player {player_id} after 3 failed attempts")
                     
-        if gl is None:
-            continue
-        if gl is None or gl.empty:
-            continue
+            if gl is None:
+                continue
+            if gl is None or gl.empty:
+                continue
 
-        # Also fetch playoff + play-in logs so intensity features have non-zero training exposure
-        for _stype in ("Playoffs", "PlayIn"):
-            try:
-                _extra = playergamelog.PlayerGameLog(
-                    player_id=player_id, season=season,
-                    season_type_all_star=_stype, timeout=60,
-                ).get_data_frames()[0]
-                time.sleep(0.6)
-                if _extra is not None and len(_extra) > 0:
-                    gl = pd.concat([gl, _extra], ignore_index=True)
-            except Exception:
-                pass
+            # Also fetch playoff + play-in logs so intensity features have non-zero training exposure
+            for _stype in ("Playoffs", "PlayIn"):
+                try:
+                    _extra = playergamelog.PlayerGameLog(
+                        player_id=player_id, season=season,
+                        season_type_all_star=_stype, timeout=60,
+                    ).get_data_frames()[0]
+                    time.sleep(0.6)
+                    if _extra is not None and len(_extra) > 0:
+                        gl = pd.concat([gl, _extra], ignore_index=True)
+                except Exception:
+                    pass
 
         gl = gl.copy()
         gl["GAME_DATE"] = pd.to_datetime(gl["GAME_DATE"], format="mixed", errors="coerce")
@@ -753,7 +768,8 @@ def build_training_examples(
 
 
         try:
-            info = CommonPlayerInfo(player_id=player_id).get_data_frames()[0]
+            info = (historical_inputs.player_info(player_id) if historical_inputs is not None
+                    else CommonPlayerInfo(player_id=player_id).get_data_frames()[0])
             raw_pos = str(info["POSITION"].iloc[0] if "POSITION" in info.columns else "").upper()
             # Extract bio data for training features
             try:
@@ -815,7 +831,8 @@ def build_training_examples(
 
         for idx in range(10, len(gl)):
           try:
-            hist = gl.iloc[:idx]
+            window = historical_inputs.history_window if historical_inputs is not None else None
+            hist = gl.iloc[max(0, idx-window) if window else 0:idx]
             row = gl.iloc[idx]
 
             team_abbrev, opp_abbrev, is_home = _parse_matchup(row.get("MATCHUP"))
@@ -1008,8 +1025,10 @@ def build_training_examples(
             else:
                 _perf_lead = pts_mean; _perf_trail = pts_mean
 
-            team_ctx = predictor.get_team_context(team_id)
-            opp_ctx = predictor.get_team_context(opp_id)
+            team_ctx = (historical_inputs.team_context(team_id, _cur_date) if historical_inputs is not None
+                        else predictor.get_team_context(team_id))
+            opp_ctx = (historical_inputs.team_context(opp_id, _cur_date) if historical_inputs is not None
+                       else predictor.get_team_context(opp_id))
 
             team_style = (team_ctx or {}).get("style", {}) or {}
             opp_style = (opp_ctx or {}).get("style", {}) or {}
@@ -1021,7 +1040,7 @@ def build_training_examples(
             # game year so older training rows see era-appropriate
             # values. Source: NBA.com / B-R league averages per season.
             _season_year = _cur_date.year if _cur_date.month >= 10 else _cur_date.year - 1
-            _season_lg_avgs = _LEAGUE_AVGS_BY_SEASON.get(_season_year, _LEAGUE_AVGS_DEFAULT)
+            _season_lg_avgs = _LEAGUE_AVGS_BY_SEASON.get(_season_year - (1 if historical_inputs is not None else 0), _LEAGUE_AVGS_DEFAULT)
             # Merge with whatever opp_ctx provided (in case some keys
             # are populated there); season-specific values take
             # precedence for the lg_ keys.
@@ -1085,7 +1104,10 @@ def build_training_examples(
             # Infer opponent back-to-back from rest splits availability (proxy: b2b_def_rating populated)
             _opp_is_b2b = 1.0 if (_rst and _rst.get("b2b_def_rating") and _is_b2b == 0.0) else 0.0
             # Rest advantage: player rest days minus assumed opponent rest days
-            _opp_rest_days_est = 0.0 if _opp_is_b2b else 2.0
+            _opp_rest_days_est = (float(opp_ctx["days_rest"]) if historical_inputs is not None
+                                  else (0.0 if _opp_is_b2b else 2.0))
+            if historical_inputs is not None:
+                _opp_is_b2b = float(_opp_rest_days_est == 0)
             _rest_advantage = _rest_days - _opp_rest_days_est
             _rest_advantage_abs = abs(_rest_advantage)
             _both_rested = 1.0 if (_rest_days >= 2 and _opp_rest_days_est >= 2) else 0.0
@@ -1168,7 +1190,19 @@ def build_training_examples(
             _away_games = hist[hist["MATCHUP"].str.contains("@", na=False)] if "MATCHUP" in hist.columns else pd.DataFrame()
             _is_away_now = "@" in str(row.get("MATCHUP", ""))
 
-            def make_features(stat_values, last5_avg, season_avg, stddev):
+            def make_features(stat_values, last5_avg, season_avg, stddev, audit_target=None):
+                if historical_inputs is not None and historical_inputs.audited:
+                    from src.audited_features import build_audited_features
+                    historical_inputs.prediction_game_id = _gid_str
+                    features, gaps = build_audited_features(
+                        hist, audit_target or target_col, player_id, team_id, opp_id, _cur_date,
+                        is_home, historical_inputs)
+                    for key in gaps:
+                        historical_inputs.feature_gaps[key] = historical_inputs.feature_gaps.get(key, 0) + 1
+                    from src.audited_features import POLICY_VERSION
+                    features['_feature_policy'] = POLICY_VERSION
+                    features['_missing_features'] = gaps
+                    return features
                 # Per-prop home/away target split (target_col is bound in the enclosing
                 # STAT_TARGETS/COMBO_TARGETS loop when make_features is called).
                 _target_mean = float(season_avg)
@@ -1867,6 +1901,8 @@ def build_training_examples(
                     }
 
             for prop_type, target_col in STAT_TARGETS.items():
+                if prop_types is not None and prop_type not in prop_types:
+                    continue
                 values = hist[target_col].tolist()
                 if len(values) < 8:
                     continue
@@ -1878,9 +1914,11 @@ def build_training_examples(
                 _mins = float(row.get("MIN", 0.0) or 0.0)
                 examples.append(Example(prop_type=prop_type, X=X, y=y,
                                         game_date=pd.to_datetime(row["GAME_DATE"]),
-                                        minutes=_mins))
+                                        minutes=_mins, player_id=player_id, game_id=_gid_str))
 
             for combo_prop, cols in COMBO_TARGETS.items():
+                if prop_types is not None and combo_prop not in prop_types:
+                    continue
                 combo_series = hist[cols].sum(axis=1)
                 values = combo_series.tolist()
                 if len(values) < 8:
@@ -1888,35 +1926,50 @@ def build_training_examples(
                 last5_avg = float(combo_series.tail(5).mean()) if len(combo_series) >= 5 else float(combo_series.mean())
                 season_avg = float(combo_series.mean())
                 stddev = float(np.std(values))
-                X = build_feature_vector(make_features(values, last5_avg, season_avg, stddev)).X
+                X = build_feature_vector(make_features(values, last5_avg, season_avg, stddev, audit_target=cols)).X
                 y = float(sum(float(row.get(c, 0.0)) for c in cols))
                 _mins_c = float(row.get("MIN", 0.0) or 0.0)
                 examples.append(Example(prop_type=combo_prop, X=X, y=y,
                                         game_date=pd.to_datetime(row["GAME_DATE"]),
-                                        minutes=_mins_c))
+                                        minutes=_mins_c, player_id=player_id, game_id=_gid_str))
 
             stats_now = [float(row.get(c, 0.0)) for c in ["PTS", "REB", "AST", "STL", "BLK"]]
             dd_y = 1.0 if sum(1 for s in stats_now if s >= 10.0) >= 2 else 0.0
             td_y = 1.0 if sum(1 for s in stats_now if s >= 10.0) >= 3 else 0.0
             pts_values = hist["PTS"].tolist()
-            if len(pts_values) >= 8:
+            if len(pts_values) >= 8 and prop_types is None:
                 last5_avg = float(last5["PTS"].mean()) if not last5.empty else float(hist["PTS"].mean())
                 season_avg = float(hist["PTS"].mean())
                 stddev = float(np.std(pts_values))
-                X = build_feature_vector(make_features(pts_values, last5_avg, season_avg, stddev)).X
+                X = build_feature_vector(make_features(pts_values, last5_avg, season_avg, stddev, audit_target="PTS")).X
                 _mins_b = float(row.get("MIN", 0.0) or 0.0)
                 examples.append(Example(prop_type="double_double", X=X, y=dd_y,
                                         game_date=pd.to_datetime(row["GAME_DATE"]),
-                                        minutes=_mins_b))
+                                        minutes=_mins_b, player_id=player_id, game_id=_gid_str))
                 examples.append(Example(prop_type="triple_double", X=X, y=td_y,
                                         game_date=pd.to_datetime(row["GAME_DATE"]),
-                                        minutes=_mins_b))
+                                        minutes=_mins_b, player_id=player_id, game_id=_gid_str))
 
           except Exception as _row_err:
+            if historical_inputs is not None and historical_inputs.audited:
+                raise
             print(f"[train] skipping row idx={idx} player={player_id}: {_row_err}")
             continue
 
+    if historical_inputs is not None and historical_inputs.audited:
+        from src.audited_features import POLICY_VERSION
+        for example in examples:
+            example.feature_policy = POLICY_VERSION
     return examples
+
+
+def _example_raw(e):
+    raw=e.X.iloc[0].to_dict()
+    from src.audited_features import POLICY_VERSION
+    if getattr(e, 'feature_policy', 'legacy') == POLICY_VERSION:
+        raw['_feature_policy']=POLICY_VERSION
+        raw['_missing_features']=[k for k,v in raw.items() if k in NUMERIC_FEATURE_KEYS and pd.isna(v)]
+    return raw
 
 
 def _sample_lines(y: float, prop_type: str) -> list[float]:
@@ -2092,6 +2145,11 @@ def create_classifier(use_xgboost=True, optimized_params=None):
 
 
 def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
+    from src.training_provenance import record_training_inputs
+    provenance = record_training_inputs(examples, _TRAIN_CONFIG)
+    policies = {getattr(e, 'feature_policy', 'legacy') for e in examples}
+    if len(policies) != 1:
+        raise ValueError('Training requires a single feature policy; never mix legacy and audited rows')
     os.makedirs(models_dir, exist_ok=True)
 
     # Group by prop_type
@@ -2099,7 +2157,7 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
     for ex in examples:
         by_prop.setdefault(ex.prop_type, []).append(ex)
 
-    metadata: dict[str, Any] = {"schema": {"numeric_features": NUMERIC_FEATURE_KEYS}, "props": {}}
+    metadata: dict[str, Any] = {"schema": {"numeric_features": NUMERIC_FEATURE_KEYS}, "feature_policy": next(iter(policies)), "props": {}}
 
     for prop, exs in by_prop.items():
         exs = sorted(exs, key=lambda e: e.game_date)
@@ -2144,6 +2202,12 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
         metadata["props"].setdefault(prop, {})
         metadata["props"][prop].update({
             "n_examples": int(len(exs)),
+            # Conservatively include evaluation/calibration outcome dates too.
+            # Model-error features must never treat these as unseen outcomes.
+            "training_outcomes_through": (
+                pd.Timestamp(max(e.game_date for e in exs)).normalize()
+                .tz_localize('America/New_York') + pd.Timedelta(days=1)
+            ).isoformat(),
         })
 
         wf_splits = _walk_forward_splits(len(exs), min_train=200, n_folds=5)
@@ -2157,7 +2221,7 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
 
                 Xc_tr_parts, yc_tr_parts = [], []
                 for e in tr:
-                    raw = e.X.iloc[0].to_dict()
+                    raw = _example_raw(e)
                     center = _sportsbook_center(raw)
                     for ln in _sample_lines(center, prop):
                         Xc_tr_parts.append(build_classifier_vector(raw, line=ln).X)
@@ -2165,7 +2229,7 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
 
                 Xc_te_parts, yc_te_parts = [], []
                 for e in te:
-                    raw = e.X.iloc[0].to_dict()
+                    raw = _example_raw(e)
                     center = _sportsbook_center(raw)
                     for ln in _sample_lines(center, prop):
                         Xc_te_parts.append(build_classifier_vector(raw, line=ln).X)
@@ -2288,7 +2352,7 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
         _clf_train_weights: list[float] = []
         _clf_train_bands: list[int] = []  # line-distance band per row, for stratified cal split
         for i, (e, yv) in enumerate(zip(train_exs, y_train)):
-            raw = e.X.iloc[0].to_dict()
+            raw = _example_raw(e)
             center = _sportsbook_center(raw)
             _w = float(_reg_sample_weight[i]) if _reg_sample_weight is not None else 1.0
             _c_safe = max(float(center), 1.0)
@@ -2311,7 +2375,7 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
         Xc_test_parts = []
         yc_test_parts = []
         for e, yv in zip(test_exs, y_test):
-            raw = e.X.iloc[0].to_dict()
+            raw = _example_raw(e)
             center = _sportsbook_center(raw)
             for ln in _sample_lines(float(center), prop):
                 Xc_test_parts.append(build_classifier_vector(raw, line=ln).X)
@@ -2443,6 +2507,7 @@ def train_and_save(models_dir: str, examples: list[Example]) -> dict[str, Any]:
         return 1 if sum(1 for s in stats if s >= 10) >= 3 else 0
 
     meta_path = os.path.join(models_dir, "model_metadata.json")
+    metadata['training_provenance'] = provenance
     with open(meta_path, "w") as f:
         json.dump(metadata, f, indent=2)
 
@@ -2454,7 +2519,7 @@ def main():
     ap.add_argument("--season", default=None, help="Season like 2025-26 (defaults to current)")
     ap.add_argument("--seasons", default=None, help="Comma-separated seasons like 2023-24,2024-25,2025-26")
     ap.add_argument("--max-players", type=int, default=200)
-    ap.add_argument("--models-dir", default="models")
+    ap.add_argument("--models-dir", default="logs/audited_models", help="Candidate output directory; production promotion is separate.")
     ap.add_argument("--db", default=None,
                     help="PostgreSQL DSN. Defaults to the DATABASE_URL environment variable.")
     # Sample-weight knobs — set to None/0 to disable a dimension.
@@ -2489,7 +2554,14 @@ def main():
         examples = []
         for s in seasons:
             print(f"[train] season {s}: building examples...")
-            examples.extend(build_training_examples(season=s, max_players=args.max_players, predictor=predictor, precomputed=precomputed, db_path=args.db))
+            from src.historical_inputs import HistoricalInputs,load_season_logs
+            logs_path = Path(__file__).resolve().parents[1] / 'logs/points_pilot_cache' / f'players_{s}.json'
+            if not logs_path.exists():
+                raise ValueError(f'Missing dated regular-season player cache: {logs_path}; run the historical crawl first')
+            player_logs = load_season_logs(s,include_postseason=True)
+            raw = _load_precomputed_player_data(args.db or os.environ['DATABASE_URL'])
+            inputs = HistoricalInputs(s, raw, player_logs, audited=True)
+            examples.extend(build_training_examples(season=s, max_players=args.max_players, predictor=None, precomputed=None, historical_inputs=inputs))
         print(f"[train] total examples: {len(examples)}")
 
         print("[train] training + saving models ...")
@@ -2503,5 +2575,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

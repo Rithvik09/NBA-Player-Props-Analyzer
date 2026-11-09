@@ -1,10 +1,11 @@
 import logging
+import json
 import pandas as pd
 import numpy as np
 from nba_api.stats.endpoints import playergamelog, CommonPlayerInfo, TeamGameLog
 from nba_api.stats.static import players
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import warnings
 
 log = logging.getLogger(__name__)
@@ -236,6 +237,13 @@ class BasketballBettingHelper:
             )
         ''')
 
+        cursor.execute('''CREATE TABLE IF NOT EXISTS serving_manifests (
+            manifest_id TEXT PRIMARY KEY, manifest JSONB NOT NULL)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS prediction_evidence (
+            prediction_id BIGINT PRIMARY KEY REFERENCES prediction_logs(id),
+            manifest_id TEXT NOT NULL REFERENCES serving_manifests(manifest_id),
+            evidence_id TEXT NOT NULL, evidence JSONB NOT NULL)''')
+
         # migrate existing DBs that don't have these columns yet.
         # ``game_id`` is the key that links a graded prediction to the
         # closing line stamped on prop_line_summary (B3 / CLV path). We
@@ -245,6 +253,12 @@ class BasketballBettingHelper:
             ('hit_rate', 'DOUBLE PRECISION'),
             ('model_version', 'TEXT'),
             ('game_id', 'TEXT'),
+            ('result_recorded_at', 'TEXT'),
+            ('training_outcomes_through', 'TEXT'),
+            ('feature_policy', 'TEXT'),
+            ('game_start', 'TEXT'),
+            ('schedule_source', 'TEXT'),
+            ('requested_at', 'TEXT'),
         ]:
             # A savepoint per statement: in PostgreSQL the failed ALTER
             # would otherwise abort the transaction and take the rest of
@@ -264,7 +278,9 @@ class BasketballBettingHelper:
     def log_prediction(self, player_id, player_name, prop_type, line, is_home,
                        location_detected, predicted_value, over_probability,
                        recommendation, confidence, edge, season_avg, last5_avg, location_avg,
-                       hit_rate=None, model_version=None):
+                       hit_rate=None, model_version=None, training_outcomes_through=None,
+                       feature_policy=None, game_id=None, game_start=None, schedule_source=None,
+                       requested_at=None, serving_evidence=None, serving_manifest=None):
         """Saves a prediction to the DB. Returns the new row id."""
         conn = self.get_db()
         try:
@@ -274,20 +290,31 @@ class BasketballBettingHelper:
                 (timestamp, player_id, player_name, prop_type, line, is_home,
                  location_detected, predicted_value, over_probability,
                  recommendation, confidence, edge, season_avg, last5_avg, location_avg,
-                 hit_rate, model_version)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 hit_rate, model_version, training_outcomes_through, feature_policy,
+                 game_id, game_start, schedule_source, requested_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
-                datetime.now().isoformat(),
+                datetime.now().astimezone().isoformat(),
                 player_id, player_name, prop_type, line,
                 (1 if is_home else 0) if is_home is not None else None,
                 1 if location_detected else 0,
                 predicted_value, over_probability,
                 recommendation, confidence, edge,
                 season_avg, last5_avg, location_avg,
-                hit_rate, model_version
+                hit_rate, model_version, training_outcomes_through, feature_policy,
+                game_id, game_start, schedule_source, requested_at
             ))
             log_id = cursor.fetchone()[0]
+            if serving_evidence is not None:
+                from src.serving_provenance import verify_evidence
+                verify_evidence(serving_evidence)
+                if serving_manifest is None or serving_manifest['manifest_id'] != serving_evidence['manifest_id']:
+                    raise ValueError('Prediction and manifest do not match')
+                cursor.execute('INSERT INTO serving_manifests (manifest_id,manifest) VALUES (%s,%s::jsonb) ON CONFLICT (manifest_id) DO NOTHING',
+                               (serving_manifest['manifest_id'],json.dumps(serving_manifest,allow_nan=False)))
+                cursor.execute('INSERT INTO prediction_evidence (prediction_id,manifest_id,evidence_id,evidence) VALUES (%s,%s,%s,%s::jsonb)',
+                               (log_id,serving_evidence['manifest_id'],serving_evidence['evidence_id'],json.dumps(serving_evidence,allow_nan=False)))
             conn.commit()
             return log_id
         except Exception as e:
@@ -308,10 +335,14 @@ class BasketballBettingHelper:
                 return False, 'Log entry not found'
 
             line, recommendation = row
-            actual_outcome = 'OVER' if actual_result > line else 'UNDER'
+            if not np.isfinite(actual_result) or actual_result < 0:
+                return False, 'Actual result must be finite and nonnegative'
+            actual_outcome = 'PUSH' if actual_result == line else ('OVER' if actual_result > line else 'UNDER')
 
             # OVER/LEAN OVER must hit over, UNDER/LEAN UNDER must hit under, PASS is ungraded
-            if 'OVER' in recommendation:
+            if actual_outcome == 'PUSH':
+                correct = None
+            elif 'OVER' in recommendation:
                 correct = 1 if actual_outcome == 'OVER' else 0
             elif 'UNDER' in recommendation:
                 correct = 1 if actual_outcome == 'UNDER' else 0
@@ -320,9 +351,10 @@ class BasketballBettingHelper:
 
             cursor.execute('''
                 UPDATE prediction_logs
-                SET actual_result = %s, actual_outcome = %s, correct = %s, notes = %s
+                SET actual_result = %s, actual_outcome = %s, correct = %s, notes = %s,
+                    result_recorded_at = %s
                 WHERE id = %s
-            ''', (actual_result, actual_outcome, correct, notes, log_id))
+            ''', (actual_result, actual_outcome, correct, notes, datetime.now(timezone.utc).isoformat(), log_id))
             conn.commit()
             return True, actual_outcome
         except Exception as e:
@@ -352,7 +384,7 @@ class BasketballBettingHelper:
             cursor = conn.cursor()
             # grab anything without an actual_result from before today (includes PASSes)
             cursor.execute('''
-                SELECT id, player_id, player_name, prop_type, line, timestamp
+                SELECT id, player_id, player_name, prop_type, line, timestamp, game_id
                 FROM prediction_logs
                 WHERE actual_result IS NULL
                 AND "timestamp"::date < %s::date
@@ -379,7 +411,7 @@ class BasketballBettingHelper:
         except Exception as e:
             log.debug("auto_grade_pending: odds_tracker unavailable: %s", e)
 
-        for log_id, player_id, player_name, prop_type, line, timestamp in pending:
+        for log_id, player_id, player_name, prop_type, line, timestamp, expected_game_id in pending:
             try:
                 pred_date = datetime.fromisoformat(timestamp).date()
 
@@ -402,9 +434,13 @@ class BasketballBettingHelper:
                 games = gamelog_cache[cache_key]
 
                 # +1 day tolerance for late-night games that log the next day
-                row = games[games['_date'] == pred_date]
-                if row.empty:
-                    row = games[games['_date'] == pred_date + timedelta(days=1)]
+                if expected_game_id:
+                    id_column = 'Game_ID' if 'Game_ID' in games else 'GAME_ID'
+                    row = games[games[id_column].astype(str) == str(expected_game_id)]
+                else:
+                    row = games[games['_date'] == pred_date]
+                    if row.empty:
+                        row = games[games['_date'] == pred_date + timedelta(days=1)]
                 if row.empty:
                     skipped += 1
                     continue
@@ -1006,6 +1042,7 @@ class BasketballBettingHelper:
             )
             from src.feature_context import summarize_game_log
             stats['feature_inputs'] = summarize_game_log(games_df)
+            stats['_feature_boxscores'] = json.loads(games_df.to_json(orient='records', date_format='iso'))
             stats['efficiency'] = {
                 'avg_minutes':    _avg_minutes,
                 'recent_minutes': float(pd.to_numeric(games_df['MIN'], errors='coerce').fillna(0).head(5).mean()),
@@ -1223,6 +1260,7 @@ class BasketballBettingHelper:
             }
 
     def analyze_prop_bet(self, player_id, prop_type, line, opponent_team_id, is_home=None):
+        requested_at = datetime.now(timezone.utc).isoformat()
         try:
             stats = self.get_player_stats(player_id)
             if not stats:
@@ -1968,6 +2006,9 @@ class BasketballBettingHelper:
             # Preserve actual row presence; upstream default filling cannot
             # distinguish a missing row from a real value equal to the default.
             stat_data['_log_summary'] = stats.get('feature_inputs', {})
+            stat_data['_boxscores'] = stats.get('_feature_boxscores', [])
+            stat_data['_prop_type'] = prop_type
+            stat_data['_player_id'] = int(player_id)
             stat_data['_team_id'] = team_id
             stat_data['_opponent_team_id'] = opponent_team_id
             stat_data['is_home'] = (float(is_home) if location_known and is_home is not None else 0.5)
@@ -2008,7 +2049,11 @@ class BasketballBettingHelper:
             except Exception as _ie:  # noqa: BLE001 — best-effort
                 log.debug(f"injury feature injection failed: {_ie}")
 
-            ml_prediction = self.ml_predictor.predict(features, line, prop_type=prop_type)
+            serving_evidence = None
+            if hasattr(self.ml_predictor, 'serving_manifest'):
+                ml_prediction, serving_evidence = self.ml_predictor.predict_with_provenance(features, line, prop_type=prop_type)
+            else:
+                ml_prediction = self.ml_predictor.predict(features, line, prop_type=prop_type)
 
             if not ml_prediction:
                 ml_prediction = {
@@ -2035,24 +2080,37 @@ class BasketballBettingHelper:
                     print(f"couldn't resolve player name for {player_id}: {e}")
                     player_name = str(player_id)
 
-            log_id = self.log_prediction(
-                player_id=player_id,
-                player_name=player_name,
-                prop_type=prop_type,
-                line=line,
-                is_home=is_home,
-                location_detected=location_detected,
-                predicted_value=ml_prediction.get('predicted_value', stat_data.get('avg', 0)),
-                over_probability=ml_prediction.get('over_probability', hit_rate),
-                recommendation=ml_prediction.get('recommendation', 'PASS'),
-                confidence=ml_prediction.get('confidence', 'LOW'),
-                edge=ml_prediction.get('edge', edge),
-                season_avg=stat_data.get('avg', 0),
-                last5_avg=stat_data.get('last5_avg', 0),
-                location_avg=location_avg,
-                hit_rate=hit_rate,
-                model_version=self.ml_predictor.model_version,
-            )
+            # Failed inference is not a forecast from the named trained model.
+            log_id = None
+            if ml_prediction.get('model_inference_succeeded') is True:
+                from .prediction_schedule import current_game_schedule
+                schedule = current_game_schedule(team_id, opponent_team_id, (game_context or {}).get('game_id'))
+                log_id = self.log_prediction(
+                    player_id=player_id,
+                    player_name=player_name,
+                    prop_type=prop_type,
+                    line=line,
+                    is_home=is_home,
+                    location_detected=location_detected,
+                    predicted_value=ml_prediction.get('predicted_value', stat_data.get('avg', 0)),
+                    over_probability=ml_prediction.get('over_probability', hit_rate),
+                    recommendation=ml_prediction.get('recommendation', 'PASS'),
+                    confidence=ml_prediction.get('confidence', 'LOW'),
+                    edge=ml_prediction.get('edge', edge),
+                    season_avg=stat_data.get('avg', 0),
+                    last5_avg=stat_data.get('last5_avg', 0),
+                    location_avg=location_avg,
+                    hit_rate=hit_rate,
+                    model_version=self.ml_predictor.model_version,
+                    training_outcomes_through=getattr(self.ml_predictor,'training_outcomes_through',{}).get(prop_type),
+                    feature_policy=getattr(self.ml_predictor,'feature_policy','legacy'),
+                    game_id=schedule.get('game_id'),
+                    game_start=schedule.get('game_start'),
+                    schedule_source=schedule.get('source'),
+                    requested_at=requested_at,
+                    serving_evidence=serving_evidence,
+                    serving_manifest=getattr(self.ml_predictor, 'serving_manifest', None),
+                )
 
             # ---- Sharp signal analysis (when odds tracker is active) ----
             sharp_signal = None
@@ -2068,6 +2126,9 @@ class BasketballBettingHelper:
             result = {
                 'success': True,
                 'log_id': log_id,
+                'prediction_logged': log_id is not None,
+                'model_manifest_id': serving_evidence['manifest_id'] if serving_evidence else None,
+                'prediction_evidence_id': serving_evidence['evidence_id'] if serving_evidence else None,
                 'hit_rate': hit_rate,
                 'average': stat_data.get('avg', 0),
                 'last5_average': stat_data.get('last5_avg', 0),
@@ -2082,6 +2143,10 @@ class BasketballBettingHelper:
                 'values': values,
                 'predicted_value': ml_prediction.get('predicted_value', stat_data.get('avg', 0)),
                 'over_probability': ml_prediction.get('over_probability', hit_rate),
+                'prediction_mode': ml_prediction.get('prediction_mode', 'unknown'),
+                'prediction_available': ml_prediction.get('prediction_available', False),
+                'model_inference_succeeded': ml_prediction.get('model_inference_succeeded', False),
+                'fallback_reason': ml_prediction.get('fallback_reason'),
                 'recommendation': ml_prediction.get('recommendation', 'PASS'),
                 'confidence': ml_prediction.get('confidence', 'LOW'),
                 'context': {

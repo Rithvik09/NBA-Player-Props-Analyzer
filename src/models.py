@@ -66,9 +66,13 @@ from .ml_stacking import StackingBlender, StackedCalibratedClassifier
 from .ml_validation import out_of_time_split, parse_iso
 
 class EnhancedMLPredictor:
-    def __init__(self, model_dir='models'):
+    def __init__(self, model_dir=None):
+        from pathlib import Path
+        model_dir = str(Path(model_dir or os.environ.get('SERVING_MODEL_DIR') or Path(__file__).resolve().parents[1] / 'models').resolve())
         self.model_dir = model_dir
         os.makedirs(model_dir, exist_ok=True)
+        from src.serving_provenance import build_manifest
+        initial_manifest = build_manifest(model_dir)
         self.injury_tracker = InjuryTracker()
         self.models_trained = False
 
@@ -128,7 +132,20 @@ class EnhancedMLPredictor:
         # so callers can flag predictions made by an under-calibrated model.
         self._needs_recal: dict = {}
         self._global_needs_recal: bool = False
+        self.training_outcomes_through = {}
         self._load_calibration_audit()
+
+        from src.serving_provenance import build_manifest, verify_manifest
+        manifest_path = os.environ.get('SERVING_MANIFEST_PATH')
+        if manifest_path:
+            with open(manifest_path) as handle:
+                self.serving_manifest = json.load(handle)
+            verify_manifest(self.serving_manifest, self.model_dir)
+        else:
+            self.serving_manifest = build_manifest(self.model_dir)
+
+        if self.serving_manifest != initial_manifest:
+            raise ValueError('Serving identity changed during model loading')
 
         self.position_matchup_cache = {}   # evicted when > 200 entries
         self.team_context_cache = {}       # evicted when > 100 entries
@@ -136,6 +153,13 @@ class EnhancedMLPredictor:
         self._pt_defend_season = None      # track which season it was fetched for
         self._CACHE_MAX_POSITION = 200
         self._CACHE_MAX_TEAM = 100
+
+    def predict_with_provenance(self, features, line, prop_type=None):
+        from src.serving_provenance import verify_manifest, evidence
+        verify_manifest(self.serving_manifest, self.model_dir)
+        result = self.predict(features, line, prop_type)
+        record = evidence(self.serving_manifest, features, line, prop_type, result)
+        return result, record
 
     @property
     def model_version(self):
@@ -197,6 +221,14 @@ class EnhancedMLPredictor:
                 meta = json.load(_mf)
         except (OSError, json.JSONDecodeError):
             return
+        self.feature_policy = meta.get("feature_policy", "legacy")
+        from src.audited_features import POLICY_VERSION
+        if self.feature_policy.startswith('point_in_time_') and self.feature_policy!=POLICY_VERSION:
+            raise ValueError('Unsupported audited feature policy; rebuild candidates with '+POLICY_VERSION)
+        self.training_outcomes_through = {
+            prop: info['training_outcomes_through'] for prop,info in (meta.get('props') or {}).items()
+            if info.get('training_outcomes_through')
+        }
         global_block = meta.get("global") or {}
         self._global_needs_recal = bool(global_block.get("needs_recal", False))
         for prop_type, info in (meta.get("props") or {}).items():
@@ -648,6 +680,10 @@ class EnhancedMLPredictor:
           usage_rate, trend_slope, b2b_flag
         All are optional — missing ones fall back to neutral defaults.
         """
+        from src.audited_features import POLICY_VERSION
+        if getattr(self, 'feature_policy', 'legacy') == POLICY_VERSION:
+            from src.audited_runtime import prepare
+            return prepare(player_stats, player_context)
         features = {}
 
         # ---- core rolling stats ----
@@ -1571,6 +1607,13 @@ class EnhancedMLPredictor:
         instead of the global fallback.  The interface is fully backward-compatible:
         callers that omit prop_type get the original behaviour unchanged.
         """
+        from src.audited_runtime import enforce
+        from src.audited_features import POLICY_VERSION
+        features = enforce(features, getattr(self, 'feature_policy', 'legacy'))
+        from src.prediction_contract import core_input_error, unavailable_prediction
+        problem = core_input_error(features, line)
+        if problem:
+            return unavailable_prediction(line, problem)
         try:
             recent_avg = features.get('recent_avg', 0)
             season_avg = features.get('season_avg', 0)
@@ -1618,6 +1661,8 @@ class EnhancedMLPredictor:
             # regressor isn't a QuantileEnsemble or ML inference failed).
             pi80_lower = None
             pi80_upper = None
+            inference_succeeded = False
+            fallback_reason = 'models_unavailable'
             if _models_ready:
                 try:
                     features_df = pd.DataFrame([features])
@@ -1652,6 +1697,8 @@ class EnhancedMLPredictor:
                         for col in feat_names:
                             if col in df.columns and pd.notna(df[col].iloc[0]):
                                 row[col] = df[col].iloc[0]
+                            elif getattr(self, 'feature_policy', 'legacy') == POLICY_VERSION:
+                                row[col] = float('nan')
                             else:
                                 row[col] = float(_feature_medians.get(col, 0.0))
                         if extra:
@@ -1667,7 +1714,8 @@ class EnhancedMLPredictor:
                     if _reg is not None:
                         scaler_estimator = _scaler if hasattr(_scaler, 'feature_names_in_') else _reg
                         features_aligned = _align_to_model(features_df, scaler_estimator)
-                        features_aligned = features_aligned.fillna(0.0)
+                        if getattr(self, 'feature_policy', 'legacy') != POLICY_VERSION:
+                            features_aligned = features_aligned.fillna(0.0)
                         features_scaled = _scaler.transform(features_aligned)
                         ml_pred = float(_reg.predict(features_scaled)[0])
                         # If the regressor is a QuantileEnsemble, surface the
@@ -1692,8 +1740,11 @@ class EnhancedMLPredictor:
 
                     # classifier may expect additional features (e.g. 'line')
                     clf_features = _align_to_model(features_df, _clf, extra={'line': line})
-                    clf_features = clf_features.fillna(0.0)
+                    if getattr(self, 'feature_policy', 'legacy') != POLICY_VERSION:
+                        clf_features = clf_features.fillna(0.0)
                     ml_prob = float(_clf.predict_proba(clf_features)[0, 1])
+                    if not np.isfinite(ml_pred) or not np.isfinite(ml_prob) or not 0 <= ml_prob <= 1:
+                        raise ValueError('Invalid model output')
 
                     # 25/75 blend: small stats anchor + ML dominant.
                     # If we have a quantile-based prob_over, swap it in for
@@ -1706,11 +1757,20 @@ class EnhancedMLPredictor:
                         blended_z = (line - predicted_value) / (std_dev + 1e-6)
                         regressor_prob = 1 - scipy.stats.norm.cdf(blended_z)
                     over_prob = 0.25 * regressor_prob + 0.75 * ml_prob
+                    if not np.isfinite(predicted_value) or not np.isfinite(over_prob):
+                        raise ValueError('Nonfinite blended output')
+                    inference_succeeded = True
+                    fallback_reason = None
                 except Exception as e:
-                    print(f"ML inference failed, falling back to stats: {e}")
+                    print(f"ML inference failed, falling back to stats: {type(e).__name__}")
                     pi80_lower = pi80_upper = None
+                    predicted_value = stat_predicted_value
+                    over_prob = stat_over_prob
+                    fallback_reason = type(e).__name__
             # when models aren't trained yet, the stat-only baseline is already set above — nothing more to do
 
+            if not np.isfinite(predicted_value) or not np.isfinite(over_prob):
+                return unavailable_prediction(line, 'nonfinite_prediction')
             edge = ((predicted_value - line) / line) if line > 0 else 0
 
             prob_strength = abs(over_prob - 0.5)
@@ -1719,6 +1779,8 @@ class EnhancedMLPredictor:
 
             over_prob = max(0.0, min(1.0, over_prob))  # clamp to valid probability range
             recommendation = self._generate_recommendation(over_prob, predicted_value, line, edge, confidence)
+            if not inference_succeeded:
+                recommendation, confidence = 'PASS', 'LOW'
 
             # Calibration warning: surface when the model that produced this
             # prediction was flagged as poorly calibrated at training time
@@ -1736,6 +1798,10 @@ class EnhancedMLPredictor:
                 'confidence': confidence,
                 'edge': float(edge),
                 'model_calibration_warning': _calibration_warning,
+                'prediction_mode': ('per_prop_ml_blend' if use_prop_model else 'global_ml_blend') if inference_succeeded else 'statistical_fallback',
+                'prediction_available': True,
+                'model_inference_succeeded': inference_succeeded,
+                'fallback_reason': fallback_reason,
                 # Conformal-calibrated 80% prediction interval. ``None``
                 # when the regressor isn't a QuantileEnsemble (e.g. legacy
                 # GradientBoostingRegressor was loaded from disk).
@@ -1744,14 +1810,8 @@ class EnhancedMLPredictor:
             }
 
         except Exception as e:
-            print(f"prediction error: {e}")
-            return {
-                'over_probability': 0.5,
-                'predicted_value': features.get('season_avg', line),
-                'recommendation': 'PASS',
-                'confidence': 'LOW',
-                'edge': 0.0
-            }
+            print(f"prediction error: {type(e).__name__}")
+            return unavailable_prediction(line, type(e).__name__)
 
     def _calculate_confidence(self, prob_strength, edge_strength):
         """HIGH/MEDIUM/LOW based on how far prob and edge are from neutral.

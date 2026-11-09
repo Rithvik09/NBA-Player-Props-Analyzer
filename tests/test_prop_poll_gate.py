@@ -33,6 +33,7 @@ def import_app(monkeypatch):
     started: list[str] = []
 
     def _factory(**env):
+        monkeypatch.setenv("APP_BACKGROUND_TASKS", "1")
         for key, value in env.items():
             if value is None:
                 monkeypatch.delenv(key, raising=False)
@@ -101,3 +102,8 @@ def test_game_line_capture_is_not_affected_by_the_gate(import_app):
     mod, started = import_app(ODDS_API_KEY="dummy-key", ODDS_PROP_POLL="0", AUTO_JOBS="0")
     assert mod._odds_prop_poll_enabled is False
     assert "close-sweeper" in started
+
+
+def test_global_background_switch_blocks_all_startup_jobs(import_app):
+    mod, started = import_app(ODDS_API_KEY="dummy-key", ODDS_PROP_POLL="1", BETTING_SPLITS_POLL="1", NIGHTLY_RETRAIN="1", APP_BACKGROUND_TASKS="0")
+    assert started == []

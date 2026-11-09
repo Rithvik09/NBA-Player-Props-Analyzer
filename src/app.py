@@ -70,6 +70,18 @@ def _emit_request_log(response):
     return response
 
 
+@app.route('/serving/provenance')
+def serving_provenance():
+    from src.serving_provenance import verify_manifest
+    predictor = betting_helper.ml_predictor
+    try:
+        verify_manifest(predictor.serving_manifest, predictor.model_dir)
+    except (ValueError, OSError):
+        return jsonify({'ready': False, 'error': 'Serving identity drift'}), 503
+    return jsonify({'ready': True, 'manifest': predictor.serving_manifest,
+                    'predictive_qualification': 'Not established by artifact verification'})
+
+
 @app.route('/metrics')
 def metrics_endpoint():
     """Prometheus scrape endpoint. Returns text exposition format."""
@@ -77,12 +89,14 @@ def metrics_endpoint():
     body = _metrics.render()
     return (body, 200, {"Content-Type": "text/plain; version=0.0.4; charset=utf-8"})
 
+_background_tasks_enabled = os.environ.get('APP_BACKGROUND_TASKS', '1').strip().lower() in ('1','true','yes')
+
 betting_helper = BasketballBettingHelper()
 game_predictor = GamePredictor(betting_helper)
 
 # Enable odds tracking if API key is set via environment variable
 _odds_key = os.environ.get('ODDS_API_KEY')
-if _odds_key:
+if _odds_key and _background_tasks_enabled:
     betting_helper.set_odds_api_key(_odds_key)
     app.logger.info('Odds tracker enabled via ODDS_API_KEY env var')
 
@@ -117,7 +131,7 @@ def _odds_poll_loop():
             app.logger.error(f"Odds poll failed: {e}")
         _time.sleep(_odds_poll_interval)
 
-if _odds_key and _odds_prop_poll_enabled:
+if _background_tasks_enabled and _odds_key and _odds_prop_poll_enabled:
     threading.Thread(target=_odds_poll_loop, daemon=True, name='odds-poller').start()
     app.logger.info(f'Odds poller started (every {_odds_poll_interval}s)')
 elif _odds_key:
@@ -170,7 +184,7 @@ def _close_sweep_loop():
             app.logger.error(f"Game line capture failed: {e}")
         _time.sleep(_close_sweep_interval)
 
-if _odds_key:
+if _background_tasks_enabled and _odds_key:
     threading.Thread(target=_close_sweep_loop, daemon=True, name='close-sweeper').start()
     app.logger.info(f'Close sweeper started (every {_close_sweep_interval}s)')
 
@@ -207,7 +221,7 @@ def _betting_splits_loop():
             app.logger.error(f"Betting splits capture failed: {e}")
         _time.sleep(_splits_poll_interval)
 
-if _splits_poll_enabled:
+if _background_tasks_enabled and _splits_poll_enabled:
     threading.Thread(target=_betting_splits_loop, daemon=True,
                      name='betting-splits').start()
     app.logger.info(f'Betting splits poller started (every {_splits_poll_interval}s)')
@@ -222,7 +236,8 @@ def _startup_auto_grade():
     except Exception as e:
         app.logger.error(f"Startup auto-grade failed: {e}")
 
-threading.Thread(target=_startup_auto_grade, daemon=True).start()
+if _background_tasks_enabled:
+    threading.Thread(target=_startup_auto_grade, daemon=True).start()
 
 # ── Retrain status tracker ────────────────────────────────────────────────────
 _retrain_status = {'running': False, 'last_result': None}
@@ -276,7 +291,12 @@ def _nightly_scheduler():
             app.logger.error(f"Nightly scheduler error: {e}")
         time.sleep(60)
 
-threading.Thread(target=_nightly_scheduler, daemon=True).start()
+# Research qualification must not be bypassed by an implicit model overwrite.
+_nightly_retrain_enabled = os.environ.get('NIGHTLY_RETRAIN', '0').strip().lower() in ('1', 'true', 'yes')
+if _nightly_retrain_enabled and _background_tasks_enabled:
+    threading.Thread(target=_nightly_scheduler, daemon=True).start()
+else:
+    app.logger.info('Nightly retraining disabled; model promotion requires explicit action.')
 
 
 @app.route('/test_api')
@@ -639,17 +659,23 @@ _ANALYZE_WINDOW = float(os.environ.get("ANALYZE_RATE_WINDOW_SECONDS", "60"))
 def analyze_prop():
     try:
         data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
+        if not isinstance(data, dict) or not data:
+            return jsonify({'error': 'Request data must be a nonempty JSON object'}), 400
             
         required_fields = ['player_id', 'prop_type', 'line', 'opponent_team_id']
         if not all(field in data for field in required_fields):
             return jsonify({'error': f'Missing required fields. Required: {required_fields}'}), 400
 
-        player_id = data['player_id']
+        try:
+            player_id = int(data['player_id'])
+            line = float(data['line'])
+            opponent_team_id = int(data['opponent_team_id'])
+        except (TypeError, ValueError, OverflowError):
+            return jsonify({'error': 'Player/team IDs and line must be numeric'}), 400
         prop_type = data['prop_type']
-        line = float(data['line'])
-        opponent_team_id = int(data['opponent_team_id'])
+        import math
+        if not math.isfinite(line) or line < 0 or player_id <= 0 or opponent_team_id <= 0:
+            return jsonify({'error':'Valid positive IDs and a finite nonnegative line are required'}), 400
         # is_home can be None (auto), True, or False — but it might arrive as a string
         # bool('false') is True in Python, so compare explicitly
         is_home_raw = data.get('is_home', None)

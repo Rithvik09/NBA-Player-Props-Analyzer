@@ -267,6 +267,11 @@ class OddsTracker:
             )
         """)
 
+        # Keep provider publication separate from our observation time. Legacy
+        # rows remain NULL; a summary update is not a historical observation.
+        for table in ('prop_line_history','game_line_history'):
+            c.execute(f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS source_updated_at TEXT')
+            c.execute(f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS observed_at TEXT')
         conn.commit()
         conn.close()
         log.info("[odds] DB tables initialized")
@@ -414,6 +419,7 @@ class OddsTracker:
         if not events:
             return 0
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        observed_at = datetime.now(timezone.utc).isoformat()
         rows = []
         for event in events:
             game_id = event.get("id")
@@ -436,6 +442,7 @@ class OddsTracker:
                                 game_id, bk_name, market_key, name,
                                 None if point is None else float(point),
                                 float(price), label, now,
+                                market.get('last_update') or bk.get('last_update'), observed_at,
                             ))
                         except (TypeError, ValueError):
                             log.warning(
@@ -457,8 +464,8 @@ class OddsTracker:
                     c.execute("""
                         INSERT INTO game_line_history
                         (game_id, bookmaker, market, outcome_name, point, price,
-                         snapshot_label, snapshot_time)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                         snapshot_label, snapshot_time, source_updated_at, observed_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT DO NOTHING
                     """, row)
                 except psycopg.Error as e:
@@ -618,32 +625,39 @@ class OddsTracker:
                 if not prop_type:
                     continue
 
-                # Group outcomes by player name to pair Over/Under
-                player_outcomes: dict[str, dict] = {}
+                # Pair only at the same line; missing sides remain unknown.
+                player_outcomes: dict[tuple, dict] = {}
                 for outcome in market.get("outcomes", []):
                     name = outcome.get("description", outcome.get("name", ""))
                     if not name:
                         continue
                     side = outcome.get("name", "").lower()  # "Over" or "Under"
-                    point = outcome.get("point", 0.0)
-                    price = outcome.get("price", 0)
+                    try:
+                        from .source_evidence import finite, implied
+                        point = finite(outcome['point'])
+                        price = finite(outcome['price'])
+                        implied(price)
+                        if point < 0 or side not in ('over', 'under'):
+                            continue
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                    key = (name, point)
+                    player_outcomes.setdefault(key, {'line': point})[side + '_price'] = price
 
-                    if name not in player_outcomes:
-                        player_outcomes[name] = {"line": point}
-                    if "over" in side:
-                        player_outcomes[name]["over_price"] = float(price)
-                        player_outcomes[name]["line"] = float(point)
-                    elif "under" in side:
-                        player_outcomes[name]["under_price"] = float(price)
-
-                for player_name, info in player_outcomes.items():
+                # The storage key allows one main line per player/book/poll.
+                # Ambiguous multiple rungs must not be silently collapsed.
+                names = [name for name, _ in player_outcomes]
+                for (player_name, _), info in player_outcomes.items():
+                    if names.count(player_name) != 1:
+                        continue
                     props.append({
+                        'source_updated_at': market.get('last_update') or bk.get('last_update'),
                         "player_name": player_name,
                         "prop_type": prop_type,
                         "bookmaker": bk_name,
                         "line": info.get("line", 0.0),
-                        "over_price": info.get("over_price", -110),
-                        "under_price": info.get("under_price", -110),
+                        "over_price": info.get("over_price"),
+                        "under_price": info.get("under_price"),
                     })
         return props
 
@@ -738,6 +752,7 @@ class OddsTracker:
     def _store_snapshot(self, game_id: str, props: list[dict]):
         """Insert line snapshots into prop_line_history."""
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        observed_at = datetime.now(timezone.utc).isoformat()
         conn = db.connect(self.db_path)
         c = conn.cursor()
         for p in props:
@@ -752,8 +767,9 @@ class OddsTracker:
                 # game/player/prop/book/time) is skipped, not replaced.
                 c.execute("""
                     INSERT INTO prop_line_history
-                    (game_id, player_name, prop_type, bookmaker, line, over_price, under_price, snapshot_time)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    (game_id, player_name, prop_type, bookmaker, line, over_price, under_price, snapshot_time,
+                     source_updated_at, observed_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT DO NOTHING
                 """, (
                     game_id,
@@ -764,6 +780,7 @@ class OddsTracker:
                     p.get("over_price"),
                     p.get("under_price"),
                     now,
+                    p.get('source_updated_at'), observed_at,
                 ))
             except psycopg.Error as e:
                 c.execute("ROLLBACK TO SAVEPOINT snapshot_row")

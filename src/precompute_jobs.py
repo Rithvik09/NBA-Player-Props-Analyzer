@@ -11,6 +11,7 @@ Writes to PostgreSQL:
 from __future__ import annotations
 
 import logging
+import math
 import time
 from typing import Any
 
@@ -455,6 +456,10 @@ def ensure_tables(conn: psycopg.Connection) -> None:
         )
         """
     )
+    conn.commit()
+
+    cur.execute('ALTER TABLE player_scoring_breakdown ADD COLUMN IF NOT EXISTS pct_pts_off_tov DOUBLE PRECISION')
+    cur.execute('ALTER TABLE player_scoring_breakdown ADD COLUMN IF NOT EXISTS pct_pts_fb DOUBLE PRECISION')
     conn.commit()
 
     # Idempotent per-season migration of per-player snapshot tables.
@@ -2039,57 +2044,32 @@ def compute_quarter_splits(season: str, player_ids: list[int] | None = None) -> 
 
 
 def compute_opp_shot_zones(season: str) -> list[dict[str, Any]]:
-    """Fetch opponent shot zone FG% allowed per team."""
-    try:
-        df = leaguedashoppptshot.LeagueDashOppPtShot(
-            season=season,
-            per_mode_simple='PerGame',
-        ).get_data_frames()[0]
-        time.sleep(1.0)
-    except Exception as e:
-        print(f"compute_opp_shot_zones: fetch failed: {e}")
-        return []
+    """Actual opponent shot zones; no defaults masquerading as observations."""
+    from nba_api.stats.endpoints import leaguedashteamshotlocations
+    frame = leaguedashteamshotlocations.LeagueDashTeamShotLocations(
+        season=season, measure_type_simple='Opponent', distance_range='By Zone',
+        per_mode_detailed='Totals', timeout=30).get_data_frames()[0]
+    return parse_opponent_zone_frame(frame)
 
-    # This endpoint has one row per team with zone columns
-    # Look for columns like LESS_THAN_6FT_FG_PCT etc.
-    # Zone classification from column names
-    results: list[dict[str, Any]] = []
-    for _, row in df.iterrows():
-        try:
-            team_id = int(row.get('TEAM_ID', 0) or 0)
-            if team_id == 0:
-                continue
 
-            def _find_col(keywords: list[str]) -> float:
-                for col in df.columns:
-                    col_up = col.upper()
-                    if all(k in col_up for k in keywords):
-                        try:
-                            return float(row.get(col, 0.0) or 0.0)
-                        except Exception:
-                            return 0.0
-                return 0.0
-
-            # Try to find rim/paint/midrange/corner3/above_break3 columns
-            rim_pct      = _find_col(['LESS_THAN_6', 'FG_PCT']) or _find_col(['RESTRICTED', 'FG_PCT'])
-            paint_pct    = _find_col(['PAINT', 'FG_PCT']) or _find_col(['LESS_THAN_10', 'FG_PCT'])
-            mid_pct      = _find_col(['MID', 'FG_PCT'])
-            corner3_pct  = _find_col(['CORNER', 'FG3_PCT']) or _find_col(['CORNER', 'FG_PCT'])
-            above3_pct   = _find_col(['ABOVE', 'BREAK', 'FG3_PCT']) or _find_col(['ABOVE', 'FG3_PCT'])
-
-            # Fallback to league averages if columns not found
-            results.append({
-                'team_id':                   team_id,
-                'rim_fg_pct_allowed':        rim_pct if rim_pct > 0 else 0.62,
-                'paint_fg_pct_allowed':      paint_pct if paint_pct > 0 else 0.55,
-                'midrange_fg_pct_allowed':   mid_pct if mid_pct > 0 else 0.42,
-                'corner3_fg_pct_allowed':    corner3_pct if corner3_pct > 0 else 0.38,
-                'above_break3_fg_pct_allowed': above3_pct if above3_pct > 0 else 0.35,
-            })
-        except Exception as e:
-            print(f"compute_opp_shot_zones: row error: {e}")
-            continue
-
+def parse_opponent_zone_frame(frame):
+    zones = {'rim':'Restricted Area','paint':'In The Paint (Non-RA)',
+             'midrange':'Mid-Range','corner3':'Corner 3','above_break3':'Above the Break 3'}
+    if frame.empty:raise ValueError('Empty opponent shooting zone response')
+    required = [('', 'TEAM_ID')] + [(label, 'OPP_'+stat) for label in zones.values() for stat in ('FGM','FGA')]
+    if not all(col in frame.columns for col in required):
+        raise ValueError('Opponent zone endpoint schema does not contain actual zone counts')
+    results=[]
+    for _,row in frame.iterrows():
+        out={'team_id':int(row[('', 'TEAM_ID')])}
+        for zone,label in zones.items():
+            made=float(row[(label,'OPP_FGM')]);attempted=float(row[(label,'OPP_FGA')])
+            if not math.isfinite(made) or not math.isfinite(attempted) or not 0<=made<=attempted:
+                raise ValueError('Invalid opponent zone counts')
+            out[zone+'_fg_pct_allowed']=made/attempted if attempted else 0.
+            out[zone+'_fgm_allowed']=made
+            out[zone+'_fga_allowed']=attempted
+        results.append(out)
     return results
 
 
@@ -2869,9 +2849,11 @@ def compute_player_scoring_breakdown(season: str = '2024-25') -> list[dict[str, 
                 'pct_pts_3pt':     _sf(row.get('PCT_PTS_3PT', 0.0)),
                 'pct_pts_paint':   _sf(row.get('PCT_PTS_PAINT', 0.0)),
                 'pct_pts_ft':      _sf(row.get('PCT_PTS_FT', 0.0)),
-                'pct_pts_midrange': _sf(row.get('PCT_PTS_MID_RANGE', 0.0)),
-                'pct_uast_fgm':    _sf(row.get('PCT_UAST_2PM', row.get('PCT_UAST_FGM', 0.0))),
+                'pct_pts_midrange': _sf(row.get('PCT_PTS_2PT_MR', row.get('PCT_PTS_MID_RANGE', max(0.0, 1.0 - _sf(row.get('PCT_PTS_3PT')) - _sf(row.get('PCT_PTS_PAINT')) - _sf(row.get('PCT_PTS_FT')))))),
+                'pct_uast_fgm':    _sf(row.get('PCT_UAST_FGM', 1.0 - _sf(row.get('PCT_AST_FGM')))),
                 'pct_ast_fgm':     _sf(row.get('PCT_AST_FGM', 0.0)),
+                'pct_pts_off_tov': _sf(row.get('PCT_PTS_OFF_TOV', 0.0)),
+                'pct_pts_fb':      _sf(row.get('PCT_PTS_FB', 0.0)),
             })
         except Exception as e:
             print(f"compute_player_scoring_breakdown: row error: {e}")
@@ -2897,8 +2879,8 @@ def upsert_player_scoring_breakdown(
         cur.execute(
             """
             INSERT INTO player_scoring_breakdown (player_id, season, pct_pts_3pt, pct_pts_paint, pct_pts_ft,
-               pct_pts_midrange, pct_uast_fgm, pct_ast_fgm, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+               pct_pts_midrange, pct_uast_fgm, pct_ast_fgm, pct_pts_off_tov, pct_pts_fb, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (player_id, season) DO UPDATE SET
                 pct_pts_3pt = excluded.pct_pts_3pt,
                 pct_pts_paint = excluded.pct_pts_paint,
@@ -2906,6 +2888,8 @@ def upsert_player_scoring_breakdown(
                 pct_pts_midrange = excluded.pct_pts_midrange,
                 pct_uast_fgm = excluded.pct_uast_fgm,
                 pct_ast_fgm = excluded.pct_ast_fgm,
+                pct_pts_off_tov = excluded.pct_pts_off_tov,
+                pct_pts_fb = excluded.pct_pts_fb,
                 updated_at = excluded.updated_at
             """,
             (
@@ -2913,6 +2897,7 @@ def upsert_player_scoring_breakdown(
                 float(r.get('pct_pts_3pt', 0.0)), float(r.get('pct_pts_paint', 0.0)),
                 float(r.get('pct_pts_ft', 0.0)), float(r.get('pct_pts_midrange', 0.0)),
                 float(r.get('pct_uast_fgm', 0.0)), float(r.get('pct_ast_fgm', 0.0)),
+                float(r.get('pct_pts_off_tov', 0.0)), float(r.get('pct_pts_fb', 0.0)),
                 int(updated_at),
             ),
         )

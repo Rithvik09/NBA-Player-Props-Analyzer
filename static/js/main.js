@@ -247,7 +247,7 @@ function updateKeyMetrics(analysis, stats) {
     const predictedValue = document.getElementById('predictedValue');
     const edgeValue = document.getElementById('edgeValue');
     if (predictedValue && edgeValue) {
-        predictedValue.textContent = analysis.predicted_value.toFixed(1);
+        predictedValue.textContent = analysis.prediction_available === false ? 'Unavailable' : analysis.predicted_value.toFixed(1);
         edgeValue.textContent = `${analysis.edge > 0 ? '+' : ''}${(analysis.edge * 100).toFixed(1)}% vs line`;
         edgeValue.className = `text-sm ${analysis.edge > 0 ? 'text-green-600' : 'text-red-600'}`;
     }
@@ -441,6 +441,21 @@ function updateMLAnalysis(analysis, stats, propType) {
 
     const strengthOrder = { strong: 0, moderate: 1, weak: 2 };
     factors.sort((a, b) => strengthOrder[a.strength] - strengthOrder[b.strength]);
+
+    if (analysis.prediction_available === false || analysis.prediction_mode === 'statistical_fallback') {
+        const unavailable = analysis.prediction_available === false;
+        mainAnalysisText.textContent = unavailable
+            ? 'Prediction unavailable: required inputs are missing or invalid. PASS.'
+            : 'The trained model could not produce this prediction. A statistical estimate is shown for reference only. PASS.';
+        classificationConf.textContent = unavailable
+            ? 'Over probability unavailable.'
+            : `Statistical estimate: ${(analysis.over_probability * 100).toFixed(1)}% over. Model confidence unavailable.`;
+        regressionPred.textContent = unavailable
+            ? 'Points prediction unavailable.'
+            : `Statistical points estimate: ${analysis.predicted_value.toFixed(1)}.`;
+        mainAnalysisText.className = 'analysis-text mb-4 text-gray-600';
+        return;
+    }
 
     const edgePct = (analysis.edge * 100).toFixed(1);
     const edgeStr = `${analysis.edge > 0 ? '+' : ''}${edgePct}%`;

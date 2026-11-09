@@ -309,3 +309,15 @@ def test_player_upsert_preserves_two_historical_seasons(real_conn, upsert):
         (2544,),
     ).fetchall()
     assert rows == [('2022-23',), ('2023-24',)]
+
+
+def test_scoring_new_provider_fields_round_trip(real_conn):
+    from src import precompute_jobs as jobs
+    jobs.ensure_tables(real_conn)
+    jobs.upsert_player_scoring_breakdown(real_conn,[{
+        'player_id':2544,'pct_pts_midrange':.12,'pct_uast_fgm':.35,
+        'pct_ast_fgm':.65,'pct_pts_off_tov':.09,'pct_pts_fb':.14,
+    }],updated_at=123,season='2024-25')
+    row=real_conn.execute('SELECT season,pct_pts_midrange,pct_uast_fgm,pct_pts_off_tov,pct_pts_fb FROM player_scoring_breakdown WHERE player_id=2544').fetchone()
+    assert row[0]=='2024-25'
+    assert row[1:]==pytest.approx((.12,.35,.09,.14))

@@ -178,6 +178,7 @@ def test_init_db_creates_game_line_history(db_conn, db_url):
     assert cols == {
         "id", "game_id", "bookmaker", "market", "outcome_name",
         "point", "price", "snapshot_label", "snapshot_time",
+        "source_updated_at", "observed_at",
     }
 
     # The UNIQUE tuple is what makes re-polling idempotent; pin it.
