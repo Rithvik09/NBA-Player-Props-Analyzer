@@ -312,7 +312,7 @@ def test_train_attaches_calibration_warning_to_predictions(predictor):
     """predict_prop must surface model_calibration_warning on every response."""
     data = _synth_training_data(n=600, with_timestamps=True)
     predictor.train(data)
-    feat = {"recent_avg": 22.0, "season_avg": 21.0, "noise": 0.0, "is_home": 1.0}
+    feat = {"recent_avg": 22.0, "season_avg": 21.0, "stddev": 0.0, "noise": 0.0, "is_home": 1.0}
     out = predictor.predict(feat, line=20.0, prop_type="points")
     assert "model_calibration_warning" in out
     assert isinstance(out["model_calibration_warning"], bool)
@@ -410,7 +410,7 @@ def test_predict_response_includes_pi80_when_quantile_regressor(predictor):
     conformal-calibrated QuantileEnsemble."""
     data = _synth_training_data(n=600, with_timestamps=True)
     predictor.train(data)
-    feat = {"recent_avg": 22.0, "season_avg": 21.0, "noise": 0.0, "is_home": 1.0}
+    feat = {"recent_avg": 22.0, "season_avg": 21.0, "stddev": 0.0, "noise": 0.0, "is_home": 1.0}
     out = predictor.predict(feat, line=20.0, prop_type="points")
     assert "pi80_lower" in out and "pi80_upper" in out
     assert out["pi80_lower"] is not None
@@ -426,7 +426,7 @@ def test_predict_uses_quantile_prob_over_when_available(predictor):
     new path actually runs."""
     data = _synth_training_data(n=600, with_timestamps=True)
     predictor.train(data)
-    feat = {"recent_avg": 25.0, "season_avg": 24.0, "noise": 0.0, "is_home": 1.0}
+    feat = {"recent_avg": 25.0, "season_avg": 24.0, "stddev": 0.0, "noise": 0.0, "is_home": 1.0}
     out_low_line = predictor.predict(feat, line=10.0, prop_type="points")
     out_high_line = predictor.predict(feat, line=40.0, prop_type="points")
     # Low line → high P(over); high line → low P(over). Monotonicity check.
