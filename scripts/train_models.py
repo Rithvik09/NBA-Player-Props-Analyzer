@@ -319,11 +319,23 @@ def _load_precomputed_player_data(db_path: str) -> dict[str, Any]:
             return {}
 
     def _load_referee_history() -> dict:
-        c.execute("SELECT to_regclass('public.referee_game_features') AS reg")
-        if c.fetchone()['reg'] is None:
+        # to_regclass must resolve the table the same way the SELECT below
+        # does -- through search_path, not a hardcoded 'public.'. Qualified
+        # guard plus unqualified query disagree whenever search_path excludes
+        # public: the guard finds the public table, waves the query through,
+        # and the query raises UndefinedTable against the actual schema.
+        try:
+            c.execute("SELECT to_regclass('referee_game_features') AS reg")
+            if c.fetchone()['reg'] is None:
+                return {}
+            c.execute('SELECT game_id,ref_name,games,foul_rate,home_win_pct,pace FROM referee_game_features')
+            return {(str(r['game_id']), str(r['ref_name']).lower()): dict(r) for r in c.fetchall()}
+        except Exception as exc:
+            # Match every sibling loader: swallow and return {} so one absent
+            # precompute table cannot empty the other ten. Without this the
+            # exception escaped _load_precomputed_player_data entirely.
+            logging.getLogger(__name__).error("_load_referee_history failed (%s)", type(exc).__name__)
             return {}
-        c.execute('SELECT game_id,ref_name,games,foul_rate,home_win_pct,pace FROM referee_game_features')
-        return {(str(r['game_id']), str(r['ref_name']).lower()): dict(r) for r in c.fetchall()}
 
     def _load_game_officials() -> dict[str, list[str]]:
         """game_id (str) -> list of ref names assigned to that game.

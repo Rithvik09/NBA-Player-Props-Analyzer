@@ -44,3 +44,36 @@ def test_latest_fallback_is_ordered_by_season_not_insertion(db_conn, db_url):
     data = _load_precomputed_player_data(db_url)
     assert data['advanced'][2544]['efg_pct'] == .6
     assert data['advanced'][(2544, '2022-23')]['efg_pct'] == .4
+
+
+def test_a_missing_referee_table_does_not_empty_the_other_loaders(db_conn, db_url):
+    """One absent precompute table must not abort the whole load.
+
+    `_load_precomputed_player_data` opens its connection in autocommit
+    precisely so that "every loader below swallows its own errors and returns
+    an empty dict when a precompute table is missing" -- its own words. Every
+    loader did except `_load_referee_history`, which had no handler at all and
+    whose existence check was hardcoded to `public.referee_game_features`
+    while the SELECT right after it was unqualified. The two therefore
+    disagreed whenever `search_path` excluded public: the guard found the
+    public table, waved the query through, and the query raised
+    UndefinedTable. That exception escaped the loader and took all eleven
+    player tables and every team table down with it, immediately before
+    training -- the same silent-starvation shape as the dict_row defect above.
+
+    The guard must resolve the table the same way the query does.
+    """
+    from scripts.train_models import _load_precomputed_player_data
+
+    db_conn.execute(
+        "CREATE TABLE player_advanced_stats ("
+        "  player_id BIGINT, season VARCHAR(7), usage_pct DOUBLE PRECISION)"
+    )
+    db_conn.execute("INSERT INTO player_advanced_stats VALUES (203999, '2025-26', 31.5)")
+    # referee_game_features is deliberately NOT created in this schema.
+
+    data = _load_precomputed_player_data(db_url)
+
+    assert data["referee_history"] == {}, "absent table should read as empty, not raise"
+    assert data["advanced"][203999]["usage_pct"] == 31.5, \
+        "a referee failure must not starve the player tables"
