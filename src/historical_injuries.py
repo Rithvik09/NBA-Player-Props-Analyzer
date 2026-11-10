@@ -8,6 +8,49 @@ from zoneinfo import ZoneInfo
 ET=ZoneInfo('America/New_York')
 STATUSES={'Out','Available','Questionable','Doubtful','Probable'}
 
+# Reason substrings that mark an Out row as a *medical* absence. Teams type this
+# field freely, so one condition arrives spelled several ways: of 950 archived
+# concussion absences, 589 read "Injury/Illness - Head; Concussion" while 361
+# read only "Concussion Protocol". Matching "injury" alone therefore kept or
+# dropped a player's spell according to which club's staff filled in the form.
+MEDICAL_REASONS=('injury','concussion')
+
+
+def is_medical_absence(reason):
+    """Does this Out reason describe a medical absence?
+
+    Gates `medical_index`, and so games_since_return and
+    missed_games_before_return, whose spec is "latest confirmed *medical* Out
+    game". Deliberately narrower than "unavailable": a G League assignment,
+    suspension, personal absence, rest or trade pending is a real absence but
+    not an injury, and must never date a return from one. Team availability
+    (team_key_players_out, opp_injury_impact) asks the other question and
+    filters on status alone -- do not unify the two.
+
+    Two medical-adjacent labels are left out on purpose rather than by
+    oversight, because neither establishes what this feature claims:
+      "Health and Safety Protocols" covered COVID contact tracing as well as
+        illness, so it does not show the player was unwell (4,630 rows, nearly
+        all 2021-22).
+      "Return to Competition Reconditioning" is the ramp *after* an absence,
+        not its cause; counting it would extend a spell past its true end.
+    Both are excluded only where they stand alone. A compound reason that also
+    names an injury stays medical, on the strength of the injury: 127 archived
+    rows read like "Injury/Illness - Right Ankle; Return to Competition
+    Reconditioning". Revisit either as a spec change, not as a bug fix.
+
+    By the same substring rule, ~26 rows reading "Rest - Left Knee Injury
+    Management" or "Injury Management G League - Two-Way" count as medical even
+    though their leading label is Rest or a G League assignment. That predates
+    this predicate and is left as it was: load-managing a named joint is
+    arguably medical, and the call belongs to the spec, not to a bug fix.
+
+    "illness" is deliberately not listed: the only archived Out row containing
+    it without "injury" is "Tightness/Illness G League - Two-Way".
+    """
+    text=(reason or '').lower()
+    return any(label in text for label in MEDICAL_REASONS)
+
 
 def normalize_name(name,keep_suffix=False):
     parts=name.split(',')

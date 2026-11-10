@@ -10,7 +10,7 @@ import json,re
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from src.historical_injuries import normalize_name,load_reports
+from src.historical_injuries import normalize_name,load_reports,is_medical_absence
 
 ROOT=Path(__file__).resolve().parents[1]
 SOURCES=ROOT/'logs/feature_recovery'
@@ -233,7 +233,7 @@ class RecoveryContext:
             for row in report['rows']:
                 grouped[(normalize_name(row['team']),row['game_date'])].append(row)
                 player=self.resolve_name(row['player'])
-                if player is not None and row['status']=='Out' and 'injury' in row['reason'].lower():
+                if player is not None and row['status']=='Out' and is_medical_absence(row['reason']):
                     self.medical_index[player].append((stamp,row['game_date']))
             for key,rows in grouped.items():self.injury_index[key].append((stamp,rows))
         self.lineups=defaultdict(list)
