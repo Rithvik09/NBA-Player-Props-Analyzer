@@ -12,7 +12,14 @@ import numpy as np
 import pandas as pd
 from src.ml_features import NUMERIC_FEATURE_KEYS
 
-POLICY_VERSION = 'point_in_time_v4'
+# Bumped v4 -> v5 because the medical-absence definition changed: a concussion
+# recorded as the bare label "Concussion Protocol" now starts an injury spell,
+# where before only reasons containing "injury" did. That moved 1,160 cells of
+# games_since_return / missed_games_before_return. Two matrices both labelled
+# v4 while differing in those cells is exactly what this version exists to
+# prevent -- load_expanded only checks that every part matches the current
+# policy, so it cannot tell the two apart by content.
+POLICY_VERSION = 'point_in_time_v5'
 
 @dataclass(frozen=True)
 class Spec:

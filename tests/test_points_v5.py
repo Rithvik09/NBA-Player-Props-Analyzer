@@ -95,4 +95,7 @@ def test_historical_cost_estimate_blocks_broad_request_before_charging(tmp_path,
 
 def test_existing_frozen_validation_sources_still_match():
     from scripts.validate_prospective_points import protocol
-    assert protocol()['feature_policy'] == 'point_in_time_v4'
+    # Compared against the constant, not a literal, so a policy bump cannot
+    # leave this assertion quietly pinning a retired version.
+    from src.audited_features import POLICY_VERSION
+    assert protocol()['feature_policy'] == POLICY_VERSION

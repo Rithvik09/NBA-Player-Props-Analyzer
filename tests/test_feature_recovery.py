@@ -58,6 +58,34 @@ def test_missing_report_survives_both_regression_and_classifier_vectors():
     assert build_feature_vector({'team_key_players_out':0}).X.team_key_players_out.iloc[0]==0
 
 
+def test_a_reported_gap_is_nan_whatever_the_policy_is_called():
+    """Missingness must not depend on a policy name being on a list.
+
+    build_feature_vector fillna(0)s the whole frame and only then restores the
+    reported gaps to NaN. That restore used to be gated on a hardcoded tuple of
+    policy names, so bumping POLICY_VERSION without editing that tuple silently
+    turned every missing feature into 0.0 -- a healthy roster, a zero shot rate
+    -- in the serving path, which is this project's signature defect rather
+    than a crash it would notice.
+
+    Only the audited producers ever set _missing_features
+    (audited_runtime.prepare and the two train_models sites), so honouring the
+    key whenever it is present is equivalent for every real caller and cannot
+    go stale at the next bump.
+    """
+    raw={'recent_avg':20,'season_avg':21,'team_key_players_out':0,
+         '_feature_policy':'point_in_time_v999','_missing_features':['team_key_players_out']}
+    assert np.isnan(build_feature_vector(raw).X.team_key_players_out.iloc[0]), \
+        'a reported gap was served as 0.0 because its policy name was unrecognised'
+
+
+def test_an_absent_missing_list_still_fills_with_defaults():
+    """The mirror: no reported gaps means no NaN, whatever the policy."""
+    raw={'recent_avg':20,'season_avg':21,'team_key_players_out':0,
+         '_feature_policy':'point_in_time_v999'}
+    assert build_feature_vector(raw).X.team_key_players_out.iloc[0]==0
+
+
 def test_real_opponent_zone_zero_is_not_replaced_by_league_average():
     from src.precompute_jobs import parse_opponent_zone_frame
     zones=['Restricted Area','In The Paint (Non-RA)','Mid-Range','Corner 3','Above the Break 3']

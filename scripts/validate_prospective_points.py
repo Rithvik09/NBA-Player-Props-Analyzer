@@ -12,10 +12,17 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+from src.audited_features import POLICY_VERSION
 from src.prospective_points import digest, save_new, validate_quote, select_quotes, settlement, paired_report
 
-OUT = Path('logs/prospective_points_v1')
-MODEL_DIR = Path('logs/expanded_points_experiment_v4')
+# v2, under point_in_time_v5. The v1 study is a point_in_time_v4 record and is
+# closed by the policy bump: its protocol pins v4 feature sources, so v5 code
+# cannot re-validate it and it is kept only as history. It reached 0 of the 100
+# eligible settled player-games its decision rule required -- all 54 forecasts
+# were warmup, which that rule excludes -- so closing it lost no primary
+# evidence.
+OUT = Path('logs/prospective_points_v2')
+MODEL_DIR = Path('logs/expanded_points_experiment_v6')
 MODEL_PATHS = {'candidate': MODEL_DIR/'development_selected.joblib',
                'compact': MODEL_DIR/'compact_expanded.joblib'}
 SOURCE_PATHS = ['src/audited_features.py', 'src/recovered_features.py',
@@ -30,7 +37,7 @@ def now():
 def protocol():
     expected = {'models': {k: {'path': str(v), 'sha256': digest(v)} for k, v in MODEL_PATHS.items()},
                 'source_hashes': {p: digest(p) for p in SOURCE_PATHS},
-                'feature_policy': 'point_in_time_v4',
+                'feature_policy': POLICY_VERSION,
                 'primary': 'First fresh request-time quote per eligible player/game; lexicographically first available bookmaker. Same actual line for both frozen models.',
                 'eligibility': 'At least 10 strictly earlier current-season appearances and prior20 mean MIN >=12, or original prior-season top50 cohort with at least10 appearances.',
                 'warmup': 'All other nonempty histories saved separately; excluded from primary analysis.',

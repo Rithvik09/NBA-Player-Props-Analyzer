@@ -675,11 +675,18 @@ def build_feature_vector(raw_features: dict[str, Any]) -> FeatureVector:
     row = {k: _to_float(safe.get(k, 0.0)) for k in NUMERIC_FEATURE_KEYS}
     X = pd.DataFrame([row], columns=NUMERIC_FEATURE_KEYS)
     X = X.replace([np.inf, -np.inf], 0.0).fillna(0.0)
-    if safe.get('_feature_policy') in ('point_in_time_v2','point_in_time_v3','point_in_time_v4'):
-        # Missing pregame reports are not healthy teams or zero shot rates.
-        for key in safe.get('_missing_features', []):
-            if key in X.columns:
-                X.loc[0,key] = np.nan
+    # Missing pregame reports are not healthy teams or zero shot rates. The
+    # fillna above flattens them to 0.0, so anything the builder reported as a
+    # gap has to be put back. This used to be gated on a hardcoded tuple of
+    # policy names, which made the NaN discipline depend on a string being kept
+    # up to date: bumping POLICY_VERSION without editing the tuple served every
+    # gap as a plausible zero instead. Only the audited builders set this key
+    # (audited_runtime.prepare and the two train_models sites), and an absent or
+    # empty list is a no-op, so honouring it unconditionally is equivalent for
+    # every real caller and cannot go stale at the next bump.
+    for key in safe.get('_missing_features', []):
+        if key in X.columns:
+            X.loc[0,key] = np.nan
     return FeatureVector(X=X)
 
 
