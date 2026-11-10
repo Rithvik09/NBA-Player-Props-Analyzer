@@ -125,6 +125,51 @@ def assert_local_reset_target(dsn: str) -> None:
         )
 
 
+def assert_fixture_target(dsn: str) -> None:
+    """Raise unless ``dsn`` names a test database.
+
+    ``assert_local_reset_target`` above guards the schema reset, which was
+    already the safer of the two paths: it reads a variable of its own and
+    stands down when that variable is unset. The fixtures are the other path.
+    They all reach the database through :func:`pg_dsn`, which *does* fall back
+    to ``DATABASE_URL``, so the variable the reset was taught to ignore
+    arrived at the fixtures anyway.
+
+    Not every fixture rolls back. ``seeded_db`` in test_backup_db.py opens its
+    own autocommit connection and runs CREATE TABLE / INSERT / DROP TABLE,
+    because pg_dump connects as a separate client and can only see committed
+    data. With ``TEST_DATABASE_URL`` unset and a production DSN exported, that
+    DDL ran against the real database.
+
+    Checks the name only; ``assert_local_reset_target`` owns the host rule,
+    which is stricter than fixtures need.
+    """
+    try:
+        params = psycopg.conninfo.conninfo_to_dict(dsn)
+    except psycopg.Error:
+        # As above: psycopg quotes the token it choked on, and on a typo'd
+        # DSN that token is as likely as not the password.
+        raise RuntimeError(
+            f"refusing to run fixtures: the DSN from {TEST_DSN_ENV_VAR} or "
+            f"{_db.DSN_ENV_VAR} is not one psycopg can parse (not echoed "
+            f"here: it may carry a password)."
+        ) from None
+    name = (params.get("dbname") or "").strip()
+    if not name:
+        raise RuntimeError(
+            f"refusing to run fixtures against a DSN that names no database: "
+            f"libpq would fall back to the connecting user's own. Set "
+            f"{TEST_DSN_ENV_VAR}=postgresql:///nba_props_test"
+        )
+    if not is_test_database_name(name):
+        raise RuntimeError(
+            f"refusing to run fixtures against database {name!r}: they create "
+            f"and drop tables, and not all of them roll back. Set "
+            f"{TEST_DSN_ENV_VAR}=postgresql:///nba_props_test (a database "
+            f"with 'test' as a word in its name)."
+        )
+
+
 def pytest_sessionstart(session):
     """Start every run from an empty schema.
 
@@ -174,6 +219,7 @@ def pg_dsn() -> str:
             f"in its name, e.g. "
             f"{TEST_DSN_ENV_VAR}=postgresql:///nba_props_test pytest"
         )
+    assert_fixture_target(dsn)
     return dsn
 
 

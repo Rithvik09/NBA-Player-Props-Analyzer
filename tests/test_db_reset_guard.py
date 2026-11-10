@@ -156,3 +156,87 @@ def test_propagation_leaves_database_url_alone_when_unset(monkeypatch):
     ct.propagate_test_dsn()
     import os
     assert os.environ["DATABASE_URL"] == "postgresql:///nba_props_test"
+
+
+# ---------------------------------------------------------------------------
+# Which database the *fixtures* may touch
+# ---------------------------------------------------------------------------
+#
+# Everything above guards the schema reset. The reset is only one of the ways
+# this suite writes to a database, and it is the one that was already safe:
+# it reads a variable of its own and stands down when that variable is unset.
+#
+# The fixtures are the other way, and they had no such guard. They all reach
+# the database through ``pg_dsn``, which falls back to DATABASE_URL -- the
+# application's variable -- and not all of them roll back. ``seeded_db`` in
+# test_backup_db.py opens its own autocommit connection and runs CREATE TABLE
+# / INSERT / DROP TABLE, because pg_dump connects as a separate client and can
+# only see committed data. So with TEST_DATABASE_URL unset and a production
+# DSN exported, running the suite put DDL in the real database -- the one
+# holding this project's unrecoverable betting-splits history.
+
+@pytest.mark.parametrize("dsn", [
+    "postgresql:///nba_props_test",
+    "postgresql://localhost/nba_props_test",
+    "postgresql://postgres:postgres@localhost:5432/nba_props_test",
+    "host=/tmp dbname=nba_props_test",
+])
+def test_fixtures_may_use_a_test_database(dsn):
+    ct.assert_fixture_target(dsn)
+
+
+@pytest.mark.parametrize("dsn", [
+    "postgresql:///nba_props",
+    "postgresql:///nba_props_latest",
+    "postgresql://u:p@localhost/contest_db",
+    "host=/tmp dbname=attestation",
+])
+def test_fixtures_refuse_a_database_that_is_not_a_test_database(dsn):
+    with pytest.raises(RuntimeError, match="refusing to run fixtures"):
+        ct.assert_fixture_target(dsn)
+
+
+def test_a_dsn_naming_no_database_is_refused():
+    """libpq would silently default to the user's own database."""
+    with pytest.raises(RuntimeError, match="refusing to run fixtures"):
+        ct.assert_fixture_target("postgresql://localhost")
+
+
+@pytest.mark.parametrize("dsn", [
+    "postgresql://u:Sw0rdf1shTunaMackerel@localhost/nba_props",
+    "postgresql://u:Sw0rdf1shTunaMackerel%ZZ@localhost/nba_props",
+])
+def test_the_fixture_refusal_does_not_echo_the_dsn(dsn):
+    with pytest.raises(RuntimeError) as excinfo:
+        ct.assert_fixture_target(dsn)
+    assert "Sw0rdf1shTunaMackerel" not in str(excinfo.value)
+
+
+def test_pg_dsn_applies_the_guard_to_the_database_url_fallback(monkeypatch):
+    """The hole itself: DATABASE_URL reaching the fixtures unchecked.
+
+    ``reset_target_dsn`` refuses to fall back to DATABASE_URL, but ``pg_dsn``
+    does fall back to it, so the variable the reset was taught to ignore
+    arrived at the fixtures anyway.
+    """
+    monkeypatch.delenv(ct.TEST_DSN_ENV_VAR, raising=False)
+    monkeypatch.setenv("DATABASE_URL", "postgresql:///nba_props")
+
+    with pytest.raises(RuntimeError, match="refusing to run fixtures"):
+        ct.pg_dsn.__wrapped__()
+
+
+def test_pg_dsn_accepts_the_test_variable(monkeypatch):
+    monkeypatch.setenv(ct.TEST_DSN_ENV_VAR, "postgresql:///nba_props_test")
+    monkeypatch.setenv("DATABASE_URL", "postgresql:///nba_props")
+    assert ct.pg_dsn.__wrapped__() == "postgresql:///nba_props_test"
+
+
+def test_pg_dsn_still_reports_a_missing_configuration_distinctly(monkeypatch):
+    """"Nothing configured" and "the wrong thing configured" are different
+    problems and must not collapse into one message."""
+    monkeypatch.delenv(ct.TEST_DSN_ENV_VAR, raising=False)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    with pytest.raises(RuntimeError, match="Neither"):
+        ct.pg_dsn.__wrapped__()
