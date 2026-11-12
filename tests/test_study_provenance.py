@@ -81,7 +81,7 @@ def test_close_study_writes_once_and_is_idempotent(tmp_path, repo):
     assert first['git_commit'] is None or re.fullmatch(r'[0-9a-f]{40}', first['git_commit'])
     assert json.loads(path.read_text()) == first
     before, mtime = path.read_bytes(), path.stat().st_mtime_ns
-    assert close_study(study, 'a different reason', {}, []) == first
+    assert close_study(study, 'terminal', recorded, [last_path, first_path]) == first
     assert path.read_bytes() == before and path.stat().st_mtime_ns == mtime
 
 
@@ -223,8 +223,15 @@ def staged_only(tmp_path):
     return source, recorded, blob
 
 
+def hold(tmp_path, blob, name='held'):
+    """Keep a blob reachable, as refs/tags/provenance/* keeps the real record's blob."""
+    git(tmp_path, 'tag', f'provenance/{name}', blob)
+    return blob
+
+
 def test_closure_can_evidence_released_content_by_blob(tmp_path, repo):
     source, recorded, blob = staged_only(tmp_path)
+    hold(tmp_path, blob)
     head = commit(tmp_path, 'only the later content was ever committed')
     study = tmp_path/'study'
     record = close_study(study, 'terminal', recorded, [str(source)], blobs={str(source): blob})
@@ -236,6 +243,7 @@ def test_closure_can_evidence_released_content_by_blob(tmp_path, repo):
 
 def test_verify_closed_rejects_blob_evidence_that_no_longer_holds(tmp_path, repo):
     source, recorded, blob = staged_only(tmp_path)
+    hold(tmp_path, blob)
     commit(tmp_path, 'only the later content was ever committed')
     study = tmp_path/'study'
     close_study(study, 'terminal', recorded, [str(source)], blobs={str(source): blob})
@@ -243,7 +251,7 @@ def test_verify_closed_rejects_blob_evidence_that_no_longer_holds(tmp_path, repo
     # Repoint the record at a blob holding different content, as a prune and
     # re-tag would: the released path has no commit behind it, so a caller that
     # trusts released_paths alone would still report the study as verified.
-    other = git(tmp_path, 'hash-object', '-w', str(source))
+    other = hold(tmp_path, git(tmp_path, 'hash-object', '-w', str(source)), 'other')
     closed = json.loads((study/'closed.json').read_text())
     closed['released_blobs'][str(source)] = other
     (study/'closed.json').write_text(json.dumps(closed))
@@ -272,6 +280,104 @@ def test_a_blob_cannot_evidence_a_path_the_closure_does_not_release(tmp_path, re
     with pytest.raises(ValueError, match=re.escape(unreleased)):
         close_study(study, 'terminal', recorded, [released], blobs={unreleased: blob})
     assert not (study/'closed.json').exists()
+
+
+def test_reclosing_an_unchanged_study_is_a_read_not_a_reverification(tmp_path, repo):
+    """A second close is a read of the record, so the world is free to have moved on."""
+    recorded = pinned(tmp_path)
+    released, unreleased, _ = recorded
+    commit(tmp_path)
+    study = tmp_path/'study'
+    first = close_study(study, 'terminal', recorded, [released])
+    # Exactly what closing records: unreleased paths were live-verified once, at
+    # closure. Re-verifying them on a read would make close_study fail for a
+    # reason the record already answers -- and an unreleased path drifting is
+    # precisely what verify_closed exists to catch, at the caller that reads it.
+    Path(unreleased).write_bytes(b'drifted after the study closed')
+    assert close_study(study, 'terminal', recorded, [released]) == first
+    with pytest.raises(ValueError, match='unreleased source'):
+        verify_closed(study, recorded)
+
+
+def test_reclosing_after_later_commits_reads_the_original_record(tmp_path, repo):
+    """commit=None names HEAD, not a pin, so later commits must not make a re-run disagree."""
+    recorded = pinned(tmp_path)
+    released = next(iter(recorded))
+    commit(tmp_path)
+    study = tmp_path/'study'
+    first = close_study(study, 'terminal', recorded, [released])
+    (tmp_path/'unrelated.txt').write_text('work that happened afterwards')
+    assert commit(tmp_path, 'later') != first['git_commit']
+    assert close_study(study, 'terminal', recorded, [released]) == first
+
+
+def test_reclosing_with_a_different_claim_is_refused(tmp_path, repo):
+    """Closed once -- so a caller describing a different closure is wrong, not a no-op."""
+    recorded = pinned(tmp_path)
+    released, other, _ = recorded
+    commit(tmp_path)
+    study = tmp_path/'study'
+    first = close_study(study, 'terminal', recorded, [released])
+    (tmp_path/'unrelated.txt').write_text('a commit that is not the one recorded')
+    elsewhere = commit(tmp_path, 'later')
+    for reason, pins, release, kwargs in [
+            ('a different reason', recorded, [released], {}),
+            ('terminal', recorded, [released, other], {}),
+            ('terminal', {released: recorded[released]}, [released], {}),
+            ('terminal', recorded, [released], {'commit': elsewhere})]:
+        with pytest.raises(ValueError, match='already closed'):
+            close_study(study, reason, pins, release, **kwargs)
+    assert json.loads((study/'closed.json').read_text()) == first
+
+
+def test_an_explicitly_pinned_commit_must_match_the_one_recorded(tmp_path, repo):
+    """The one claim a re-run may restate exactly: naming the same commit is agreement."""
+    recorded = pinned(tmp_path)
+    released = next(iter(recorded))
+    head = commit(tmp_path)
+    study = tmp_path/'study'
+    first = close_study(study, 'terminal', recorded, [released], commit=head)
+    (tmp_path/'unrelated.txt').write_text('later')
+    commit(tmp_path, 'later')
+    assert close_study(study, 'terminal', recorded, [released], commit=head) == first
+
+
+def test_closure_refuses_a_blob_that_no_ref_protects(tmp_path, repo):
+    """A dangling blob reads fine and dies at the next gc, so it cannot evidence a release."""
+    source, recorded, blob = staged_only(tmp_path)
+    commit(tmp_path, 'the blob is now reachable from nothing')
+    assert git(tmp_path, 'cat-file', '-e', blob) == ''  # readable, and still doomed
+    study = tmp_path/'study'
+    with pytest.raises(ValueError, match='no ref keeps') as info:
+        close_study(study, 'terminal', recorded, [str(source)], blobs={str(source): blob})
+    assert str(source) in str(info.value) and blob in str(info.value)
+    assert not (study/'closed.json').exists()
+
+
+def test_verify_closed_refuses_a_blob_whose_ref_has_been_deleted(tmp_path, repo):
+    """Deleting the tag must go red here, not silently at whichever gc runs next."""
+    source, recorded, blob = staged_only(tmp_path)
+    hold(tmp_path, blob)
+    commit(tmp_path, 'only the later content was ever committed')
+    study = tmp_path/'study'
+    close_study(study, 'terminal', recorded, [str(source)], blobs={str(source): blob})
+    verify_closed(study, recorded)
+    git(tmp_path, 'tag', '-d', 'provenance/held')
+    with pytest.raises(ValueError, match='no ref keeps'):
+        verify_closed(study, recorded)
+
+
+def test_a_blob_held_by_a_commit_needs_no_tag(tmp_path, repo):
+    """Reachability is the test, not how it is reached: a committed blob is already safe."""
+    source = tmp_path/'kept.py'
+    source.write_text('ARM = 1\n')
+    recorded = {str(source): digest(source)}
+    commit(tmp_path)
+    blob = git(tmp_path, 'rev-parse', 'HEAD:kept.py')
+    assert git(tmp_path, 'for-each-ref', '--points-at', blob) == ''  # no ref points at it
+    study = tmp_path/'study'
+    close_study(study, 'terminal', recorded, [str(source)], blobs={str(source): blob})
+    verify_closed(study, recorded)
 
 
 # Each of these once called validate_prospective_points.protocol(), which gates

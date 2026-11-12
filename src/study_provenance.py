@@ -52,9 +52,28 @@ def verify_released_at_commit(recorded, released, commit):
         raise ValueError(f'Commit {commit} does not hold the recorded content of: '+', '.join(wrong))
 
 
+def _reachable():
+    """Every object reachable from a ref, which is exactly what survives `git gc`.
+
+    Reachability is the question, not how it is reached: a ref pointing straight at
+    a blob and a blob inside a commit's tree both qualify, and `--points-at` would
+    see only the first.
+    """
+    return set(_git('rev-list', '--objects', '--all', '--no-object-names').decode().split())
+
+
 def verify_released_blobs(recorded, blobs):
-    """Content staged but never committed survives only as a blob; that blob must still hold it."""
-    wrong = []
+    """Content staged but never committed survives only as a blob; that blob must still hold it.
+
+    Holding it is not enough. `git cat-file` reads a dangling blob perfectly well
+    right up until the gc that prunes it, so a readable-only check would report a
+    study as verified while its sole evidence was one command from deletion. The
+    blob must also be reachable from some ref.
+    """
+    if not blobs:
+        return  # Most records evidence nothing by blob; do not pay for the object walk.
+    wrong, unprotected = [], []
+    reachable = _reachable()
     for path, blob_sha in sorted(blobs.items()):
         try:
             content = _git('cat-file', 'blob', blob_sha)
@@ -63,8 +82,50 @@ def verify_released_blobs(recorded, blobs):
             continue
         if hashlib.sha256(content).hexdigest() != recorded[path]:
             wrong.append(f'{path} (blob {blob_sha})')
+        elif blob_sha not in reachable:
+            unprotected.append(f'{path} (blob {blob_sha})')
     if wrong:
         raise ValueError('Blob does not hold the recorded content of: '+', '.join(wrong))
+    if unprotected:
+        raise ValueError('Dangling blob evidence, which no ref keeps from the next git gc: '
+                         +', '.join(unprotected)+'. Tag it, e.g. git tag provenance/<study>-<path> <blob>')
+
+
+def _resolve_commit(commit):
+    """The full sha a revision names, or None when the repository has no such commit."""
+    try:
+        return _git('rev-parse', f'{commit}^{{commit}}').decode().strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def _already_closed(path, reason, recorded, released, commit, blobs):
+    """Read the record a previous close wrote, once the caller's claim is shown to agree.
+
+    Nothing about the world is re-checked. Unreleased sources were live-verified at
+    closure, and verify_closed is what re-checks them from then on; re-verifying here
+    made a second close fail for drift the record already accounts for, so closing was
+    idempotent only while nothing had moved.
+
+    The caller's own claim must still agree, because a second call describing a
+    different closure is a mistake rather than a no-op, and quietly handing back the
+    stored record would hide it.
+    """
+    closed = json.loads(path.read_text())
+    differs = [name for name, claim, stored in (
+        ('reason', reason, closed['reason']),
+        ('source_hashes_at_close', dict(recorded), closed['source_hashes_at_close']),
+        ('released_paths', sorted(released), closed['released_paths']),
+        ('released_blobs', blobs, closed.get('released_blobs') or {}))
+        if claim != stored]
+    # commit=None asks for whatever HEAD is rather than naming one, so it cannot
+    # disagree; only an explicitly named commit is a claim about which commit.
+    if commit is not None and _resolve_commit(commit) != closed['git_commit']:
+        differs.append('git_commit')
+    if differs:
+        raise ValueError(f'{path} is already closed and names a different closure; '
+                         'a study is closed once. Disagrees on: '+', '.join(differs))
+    return closed
 
 
 def close_study(directory, reason, recorded, released, commit=None, blobs=None):
@@ -89,15 +150,15 @@ def close_study(directory, reason, recorded, released, commit=None, blobs=None):
     if unreleased_blobs:
         raise ValueError('Cannot evidence by blob a path the closure does not release: '
                          +', '.join(sorted(unreleased_blobs)))
+    if path.exists():
+        return _already_closed(path, reason, recorded, released, commit, blobs)
     verify_released_blobs(recorded, blobs)
     at_commit = [p for p in released if p not in blobs]
-    try:
-        resolved = _git('rev-parse', f'{commit or "HEAD"}^{{commit}}').decode().strip()
-    except (OSError, subprocess.CalledProcessError):
-        if at_commit or commit is not None:
-            raise ValueError(f'Cannot resolve {commit or "HEAD"} under {ROOT}; '
-                             'a closure cannot release content no commit can evidence') from None
-        resolved = None  # Nothing left for a commit to hold; the digests still identify the tree.
+    resolved = _resolve_commit(commit or 'HEAD')
+    if resolved is None and (at_commit or commit is not None):
+        raise ValueError(f'Cannot resolve {commit or "HEAD"} under {ROOT}; '
+                         'a closure cannot release content no commit can evidence')
+    # resolved stays None only when nothing is released; the digests still identify the tree.
     if resolved is not None:
         verify_released_at_commit(recorded, at_commit, resolved)
     verify_recorded_hashes({k: v for k, v in recorded.items() if k not in set(released)},
@@ -109,8 +170,8 @@ def close_study(directory, reason, recorded, released, commit=None, blobs=None):
         record['released_blobs'] = {p: blobs[p] for p in sorted(blobs)}
     try:
         save_new(path, record)
-    except FileExistsError:
-        return json.loads(path.read_text())  # Closed once; never re-closed.
+    except FileExistsError:  # Lost a race to another closer; that record is the one.
+        return _already_closed(path, reason, recorded, released, commit, blobs)
     return record
 
 
