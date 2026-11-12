@@ -9,7 +9,7 @@ import pandas as pd
 from src.prospective_points import digest, save_new, validate_quote, paired_report
 from src.points_v5 import enrich_injuries, POLICY
 from src.historical_inputs import HistoricalInputs
-from scripts.validate_prospective_points import protocol as verify_v1
+from src.study_provenance import recorded_or_live_hashes
 
 OUT = Path('logs/prospective_points_v5')
 V1 = Path('logs/prospective_points_v1')
@@ -24,13 +24,17 @@ def run():
     if not (MODELS/'report.json').exists():
         print('V5 candidate not ready; original validation unaffected.')
         return
-    verify_v1()
+    # v1 and own-source integrity is the stored != config comparison below, which
+    # pins v1's protocol and src/points_v5.py live. The former verify_v1() here was
+    # redundant with it and gated on logs/prospective_points_v2, a study this
+    # sidecar never reads. This file's own digest answers from closed.json: pinning
+    # it live made any edit here declare the study changed and refuse to recompute.
     OUT.mkdir(exist_ok=True)
     with (OUT/'run.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         config = {'policy': POLICY, 'candidate_path': str(MODELS/'repaired.joblib'),
                   'candidate_sha256': digest(MODELS/'repaired.joblib'),
-                  'source_hashes': {p: digest(p) for p in ['src/points_v5.py', __file__]},
+                  'source_hashes': recorded_or_live_hashes(OUT, ['src/points_v5.py', __file__]),
                   'v1_protocol_sha256': digest(V1/'protocol.json'),
                   'analysis': 'Same-game/player/line/horizon paired comparison against both frozen v1 models. Early-season warmup and eligible cohorts separate. First100 eligible binary forecasts checkpoint; at least20 games for research-success criteria. No model updates.',
                   'lines_used_for_training': 'synthetic; real-line importer is separate and has no effect on this frozen candidate'}

@@ -115,6 +115,17 @@ def test_calibration_honors_training_weights(method):
     assert cal.predict([.5])[0]==pytest.approx(.75,abs=.001)
 
 
+def test_expanded_profile_label_tracks_the_feature_policy(monkeypatch):
+    from scripts import train_expanded_points as mod
+    from src.audited_features import POLICY_VERSION
+    assert mod.profile_name('candidate')=='expanded_points_'+POLICY_VERSION+'_candidate'
+    # Derived, not merely correct today: the label was hardcoded to v4 and survived
+    # the bump to v5, so pinning only the current string would pin the same bug.
+    monkeypatch.setattr(mod,'POLICY_VERSION','point_in_time_v99')
+    assert mod.profile_name('candidate')=='expanded_points_point_in_time_v99_candidate', \
+        'the profile label does not follow POLICY_VERSION, so a bump leaves it stale'
+
+
 def test_negative_official_pie_is_preserved_as_signed_ratio():
     from tests.test_full_feature_audit import fixture,build
     from src.audited_features import SPECS

@@ -12,6 +12,7 @@ from src.points_reference_inputs import aligned_reference, predict_comparison
 from src.points_v5 import prepare, PointsV5Candidate, EXTRA_COLUMNS, POLICY
 from src.verified_training import expand_points, classifier_frame, ProbabilityCalibration
 from src.prospective_points import digest, save_new
+from src.study_provenance import verify_recorded_hashes
 from scripts.investigate_points_features import PARAMS
 from scripts.train_selected_points import fit_calibration, paired_losses
 from scripts.points_pilot import metrics, model_hashes
@@ -22,10 +23,20 @@ def candidate_groups(old):
             'compact_retrained':[k for k in dict.fromkeys(old['frozen_compact'].columns+EXTRA_COLUMNS[:4]) if k!='rolling_30day_avg']}
 
 
+def verify_frozen_reference(frozen, record=Path('logs/points_v6_real_01/protocol.json')):
+    """Pin the v4 arms this script scores to the hashes the first real run recorded."""
+    if not record.exists():
+        return  # First run: nothing recorded yet; this run's protocol records them.
+    recorded = json.loads(record.read_text())['frozen_reference_hashes']
+    if not recorded:
+        raise ValueError(f'{record} pins no frozen reference arms')
+    verify_recorded_hashes({str(frozen/name): sha for name, sha in recorded.items()}, 'Frozen v4 reference')
+
+
 def run(output, real_path, reference_path):
     from scripts.report_real_points_readiness import coverage
-    from scripts.validate_prospective_points import protocol as verify_frozen
-    verify_frozen()
+    frozen = Path('logs/expanded_points_experiment_v4')
+    verify_frozen_reference(frozen)
     gate_data=joblib.load(real_path)
     sidecar=joblib.load(reference_path)
     aligned_reference(gate_data,sidecar,digest(real_path))
@@ -34,7 +45,6 @@ def run(output, real_path, reference_path):
         raise ValueError('Insufficient real-line chronological split: require100 rows and20 games each')
     output.mkdir(parents=True, exist_ok=False)
     serving_before = model_hashes()
-    frozen = Path('logs/expanded_points_experiment_v4')
     old = {name: joblib.load(frozen/file) for name, file in
            [('frozen161', 'development_selected.joblib'), ('frozen_compact', 'compact_expanded.joblib')]}
     groups = candidate_groups(old)
@@ -134,7 +144,7 @@ def run(output, real_path, reference_path):
             'paired_vs_frozen_compact': paired_losses(y[ctest][mask], probabilities['repaired'][mask], probabilities['frozen_compact'][mask], games[ctest][mask])}
     pd.DataFrame({'game':real['games'][rd>='2025-07-01'],'player':real['players'][rd>='2025-07-01'],
                   'date':real['dates'][rd>='2025-07-01'],'line':eval_lines,'over':y[ctest],**probabilities}).to_csv(output/'predictions.csv',index=False)
-    verify_frozen()
+    verify_frozen_reference(frozen)
     assert model_hashes() == serving_before
     report['serving_unchanged'] = True
     report['candidate_hashes'] = {p.name: digest(p) for p in output.glob('*.joblib')}

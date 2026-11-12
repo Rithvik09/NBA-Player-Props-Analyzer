@@ -55,6 +55,18 @@ def make_protocol(directory):
         'prior_diagnostics_sha256':hashlib.sha256(Path('logs/points_feature_investigation_v1/feature_diagnostics.csv').read_bytes()).hexdigest()}
 
 
+def profile_name(name):
+    """Descriptive lineage label stored on each candidate.
+
+    Derived from POLICY_VERSION, as train_points_v5/v6 derive theirs from their
+    own POLICY. This was hardcoded to 'expanded_points_v4_' and outlived the v4
+    policy, so models built under v5 self-described as a feature generation they
+    were not built under. Nothing reads the field -- it is provenance for a human
+    reading an artifact -- which is exactly why a stale value survives unnoticed.
+    """
+    return f'expanded_points_{POLICY_VERSION}_{name}'
+
+
 def cohort_weights(original,cohort):
     original=np.asarray(original,dtype=bool)
     if cohort=='original':return original.astype(float)
@@ -124,7 +136,7 @@ def run(directory,output):
             cal=fit_calibration(method,raw[calfit],y[calfit],normalized_weights(cweights,calfit));scores[method]=metrics(y[caldev],cal.predict(raw[caldev]))
         method=min(scores,key=lambda k:scores[k]['log_loss']);cal=fit_calibration(method,raw[calall],y[calall],normalized_weights(cweights,calall))
         calibrations[name]={'method':method,'selection_scores':scores,'classifier_columns':cols,'regressor_columns':rc}
-        model=ExpandedPointsCandidate(cols,r,c,cal,feature_profile='expanded_points_v4_'+name,regressor_columns=rc)
+        model=ExpandedPointsCandidate(cols,r,c,cal,feature_profile=profile_name(name),regressor_columns=rc)
         path=output/f'{name}.joblib';joblib.dump(model,path);models[name]=joblib.load(path)
     manifest={**protocol,'selections':selections,'calibrations':calibrations,
         'dataset_sha256':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in directory.glob('audited_*.joblib')},

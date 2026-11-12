@@ -5,7 +5,7 @@ from pathlib import Path
 import joblib
 import pandas as pd
 from src.prospective_points import digest
-from scripts.validate_prospective_points import protocol
+from src.study_provenance import verify_closed
 
 
 def coverage(data):
@@ -18,10 +18,16 @@ def coverage(data):
 
 
 def run(path):
-    protocol()
-    p=json.loads(Path('logs/prospective_points_v5/protocol.json').read_text())
-    if not all(digest(k)==v for k,v in p['source_hashes'].items()) or digest(p['candidate_path'])!=p['candidate_sha256'] or digest('logs/prospective_points_v1/protocol.json')!=p['v1_protocol_sha256']:
+    # logs/prospective_points_v2 is a separate live study with its own gate; this
+    # report reads none of its models or sources, so it does not stand on them.
+    study=Path('logs/prospective_points_v5')
+    p=json.loads((study/'protocol.json').read_text())
+    if digest(p['candidate_path'])!=p['candidate_sha256'] or digest('logs/prospective_points_v1/protocol.json')!=p['v1_protocol_sha256']:
         raise ValueError('Frozen v5 drift')
+    # v5 is closed: its artifacts stay live-verified above, and so does every
+    # pinned source except the ones closed.json explicitly released -- only those
+    # may move on. src/points_v5.py is not released and has 24 live importers.
+    verify_closed(study,p['source_hashes'])
     d=joblib.load(path); result=coverage(d)
     report={'splits':result,'ready':all(x['ready'] for x in result.values()),'frozen_studies_verified':True,
             'minimum_additional_games':sum(max(0,20-x['independent_games']) for x in result.values()),
