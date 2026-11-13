@@ -380,6 +380,72 @@ def test_a_blob_held_by_a_commit_needs_no_tag(tmp_path, repo):
     verify_closed(study, recorded)
 
 
+def test_a_path_may_be_declared_lost_only_when_nothing_holds_its_content(tmp_path, repo):
+    """Otherwise `lost` launders any stale pin into a closed one."""
+    recorded = pinned(tmp_path)
+    committed, _, _ = recorded
+    commit(tmp_path)
+    study = tmp_path/'study'
+    with pytest.raises(ValueError, match='can still be recovered') as info:
+        close_study(study, 'terminal', recorded, [committed], lost=[committed])
+    assert committed in str(info.value)
+    assert not (study/'closed.json').exists()
+
+
+def test_a_dangling_blob_still_counts_as_holding_the_content(tmp_path, repo):
+    """Unreachable is not gone: a blob can be tagged back, so it is not lost."""
+    source, recorded, blob = staged_only(tmp_path)
+    commit(tmp_path, 'the pinned revision was never committed')
+    assert git(tmp_path, 'cat-file', '-e', blob) == ''
+    study = tmp_path/'study'
+    with pytest.raises(ValueError, match='can still be recovered'):
+        close_study(study, 'terminal', recorded, [str(source)], lost=[str(source)])
+
+
+def test_content_that_exists_nowhere_closes_as_lost_and_verifies(tmp_path, repo):
+    """A study whose input is gone says so, instead of carrying a pin nobody checks."""
+    gone = tmp_path/'vanished.bin'
+    gone.write_bytes(b'content that is never committed nor staged')
+    recorded = {str(gone): digest(gone)}
+    kept = tmp_path/'kept.bin'
+    kept.write_bytes(b'still here')
+    recorded[str(kept)] = digest(kept)
+    # Overwritten before the only commit, so git never sees the recorded content.
+    gone.write_bytes(b'replaced, and the recorded content exists in no object')
+    commit(tmp_path)
+    record = close_study(study := tmp_path/'study', 'inputs lost', recorded,
+                         [str(gone)], lost=[str(gone)])
+    assert record['lost_paths'] == [str(gone)]
+    assert str(gone) in record['released_paths']
+    verify_closed(study, recorded)
+
+
+def test_a_lost_path_must_also_be_released(tmp_path, repo):
+    recorded = pinned(tmp_path)
+    released, other, _ = recorded
+    # The content must be genuinely absent, or the recoverability check fires first
+    # and the test would pass on a message that names the path for another reason.
+    Path(other).write_bytes(b'overwritten before the only commit')
+    commit(tmp_path)
+    with pytest.raises(ValueError, match='does not release') as info:
+        close_study(tmp_path/'study', 'terminal', recorded, [released], lost=[other])
+    assert other in str(info.value)
+    assert not (tmp_path/'study'/'closed.json').exists()
+
+
+def test_reclosing_must_restate_the_lost_paths(tmp_path, repo):
+    gone = tmp_path/'vanished.bin'
+    gone.write_bytes(b'unique content, never committed')
+    recorded = {str(gone): digest(gone)}
+    gone.write_bytes(b'different now')   # before the commit, so nothing holds the pin
+    commit(tmp_path)
+    study = tmp_path/'study'
+    first = close_study(study, 'inputs lost', recorded, [str(gone)], lost=[str(gone)])
+    assert close_study(study, 'inputs lost', recorded, [str(gone)], lost=[str(gone)]) == first
+    with pytest.raises(ValueError, match='lost_paths'):
+        close_study(study, 'inputs lost', recorded, [str(gone)])
+
+
 # Each of these once called validate_prospective_points.protocol(), which gates
 # the unrelated v2 study: it failed them when v2 drifted and verified nothing
 # they actually read. Comments are stripped so a line explaining history passes.
@@ -476,7 +542,10 @@ def test_train_points_v6_first_run_has_nothing_to_pin_yet(tmp_path):
         verify_frozen_reference(frozen, record)
 
 
-PIN_KEYS = ('source_hashes', 'source_sha256')
+# input_hashes is where the expanded_points manifests record their data inputs.
+# It went unchecked until 2026-11-12, so 8,206 pins across two manifests had never
+# been verified; three had drifted, which closing expanded_points_v4 accounted for.
+PIN_KEYS = ('source_hashes', 'source_sha256', 'input_hashes')
 
 
 def study_records():
@@ -518,4 +587,6 @@ def test_no_study_record_pins_source_content_the_tree_no_longer_holds():
         '\nEither restore the pinned content, or -- if the study is terminal -- close it with '
         'src.study_provenance.close_study(directory, reason, recorded, released, commit=<the '
         'newest commit holding those digests>), which releases exactly those paths from live '
-        'verification. A study that can still be rerun must not be closed.')
+        'verification. Content that exists in no commit and no blob is declared with '
+        'lost=[...] instead, which close_study proves before accepting. A study that can '
+        'still be rerun must not be closed.')

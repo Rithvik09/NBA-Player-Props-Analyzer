@@ -91,6 +91,34 @@ def verify_released_blobs(recorded, blobs):
                          +', '.join(unprotected)+'. Tag it, e.g. git tag provenance/<study>-<path> <blob>')
 
 
+def content_exists(sha256):
+    """Whether any object in this repository holds that content, reachable or not.
+
+    A path may be declared lost only when nothing holds its recorded content, so
+    this is the check that keeps `lost` from laundering an ordinary stale pin into
+    a closed one. Unreachable is not gone: a dangling blob can be tagged back, so
+    it counts as holding the content. The walk reads every object, which is why it
+    runs at closure time only and never on a verification path.
+    """
+    listing = _git('cat-file', '--batch-all-objects',
+                   '--batch-check=%(objectname) %(objecttype) %(objectsize)').decode()
+    blobs = [line.split()[0] for line in listing.splitlines()
+             if line.strip() and line.split()[1] == 'blob']
+    if not blobs:
+        return False
+    data = subprocess.run(('git', 'cat-file', '--batch'), cwd=ROOT,
+                          input=('\n'.join(blobs)+'\n').encode(),
+                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout
+    at = 0
+    for _ in blobs:
+        end = data.index(b'\n', at)
+        size = int(data[at:end].split()[2])
+        if hashlib.sha256(data[end+1:end+1+size]).hexdigest() == sha256:
+            return True
+        at = end+1+size+1
+    return False
+
+
 def _resolve_commit(commit):
     """The full sha a revision names, or None when the repository has no such commit."""
     try:
@@ -99,7 +127,7 @@ def _resolve_commit(commit):
         return None
 
 
-def _already_closed(path, reason, recorded, released, commit, blobs):
+def _already_closed(path, reason, recorded, released, commit, blobs, lost=()):
     """Read the record a previous close wrote, once the caller's claim is shown to agree.
 
     Nothing about the world is re-checked. Unreleased sources were live-verified at
@@ -116,7 +144,8 @@ def _already_closed(path, reason, recorded, released, commit, blobs):
         ('reason', reason, closed['reason']),
         ('source_hashes_at_close', dict(recorded), closed['source_hashes_at_close']),
         ('released_paths', sorted(released), closed['released_paths']),
-        ('released_blobs', blobs, closed.get('released_blobs') or {}))
+        ('released_blobs', blobs, closed.get('released_blobs') or {}),
+        ('lost_paths', sorted(lost), closed.get('lost_paths') or []))
         if claim != stored]
     # commit=None asks for whatever HEAD is rather than naming one, so it cannot
     # disagree; only an explicitly named commit is a claim about which commit.
@@ -128,7 +157,7 @@ def _already_closed(path, reason, recorded, released, commit, blobs):
     return closed
 
 
-def close_study(directory, reason, recorded, released, commit=None, blobs=None):
+def close_study(directory, reason, recorded, released, commit=None, blobs=None, lost=None):
     """Record once that a study is closed, its sources at closure, and which may move on.
 
     The commit named must hold exactly what `recorded` claims for every released
@@ -143,6 +172,7 @@ def close_study(directory, reason, recorded, released, commit=None, blobs=None):
     """
     path = Path(directory)/'closed.json'
     blobs = dict(blobs or {})
+    lost = set(lost or ())
     stale = set(released)-set(recorded)
     if stale:
         raise ValueError('Cannot release paths the protocol never pinned: '+', '.join(sorted(stale)))
@@ -150,10 +180,19 @@ def close_study(directory, reason, recorded, released, commit=None, blobs=None):
     if unreleased_blobs:
         raise ValueError('Cannot evidence by blob a path the closure does not release: '
                          +', '.join(sorted(unreleased_blobs)))
+    unreleased_lost = lost-set(released)
+    if unreleased_lost:
+        raise ValueError('Cannot declare lost a path the closure does not release: '
+                         +', '.join(sorted(unreleased_lost)))
     if path.exists():
-        return _already_closed(path, reason, recorded, released, commit, blobs)
+        return _already_closed(path, reason, recorded, released, commit, blobs, lost)
+    recoverable = sorted(p for p in lost if content_exists(recorded[p]))
+    if recoverable:
+        raise ValueError('Declared lost, but the recorded content can still be recovered from '
+                         'this repository: '+', '.join(recoverable)+'. Evidence it by commit or '
+                         'blob instead, or tag the blob that holds it.')
     verify_released_blobs(recorded, blobs)
-    at_commit = [p for p in released if p not in blobs]
+    at_commit = [p for p in released if p not in blobs and p not in lost]
     resolved = _resolve_commit(commit or 'HEAD')
     if resolved is None and (at_commit or commit is not None):
         raise ValueError(f'Cannot resolve {commit or "HEAD"} under {ROOT}; '
@@ -168,10 +207,12 @@ def close_study(directory, reason, recorded, released, commit=None, blobs=None):
               'released_paths': sorted(released)}
     if blobs:  # Only the records that need it carry the key; a closure is never rewritten.
         record['released_blobs'] = {p: blobs[p] for p in sorted(blobs)}
+    if lost:  # Stated outright: this study's inputs can no longer be reproduced.
+        record['lost_paths'] = sorted(lost)
     try:
         save_new(path, record)
     except FileExistsError:  # Lost a race to another closer; that record is the one.
-        return _already_closed(path, reason, recorded, released, commit, blobs)
+        return _already_closed(path, reason, recorded, released, commit, blobs, lost)
     return record
 
 
