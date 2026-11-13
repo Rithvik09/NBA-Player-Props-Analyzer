@@ -135,3 +135,116 @@ def test_negative_official_pie_is_preserved_as_signed_ratio():
     assert SPECS['pie'].units=='signed ratio'
     assert values['pie']==pytest.approx(-.286)
     assert 'pie' not in gaps
+
+
+def audited(path, season, policy, dates):
+    """A minimal audited matrix in the shape load_expanded consumes."""
+    import joblib
+    import numpy as np, pandas as pd
+    dates = np.array(dates, dtype=object); rows = len(dates)
+    joblib.dump({'X': pd.DataFrame({'f': np.arange(rows, dtype=float)}),
+                 'feature_policy': policy, 'y': np.arange(rows) % 2, 'dates': dates,
+                 'games': np.array([f'{season}-g{i}' for i in range(rows)], dtype=object),
+                 'players': np.arange(rows), 'original_cohort': np.ones(rows, dtype=bool)},
+                path/f'audited_{season}.joblib')
+
+
+def test_training_loads_every_audited_season_present_not_a_fixed_list(tmp_path):
+    """dataset_sha256 globs this directory, so a hardcoded load could train on four
+    seasons while the provenance named five -- or drop a newly built one silently."""
+    from scripts.train_expanded_points import load_expanded
+    from src.audited_features import POLICY_VERSION
+    audited(tmp_path, '2024-25', POLICY_VERSION, ['2025-01-01'])
+    audited(tmp_path, '2025-26', POLICY_VERSION, ['2026-01-01'])
+    audited(tmp_path, '2026-27', POLICY_VERSION, ['2026-11-01'])
+    data = load_expanded(tmp_path)
+    assert data['seasons'] == ['2024-25', '2025-26', '2026-27']
+    assert len(data['y']) == 3, 'the live season must not be silently dropped'
+    assert [f'audited_{x}.joblib' for x in data['seasons']] == \
+        sorted(q.name for q in tmp_path.glob('audited_*.joblib')), \
+        'what is loaded must equal what dataset_sha256 records'
+
+
+def test_training_rows_stay_date_ordered_across_seasons(tmp_path):
+    """Interleaved deliberately: seasons whose filename order already matches their
+    date order pass with no sort at all, which is how a weaker version of this test
+    let an unsorted load through."""
+    from scripts.train_expanded_points import load_expanded
+    from src.audited_features import POLICY_VERSION
+    audited(tmp_path, '2024-25', POLICY_VERSION, ['2025-01-01', '2025-03-01'])
+    audited(tmp_path, '2025-26', POLICY_VERSION, ['2025-02-01'])
+    data = load_expanded(tmp_path)
+    assert list(data['dates']) == ['2025-01-01', '2025-02-01', '2025-03-01']
+    # A sorted date column with an unsorted payload is worse than no sort, so check
+    # a column that identifies the row it came from.
+    assert list(data['games']) == ['2024-25-g0', '2025-26-g0', '2024-25-g1']
+
+
+def test_training_refuses_a_directory_with_no_audited_matrices(tmp_path):
+    from scripts.train_expanded_points import load_expanded
+    with pytest.raises(ValueError, match='[Nn]o audited'):load_expanded(tmp_path)
+
+
+def test_training_still_refuses_mixed_feature_policies(tmp_path):
+    from scripts.train_expanded_points import load_expanded
+    from src.audited_features import POLICY_VERSION
+    audited(tmp_path, '2024-25', POLICY_VERSION, ['2025-01-01'])
+    audited(tmp_path, '2025-26', 'point_in_time_v4', ['2026-01-01'])
+    with pytest.raises(ValueError, match='Mixed feature policies'):load_expanded(tmp_path)
+
+
+def test_the_expanded_builder_stays_byte_identical_to_what_the_studies_pin():
+    """The wrapper exists so this holds. expanded_points_v4 is closed, so a drifted
+    pin on the builder could not be accounted for; editing it is the thing to avoid."""
+    import json
+    from pathlib import Path as P
+    from src.prospective_points import digest
+    builder = 'scripts/build_expanded_points.py'
+    pinned = {}
+    for study in ('expanded_points_v4', 'expanded_points_v6'):
+        record = P('logs')/study/'manifest.json'
+        if record.exists():
+            pins = json.loads(record.read_text()).get('input_hashes') or {}
+            if builder in pins:
+                pinned[study] = pins[builder]
+    assert pinned, 'expected at least one study to pin the builder'
+    for study, sha in pinned.items():
+        assert digest(builder) == sha, (
+            f'{builder} no longer matches the content {study} recorded. Build extra '
+            'seasons through scripts/build_expanded_season.py instead of editing it.')
+
+
+def test_the_season_wrapper_points_the_builder_at_a_list_then_restores_it():
+    from scripts import build_expanded_points as builder, build_expanded_season as wrapper
+    default = list(builder.SEASONS)
+    with wrapper.seasons(default+['2026-27']) as used:
+        assert builder.SEASONS == used == default+['2026-27']
+    assert builder.SEASONS == default, 'the default must come back'
+
+
+def test_the_season_wrapper_restores_the_default_after_a_failure():
+    from scripts import build_expanded_points as builder, build_expanded_season as wrapper
+    default = list(builder.SEASONS)
+    with pytest.raises(RuntimeError):
+        with wrapper.seasons(['2026-27']):
+            raise RuntimeError('build blew up')
+    assert builder.SEASONS == default
+
+
+def test_the_season_wrapper_refuses_an_empty_or_repeated_list():
+    from scripts import build_expanded_season as wrapper
+    with pytest.raises(ValueError, match='No seasons'):
+        with wrapper.seasons([]):pass
+    with pytest.raises(ValueError, match='twice'):
+        with wrapper.seasons(['2026-27', '2026-27']):pass
+
+
+def test_the_wrapper_gives_the_builder_the_list_at_call_time(monkeypatch):
+    """run() reads SEASONS inside its body, which is why setting it works at all."""
+    from scripts import build_expanded_points as builder, build_expanded_season as wrapper
+    seen = {}
+    monkeypatch.setattr(builder, 'run', lambda output, workers: seen.update(
+        seasons=list(builder.SEASONS), output=str(output), workers=workers))
+    used = wrapper.run('out', 3, ['2025-26', '2026-27'])
+    assert seen['seasons'] == ['2025-26', '2026-27'] == used
+    assert seen['workers'] == 3

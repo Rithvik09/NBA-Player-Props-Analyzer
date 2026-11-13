@@ -19,9 +19,20 @@ from scripts.points_pilot import metrics,bootstrap,model_hashes
 
 
 def load_expanded(directory):
-    parts=[joblib.load(directory/f'audited_{s}.joblib') for s in ['2022-23','2023-24','2024-25','2025-26']]
+    """Load every audited matrix in the directory, and say which those were.
+
+    The season list was hardcoded here while dataset_sha256 globs this same
+    directory, so the two could disagree in both directions: a season present but
+    off the list was recorded as an input the model never saw, and a newly built
+    season was dropped while the run reported success. Deriving the load from the
+    directory makes the manifest and the training set agree by construction.
+    """
+    paths=sorted(directory.glob('audited_*.joblib'))
+    if not paths:raise ValueError(f'No audited matrices under {directory}')
+    seasons=[p.name[len('audited_'):-len('.joblib')] for p in paths]
+    parts=[joblib.load(p) for p in paths]
     if any(p['feature_policy']!=POLICY_VERSION for p in parts):raise ValueError('Mixed feature policies')
-    data={'X':pd.concat([p['X'] for p in parts],ignore_index=True)}
+    data={'X':pd.concat([p['X'] for p in parts],ignore_index=True),'seasons':seasons}
     for k in ['y','dates','games','players','original_cohort']:data[k]=np.concatenate([p[k] for p in parts])
     order=np.argsort(data['dates'],kind='stable');data['X']=data['X'].iloc[order].reset_index(drop=True)
     for k in ['y','dates','games','players','original_cohort']:data[k]=data[k][order]
@@ -139,6 +150,7 @@ def run(directory,output):
         model=ExpandedPointsCandidate(cols,r,c,cal,feature_profile=profile_name(name),regressor_columns=rc)
         path=output/f'{name}.joblib';joblib.dump(model,path);models[name]=joblib.load(path)
     manifest={**protocol,'selections':selections,'calibrations':calibrations,
+        'seasons_trained':data['seasons'],
         'dataset_sha256':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in directory.glob('audited_*.joblib')},
         'source_sha256':{str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in [Path(__file__),Path('scripts/train_selected_points.py'),Path('src/verified_training.py'),Path('src/points_candidate.py'),Path('src/recovered_features.py'),Path('src/audited_features.py')]}}
     # Final outcomes accessed for scoring only after every selection is frozen.
