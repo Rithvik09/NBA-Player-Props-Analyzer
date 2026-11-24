@@ -32,8 +32,14 @@ For a custom-format database backup, restore into a NEW empty database:
 
 ```sh
 createdb nba_props_restored
-pg_restore --no-owner --no-privileges --dbname=nba_props_restored /path/to/nba_props.dump
+pg_restore --no-owner --no-privileges --dbname=nba_props_restored /path/to/nba_props_pg14.dump
 ```
+
+The private backup includes `nba_props_pg14.dump`, created with PostgreSQL 14 tools.
+Use matching PostgreSQL 14 tools when restoring to version 14. A PostgreSQL 18
+client dump (`nba_props.dump`, also retained) contains a transaction_timeout setting
+that PostgreSQL 14 rejects; use the pg14 dump instead. On the original Mac the
+matching tools are in `/opt/homebrew/opt/postgresql@14/bin/`.
 
 Point DATABASE_URL to that restored database. Do not run test schema resets on it.
 The old `basketball_data.db` is retained evidence, not the PostgreSQL app database.
